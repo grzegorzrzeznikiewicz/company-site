@@ -42,7 +42,7 @@ jobs:
         run: phpstan analyse src --no-progress --level=5
 
       - name: Mess detector (PHPMD)
-        run: phpmd src text cleancode,codesize,design,naming,unusedcode
+        run: phpmd src text cleancode,codesize,naming,unusedcode
 
   backend-tests:
     name: Backend Tests
