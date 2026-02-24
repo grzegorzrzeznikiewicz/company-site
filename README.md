@@ -139,6 +139,12 @@ Push do brancha `main` automatycznie deployuje na produkcję.
 W trybie produkcyjnym VM2 nie buduje już aplikacji z lokalnego repo. Workflow buduje obraz Docker, publikuje go do GHCR i VM2 wykonuje tylko `pull + up` po tagu commita.
 To samo dotyczy backendu Symfony API (`company-site-backend`) - jest publikowany jako osobny obraz i wdrażany na VM2 jako usługa `company-api`.
 
+### Rollback (1 klik)
+
+Dostępny jest ręczny workflow `.github/workflows/rollback.yml`.
+Uruchamiasz go z `Actions -> Rollback Production -> Run workflow` i podajesz `image_tag` (np. `sha-...`).
+Workflow cofa jednocześnie frontend i backend do wskazanego taga obrazu.
+
 Wymagane sekrety GitHub Actions:
 
 - `SERVER_HOST`
