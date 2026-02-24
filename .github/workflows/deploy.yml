@@ -48,6 +48,8 @@ jobs:
           context: .
           file: build/Dockerfile
           push: true
+          cache-from: type=gha,scope=company-site-frontend
+          cache-to: type=gha,mode=max,scope=company-site-frontend
           tags: |
             ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
             ${{ steps.image.outputs.frontend_image_repo }}:main-latest
@@ -58,6 +60,8 @@ jobs:
           context: backend
           file: backend/Dockerfile.prod
           push: true
+          cache-from: type=gha,scope=company-site-backend
+          cache-to: type=gha,mode=max,scope=company-site-backend
           tags: |
             ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
             ${{ steps.image.outputs.backend_image_repo }}:main-latest

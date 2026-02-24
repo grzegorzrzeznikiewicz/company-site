@@ -148,6 +148,8 @@ Wymagane sekrety GitHub Actions:
 - `GHCR_USERNAME` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
 - `GHCR_TOKEN` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
 
+Nawet dla publicznych obrazów warto ustawić `GHCR_USERNAME`/`GHCR_TOKEN`, bo pull na serwerze bywa wtedy szybszy i bardziej stabilny (mniej ryzyka limitów anonimowych).
+
 ### SMTP i sekrety backendu na VM2
 
 Sekrety backendu Symfony (w tym `MAILER_DSN`) ustawiaj w `/srv/magento-devops/vm2/.env` na serwerze VM2.
