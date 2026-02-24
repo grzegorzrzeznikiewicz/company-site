@@ -136,6 +136,17 @@ Projekt jest skonfigurowany dla automatycznych deploymentów przez:
 
 Push do brancha `main` automatycznie deployuje na produkcję.
 
+W trybie produkcyjnym VM2 nie buduje już aplikacji z lokalnego repo. Workflow buduje obraz Docker, publikuje go do GHCR i VM2 wykonuje tylko `pull + up` po tagu commita.
+
+Wymagane sekrety GitHub Actions:
+
+- `SERVER_HOST`
+- `SERVER_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_PORT`
+- `GHCR_USERNAME` (konto z prawem `read:packages`)
+- `GHCR_TOKEN` (token z prawem `read:packages`)
+
 ## Struktura Projektu
 
 ```
