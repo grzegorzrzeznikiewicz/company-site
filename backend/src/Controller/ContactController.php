@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Dto\ContactRequest;
-use JsonException;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -34,7 +33,7 @@ class ContactController extends AbstractController
 
         try {
             $payload = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
+        } catch (\JsonException) {
             return $this->json([
                 'message' => 'Nieprawidłowy format żądania.',
             ], Response::HTTP_BAD_REQUEST);
