@@ -8,6 +8,8 @@ import { Textarea } from './components/ui/textarea';
 import { Label } from './components/ui/label';
 import { motion } from 'motion/react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -15,6 +17,9 @@ function App() {
     email: '',
     phone: '',
     message: ''
+  });
+  const [formStatus, setFormStatus] = useState<{ state: 'idle' | 'loading' | 'success' | 'error'; message?: string }>({
+    state: 'idle'
   });
 
   const scrollToSection = (id: string) => {
@@ -25,11 +30,42 @@ function App() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock form submission
-    alert('Dziękujemy za wiadomość! Skontaktujemy się z Tobą wkrótce.');
-    setFormData({ name: '', email: '', phone: '', message: '' });
+    setFormStatus({ state: 'loading' });
+
+    const endpoint = `${API_BASE_URL.replace(/\/$/, '')}/api/contact`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const payload = await response
+        .json()
+        .catch(() => ({ message: 'Nie udało się przetworzyć odpowiedzi serwera.' }));
+
+      if (!response.ok) {
+        setFormStatus({
+          state: 'error',
+          message: payload?.message ?? 'Nie udało się wysłać wiadomości. Spróbuj ponownie.'
+        });
+        return;
+      }
+
+      setFormStatus({
+        state: 'success',
+        message: payload?.message ?? 'Dziękujemy! Wkrótce się odezwiemy.'
+      });
+      setFormData({ name: '', email: '', phone: '', message: '' });
+    } catch (error) {
+      console.error('Contact form submission failed', error);
+      setFormStatus({ state: 'error', message: 'Coś poszło nie tak. Spróbuj ponownie później.' });
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -522,14 +558,25 @@ function App() {
                   className="mt-1"
                 />
               </div>
-              <div className="text-center pt-2">
+              <div className="text-center pt-2 space-y-3">
                 <Button 
                   type="submit"
                   size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={formStatus.state === 'loading'}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Wyślij wiadomość
+                  {formStatus.state === 'loading' ? 'Wysyłanie...' : 'Wyślij wiadomość'}
                 </Button>
+                {formStatus.state === 'success' && (
+                  <p className="text-green-600 text-sm" aria-live="polite">
+                    {formStatus.message}
+                  </p>
+                )}
+                {formStatus.state === 'error' && (
+                  <p className="text-red-600 text-sm" aria-live="polite">
+                    {formStatus.message}
+                  </p>
+                )}
               </div>
             </form>
           </motion.div>
