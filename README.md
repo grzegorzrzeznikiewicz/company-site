@@ -137,6 +137,7 @@ Projekt jest skonfigurowany dla automatycznych deploymentów przez:
 Push do brancha `main` automatycznie deployuje na produkcję.
 
 W trybie produkcyjnym VM2 nie buduje już aplikacji z lokalnego repo. Workflow buduje obraz Docker, publikuje go do GHCR i VM2 wykonuje tylko `pull + up` po tagu commita.
+To samo dotyczy backendu Symfony API (`company-site-backend`) - jest publikowany jako osobny obraz i wdrażany na VM2 jako usługa `company-api`.
 
 Wymagane sekrety GitHub Actions:
 
@@ -146,6 +147,18 @@ Wymagane sekrety GitHub Actions:
 - `SSH_PORT`
 - `GHCR_USERNAME` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
 - `GHCR_TOKEN` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
+
+### SMTP i sekrety backendu na VM2
+
+Sekrety backendu Symfony (w tym `MAILER_DSN`) ustawiaj w `/srv/magento-devops/vm2/.env` na serwerze VM2.
+Najważniejsze zmienne:
+
+- `MAILER_DSN`
+- `CONTACT_RECIPIENT`
+- `CONTACT_SENDER`
+- `COMPANY_API_APP_SECRET`
+- `COMPANY_DB_PASSWORD`
+- `ADMIN_PASSWORD_HASH`
 
 ## Struktura Projektu
 
