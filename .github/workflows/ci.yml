@@ -36,7 +36,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: PHP coding standards (PSR-12 + Symfony)
-        run: php-cs-fixer fix src config --dry-run --diff --using-cache=no --rules='@PSR12,@Symfony'
+        run: php-cs-fixer fix --dry-run --diff --using-cache=no --config=.php-cs-fixer.dist.php
 
       - name: Static analysis (PHPStan)
         run: phpstan analyse src --no-progress --level=5
