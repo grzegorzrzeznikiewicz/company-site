@@ -144,8 +144,8 @@ Wymagane sekrety GitHub Actions:
 - `SERVER_USER`
 - `SSH_PRIVATE_KEY`
 - `SSH_PORT`
-- `GHCR_USERNAME` (konto z prawem `read:packages`)
-- `GHCR_TOKEN` (token z prawem `read:packages`)
+- `GHCR_USERNAME` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
+- `GHCR_TOKEN` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
 
 ## Struktura Projektu
 

@@ -65,12 +65,12 @@ jobs:
             set -euo pipefail
             cd /srv/magento-devops
 
-            if [ -z "${GHCR_USERNAME:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
-              echo "Missing GHCR credentials (GHCR_USERNAME / GHCR_TOKEN)."
-              exit 1
+            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            else
+              echo "GHCR credentials not provided. Trying anonymous pull..."
             fi
 
-            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             sudo docker pull "$APP_IMAGE"
             sudo env PERSONAL_APP_IMAGE="$APP_IMAGE" docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build personal-site
 
