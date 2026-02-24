@@ -1,0 +1,103 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{% block page_title %}Panel administracyjny{% endblock %} · {{ app_name|default('Gama Software') }}{% endblock %}
+
+{% block stylesheets %}
+<style>
+  :root {
+    color-scheme: light dark;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --bg: #0f172a;
+    --card: #1e293b;
+    --muted: #94a3b8;
+    --accent: #3b82f6;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.25), transparent 40%), var(--bg);
+    color: #e2e8f0;
+  }
+  header {
+    padding: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 2rem 3rem;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 1.5rem;
+    box-shadow: 0 15px 35px rgba(15,23,42,0.35);
+    border: 1px solid rgba(148,163,184,0.15);
+  }
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+  }
+  .card p {
+    margin: 0 0 1rem;
+    color: var(--muted);
+  }
+  .card span {
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+  .roadmap {
+    margin-top: 3rem;
+    padding: 1.5rem;
+    border-radius: 18px;
+    background: linear-gradient(120deg, rgba(59,130,246,0.18), rgba(14,116,144,0.25));
+    border: 1px solid rgba(59,130,246,0.35);
+  }
+  .roadmap ul {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+  }
+  .roadmap li {
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(148,163,184,0.15);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<header>
+  <div>
+    <div class="badge">Panel administracyjny</div>
+    <h1>{{ app_name|default('Gama Software') }}</h1>
+  </div>
+  <div class="badge">Symfony 8 · Twig</div>
+</header>
+<main>
+  {% block admin_content %}{% endblock %}
+</main>
+{% endblock %}
