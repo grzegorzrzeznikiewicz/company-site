@@ -35,12 +35,10 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /var/www/gama-software
-            git pull origin main
-            docker-compose -f build/docker-compose.yml down
-            docker-compose -f build/docker-compose.yml build --no-cache
-            docker-compose -f build/docker-compose.yml up -d
-            docker system prune -f
+            set -euo pipefail
+            cd /srv/magento-devops
+            ./scripts/sync-company-site.sh
+            sudo docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --build personal-site
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -50,8 +48,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /var/www/gama-software
-            docker-compose -f build/docker-compose.yml ps
+            set -euo pipefail
+            sudo docker ps --filter name=vm2_personal_site --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
 
       - name: Notify success
         if: success()
