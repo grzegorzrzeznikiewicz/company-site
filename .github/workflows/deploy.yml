@@ -74,6 +74,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          command_timeout: 40m
           envs: APP_IMAGE,API_IMAGE,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -euo pipefail
