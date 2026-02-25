@@ -71,6 +71,12 @@ jobs:
         env:
           APP_IMAGE: ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
           API_IMAGE: ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
+          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
+          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
+          COMPANY_API_APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
+          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         with:
@@ -79,7 +85,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 40m
-          envs: APP_IMAGE,API_IMAGE,GHCR_USERNAME,GHCR_TOKEN
+          envs: APP_IMAGE,API_IMAGE,MAILER_DSN,CONTACT_RECIPIENT,CONTACT_SENDER,COMPANY_API_APP_SECRET,COMPANY_DB_PASSWORD,ADMIN_PASSWORD_HASH,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -euo pipefail
             cd /srv/magento-devops
@@ -92,7 +98,16 @@ jobs:
 
             sudo docker pull "$APP_IMAGE"
             sudo docker pull "$API_IMAGE"
-            sudo env PERSONAL_APP_IMAGE="$APP_IMAGE" COMPANY_API_IMAGE="$API_IMAGE" docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-db company-api personal-site
+            sudo env \
+              PERSONAL_APP_IMAGE="$APP_IMAGE" \
+              COMPANY_API_IMAGE="$API_IMAGE" \
+              MAILER_DSN="${MAILER_DSN:-}" \
+              CONTACT_RECIPIENT="${CONTACT_RECIPIENT:-}" \
+              CONTACT_SENDER="${CONTACT_SENDER:-}" \
+              COMPANY_API_APP_SECRET="${COMPANY_API_APP_SECRET:-}" \
+              COMPANY_DB_PASSWORD="${COMPANY_DB_PASSWORD:-}" \
+              ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH:-}" \
+              docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-db company-api personal-site
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3

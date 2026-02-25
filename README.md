@@ -153,12 +153,18 @@ Wymagane sekrety GitHub Actions:
 - `SSH_PORT`
 - `GHCR_USERNAME` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
 - `GHCR_TOKEN` (opcjonalnie; wymagane tylko gdy obraz GHCR jest prywatny)
+- `PROD_MAILER_DSN`
+- `PROD_CONTACT_RECIPIENT`
+- `PROD_CONTACT_SENDER`
+- `PROD_COMPANY_API_APP_SECRET`
+- `PROD_COMPANY_DB_PASSWORD`
+- `PROD_ADMIN_PASSWORD_HASH`
 
 Nawet dla publicznych obrazów warto ustawić `GHCR_USERNAME`/`GHCR_TOKEN`, bo pull na serwerze bywa wtedy szybszy i bardziej stabilny (mniej ryzyka limitów anonimowych).
 
 ### SMTP i sekrety backendu na VM2
 
-Sekrety backendu Symfony (w tym `MAILER_DSN`) ustawiaj w `/srv/magento-devops/vm2/.env` na serwerze VM2.
+Sekrety backendu Symfony (w tym `MAILER_DSN`) są wstrzykiwane z GitHub Secrets podczas deploy/rollback i nadpisują wartości z `vm2/.env`.
 Najważniejsze zmienne:
 
 - `MAILER_DSN`
