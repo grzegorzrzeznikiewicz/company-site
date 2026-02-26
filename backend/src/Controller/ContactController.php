@@ -9,7 +9,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\Exception\ExceptionInterface as MailerExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Routing\Attribute\Route;
@@ -65,7 +65,7 @@ class ContactController extends AbstractController
 
         try {
             $mailer->send($email);
-        } catch (TransportExceptionInterface $exception) {
+        } catch (MailerExceptionInterface $exception) {
             $logger->error('Nie udało się wysłać wiadomości kontaktowej', [
                 'exception' => $exception,
             ]);
