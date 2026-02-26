@@ -62,12 +62,7 @@ jobs:
             sudo docker pull "$APP_IMAGE"
             sudo docker pull "$API_IMAGE"
             RAW_DB_PASSWORD="${COMPANY_DB_PASSWORD:-}"
-            ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$RAW_DB_PASSWORD" python3 - <<'PY'
-import os
-import urllib.parse
-print(urllib.parse.quote(os.environ.get("RAW_DB_PASSWORD", ""), safe=""))
-PY
-            )"
+            ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$RAW_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("RAW_DB_PASSWORD", ""), safe=""))')"
 
             sudo env \
               PERSONAL_APP_IMAGE="$APP_IMAGE" \
