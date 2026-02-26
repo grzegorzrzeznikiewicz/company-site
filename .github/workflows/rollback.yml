@@ -63,6 +63,8 @@ jobs:
             sudo docker pull "$API_IMAGE"
             RAW_DB_PASSWORD="${COMPANY_DB_PASSWORD:-}"
             ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$RAW_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("RAW_DB_PASSWORD", ""), safe=""))')"
+            NORMALIZED_MAILER_DSN="${MAILER_DSN:-}"
+            NORMALIZED_MAILER_DSN="${NORMALIZED_MAILER_DSN#MAILER_DSN=}"
 
             sudo env \
               PERSONAL_APP_IMAGE="$APP_IMAGE" \
@@ -73,7 +75,7 @@ jobs:
             sudo env \
               PERSONAL_APP_IMAGE="$APP_IMAGE" \
               COMPANY_API_IMAGE="$API_IMAGE" \
-              MAILER_DSN="${MAILER_DSN:-}" \
+              MAILER_DSN="${NORMALIZED_MAILER_DSN}" \
               CONTACT_RECIPIENT="${CONTACT_RECIPIENT:-}" \
               CONTACT_SENDER="${CONTACT_SENDER:-}" \
               COMPANY_API_APP_SECRET="${COMPANY_API_APP_SECRET:-}" \
