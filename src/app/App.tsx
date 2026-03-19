@@ -1,14 +1,37 @@
 import { useState } from 'react';
 import logo from '../assets/606550a668ee67574ee51adad0d7a231ffcce05b.png';
-import { Menu, X, ShoppingCart, MessageCircle, Bot, Package, Mail, Phone, MapPin, Send } from 'lucide-react';
+import logoOptimized from '../assets/logo-256.webp';
+import logoOptimizedLarge from '../assets/logo-512.webp';
+import { Menu, X, ShoppingCart, MessageCircle, Bot, Package } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Input } from './components/ui/input';
 import { Textarea } from './components/ui/textarea';
 import { Label } from './components/ui/label';
-import { motion } from 'motion/react';
+import { cn } from './components/ui/utils';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+
+type BrandLogoProps = {
+  className?: string;
+  loading?: 'eager' | 'lazy';
+  intrinsicSize?: number;
+};
+
+const BrandLogo = ({ className, loading = 'eager', intrinsicSize = 96 }: BrandLogoProps) => (
+  <picture>
+    <source srcSet={`${logoOptimized} 1x, ${logoOptimizedLarge} 2x`} type="image/webp" />
+    <img
+      src={logo}
+      alt="Gama Software"
+      width={intrinsicSize}
+      height={intrinsicSize}
+      loading={loading}
+      decoding="async"
+      className={cn('h-auto', className)}
+    />
+  </picture>
+);
 
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -75,30 +98,14 @@ function App() {
     });
   };
 
-  // Animation variants
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0 }
-  };
-
-  const staggerContainer = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
+      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50" aria-label="Główna nawigacja">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center">
-              <img src={logo} alt="Gama Software" className="h-16 md:h-20 drop-shadow-lg mix-blend-multiply" />
+              <BrandLogo className="w-16 md:w-20 drop-shadow-lg mix-blend-multiply" intrinsicSize={80} />
             </div>
 
             {/* Desktop Navigation */}
@@ -140,6 +147,9 @@ function App() {
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="text-gray-700 hover:text-blue-600"
+                aria-label={mobileMenuOpen ? 'Zamknij menu nawigacji' : 'Otwórz menu nawigacji'}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-navigation"
               >
                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
@@ -149,7 +159,7 @@ function App() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 bg-white">
+          <div className="md:hidden border-t border-gray-200 bg-white" id="mobile-navigation">
             <div className="px-4 pt-2 pb-3 space-y-1">
               <button 
                 onClick={() => scrollToSection('home')}
@@ -186,53 +196,34 @@ function App() {
         )}
       </nav>
 
-      {/* Hero Section */}
-      <section id="home" className="pt-32 pb-20 px-4">
-        <motion.div 
-          className="max-w-7xl mx-auto text-center"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.3 }}
-          variants={fadeInUp}
-          transition={{ duration: 0.6 }}
-        >
-          <h1 className="text-5xl md:text-6xl mb-6 text-gray-900">
-            Gama Software
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu agentów AI dla Twojego biznesu
-          </p>
-          <Button 
-            size="lg"
-            onClick={() => scrollToSection('services')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg"
-          >
-            Poznaj nasze usługi
-          </Button>
-        </motion.div>
-      </section>
+      <main id="main-content" className="pt-32">
+        {/* Hero Section */}
+        <section id="home" className="pb-20 px-4">
+          <div className="max-w-7xl mx-auto text-center">
+            <h1 className="text-5xl md:text-6xl mb-6 text-gray-900">
+              Gama Software
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
+              Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu agentów AI dla Twojego biznesu
+            </p>
+            <Button
+              size="lg"
+              onClick={() => scrollToSection('services')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg"
+            >
+              Poznaj nasze usługi
+            </Button>
+          </div>
+        </section>
 
-      {/* Services Section */}
-      <section id="services" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <motion.h2 
-            className="text-4xl text-center mb-12 text-gray-900"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ duration: 0.5 }}
-          >
-            Nasze Usługi
-          </motion.h2>
-          <motion.div 
-            className="grid md:grid-cols-3 gap-8"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={staggerContainer}
-          >
-            <motion.div variants={fadeInUp} transition={{ duration: 0.5 }}>
+        {/* Services Section */}
+        <section id="services" className="py-20 px-4 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <h2 className="text-4xl text-center mb-12 text-gray-900">
+              Nasze Usługi
+            </h2>
+            <div className="grid md:grid-cols-3 gap-8">
+            <div>
               <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
                 <CardHeader>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -246,9 +237,9 @@ function App() {
                   </CardDescription>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp} transition={{ duration: 0.5 }}>
+            <div>
               <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
                 <CardHeader>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -262,9 +253,9 @@ function App() {
                   </CardDescription>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp} transition={{ duration: 0.5 }}>
+            <div>
               <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
                 <CardHeader>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -278,36 +269,23 @@ function App() {
                   </CardDescription>
                 </CardContent>
               </Card>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+            </div>
+            </div>
+          </div>
+        </section>
 
-      {/* Modules Section */}
-      <section id="modules" className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <motion.div 
-            className="text-center mb-12"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ duration: 0.5 }}
-          >
-            <h2 className="text-4xl mb-4 text-gray-900">Moduły Magento 2</h2>
-            <p className="text-xl text-gray-600">
-              Profesjonalne rozszerzenia dostępne w modelu subskrypcji
-            </p>
-          </motion.div>
+        {/* Modules Section */}
+        <section id="modules" className="py-20 px-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl mb-4 text-gray-900">Moduły Magento 2</h2>
+              <p className="text-xl text-gray-600">
+                Profesjonalne rozszerzenia dostępne w modelu subskrypcji
+              </p>
+            </div>
 
-          <motion.div 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.1 }}
-            variants={staggerContainer}
-          >
-            <motion.div variants={fadeInUp}>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -330,9 +308,9 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp}>
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -355,9 +333,9 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp}>
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -380,9 +358,9 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp}>
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -405,9 +383,9 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp}>
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -430,9 +408,9 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
-            <motion.div variants={fadeInUp}>
+            <div>
               <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -455,8 +433,8 @@ function App() {
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
           <div className="text-center mt-12">
             <p className="text-gray-600 mb-4">
@@ -468,45 +446,31 @@ function App() {
             >
               Zapisz się na listę oczekujących
             </Button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Blog Section */}
-      <section id="blog" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <h2 className="text-4xl mb-6 text-gray-900">Blog</h2>
-          <div className="bg-white rounded-lg shadow-md p-12 max-w-2xl mx-auto">
-            <div className="text-6xl mb-4">🚧</div>
-            <h3 className="text-2xl mb-4 text-gray-900">W budowie</h3>
-            <p className="text-gray-600">
-              Nasz blog jest obecnie w przygotowaniu. Wkrótce znajdziesz tutaj cenne artykuły o e-commerce, technologiach AI i najlepszych praktykach w branży.
-            </p>
+        {/* Blog Section */}
+        <section id="blog" className="py-20 px-4 bg-gray-50">
+          <div className="max-w-7xl mx-auto text-center">
+            <h2 className="text-4xl mb-6 text-gray-900">Blog</h2>
+            <div className="bg-white rounded-lg shadow-md p-12 max-w-2xl mx-auto">
+              <div className="text-6xl mb-4">🚧</div>
+              <h3 className="text-2xl mb-4 text-gray-900">W budowie</h3>
+              <p className="text-gray-600">
+                Nasz blog jest obecnie w przygotowaniu. Wkrótce znajdziesz tutaj cenne artykuły o e-commerce, technologiach AI i najlepszych praktykach w branży.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <motion.h2 
-            className="text-4xl text-center mb-6 text-gray-900"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ duration: 0.5 }}
-          >
-            Kontakt
-          </motion.h2>
-          <motion.div 
-            className="bg-white rounded-lg shadow-md p-8 md:p-12 max-w-2xl mx-auto"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
+        {/* Contact Section */}
+        <section id="contact" className="py-20 px-4">
+          <div className="max-w-7xl mx-auto">
+            <h2 className="text-4xl text-center mb-6 text-gray-900">
+              Kontakt
+            </h2>
+            <div className="bg-white rounded-lg shadow-md p-8 md:p-12 max-w-2xl mx-auto">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="text-left">
@@ -579,14 +543,15 @@ function App() {
                 )}
               </div>
             </form>
-          </motion.div>
-        </div>
-      </section>
+            </div>
+          </div>
+        </section>
+      </main>
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 px-4">
         <div className="max-w-7xl mx-auto text-center">
-          <img src={logo} alt="Gama Software" className="h-8 mx-auto mb-6 brightness-0 invert" />
+          <BrandLogo className="w-12 mx-auto mb-6 brightness-0 invert" intrinsicSize={64} loading="lazy" />
           <p className="text-gray-400 mb-4">
             © 2026 Gama Software. Wszystkie prawa zastrzeżone.
           </p>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gama-software.com/sitemap.xml
