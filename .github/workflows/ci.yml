@@ -24,6 +24,55 @@ jobs:
           tools: composer:v2, phpstan, phpmd, php-cs-fixer
           coverage: none
 
+      - name: Prepare backend env
+        shell: bash
+        run: |
+          cat > .env <<EOF
+          APP_ENV=test
+          APP_DEBUG=1
+          APP_SECRET=${APP_SECRET}
+          DATABASE_URL=${DATABASE_URL}
+          MAILER_DSN=${MAILER_DSN}
+          DEFAULT_URI=${DEFAULT_URI}
+          CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN}
+          CONTACT_RECIPIENT=${CONTACT_RECIPIENT}
+          CONTACT_SENDER=${CONTACT_SENDER}
+          ADMIN_USERNAME=${ADMIN_USERNAME}
+          ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+          EOF
+        env:
+          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
+          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
+          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
+          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
+          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
+          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
+          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
+      - name: Validate backend env inputs
+        shell: bash
+        env:
+          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
+          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
+          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
+          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
+          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
+          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
+          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
+        run: |
+          : "${APP_SECRET:?Missing GitHub secret BACKEND_APP_SECRET}"
+          : "${DATABASE_URL:?Missing GitHub secret BACKEND_DATABASE_URL}"
+          : "${MAILER_DSN:?Missing GitHub secret BACKEND_MAILER_DSN}"
+          : "${DEFAULT_URI:?Missing GitHub variable BACKEND_DEFAULT_URI}"
+          : "${CORS_ALLOW_ORIGIN:?Missing GitHub variable BACKEND_CORS_ALLOW_ORIGIN}"
+          : "${CONTACT_RECIPIENT:?Missing GitHub variable BACKEND_CONTACT_RECIPIENT}"
+          : "${CONTACT_SENDER:?Missing GitHub variable BACKEND_CONTACT_SENDER}"
+          : "${ADMIN_USERNAME:?Missing GitHub variable BACKEND_ADMIN_USERNAME}"
+          : "${ADMIN_PASSWORD_HASH:?Missing GitHub variable BACKEND_ADMIN_PASSWORD_HASH}"
+
       - name: Cache Composer dependencies
         uses: actions/cache@v4
         with:
@@ -60,6 +109,56 @@ jobs:
           php-version: '8.4'
           tools: composer:v2
           coverage: none
+
+      - name: Prepare backend env
+        shell: bash
+        run: |
+          cat > .env <<EOF
+          APP_ENV=test
+          APP_DEBUG=1
+          APP_SECRET=${APP_SECRET}
+          DATABASE_URL=${DATABASE_URL}
+          MAILER_DSN=${MAILER_DSN}
+          DEFAULT_URI=${DEFAULT_URI}
+          CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN}
+          CONTACT_RECIPIENT=${CONTACT_RECIPIENT}
+          CONTACT_SENDER=${CONTACT_SENDER}
+          ADMIN_USERNAME=${ADMIN_USERNAME}
+          ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+          EOF
+        env:
+          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
+          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
+          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
+          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
+          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
+          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
+          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
+
+      - name: Validate backend env inputs
+        shell: bash
+        env:
+          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
+          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
+          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
+          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
+          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
+          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
+          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
+        run: |
+          : "${APP_SECRET:?Missing GitHub secret BACKEND_APP_SECRET}"
+          : "${DATABASE_URL:?Missing GitHub secret BACKEND_DATABASE_URL}"
+          : "${MAILER_DSN:?Missing GitHub secret BACKEND_MAILER_DSN}"
+          : "${DEFAULT_URI:?Missing GitHub variable BACKEND_DEFAULT_URI}"
+          : "${CORS_ALLOW_ORIGIN:?Missing GitHub variable BACKEND_CORS_ALLOW_ORIGIN}"
+          : "${CONTACT_RECIPIENT:?Missing GitHub variable BACKEND_CONTACT_RECIPIENT}"
+          : "${CONTACT_SENDER:?Missing GitHub variable BACKEND_CONTACT_SENDER}"
+          : "${ADMIN_USERNAME:?Missing GitHub variable BACKEND_ADMIN_USERNAME}"
+          : "${ADMIN_PASSWORD_HASH:?Missing GitHub variable BACKEND_ADMIN_PASSWORD_HASH}"
 
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
