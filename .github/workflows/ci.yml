@@ -26,7 +26,27 @@ jobs:
 
       - name: Prepare backend env
         shell: bash
+        env:
+          APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
+          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
+          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
+          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
         run: |
+          : "${APP_SECRET:?Missing GitHub secret PROD_COMPANY_API_APP_SECRET}"
+          : "${COMPANY_DB_PASSWORD:?Missing GitHub secret PROD_COMPANY_DB_PASSWORD}"
+          : "${MAILER_DSN:?Missing GitHub secret PROD_MAILER_DSN}"
+          : "${CONTACT_RECIPIENT:?Missing GitHub secret PROD_CONTACT_RECIPIENT}"
+          : "${CONTACT_SENDER:?Missing GitHub secret PROD_CONTACT_SENDER}"
+          : "${ADMIN_PASSWORD_HASH:?Missing GitHub secret PROD_ADMIN_PASSWORD_HASH}"
+
+          ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$COMPANY_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["RAW_DB_PASSWORD"], safe=""))')"
+          DATABASE_URL="postgresql://gama_admin:${ENCODED_DB_PASSWORD}@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
+          DEFAULT_URI="http://localhost"
+          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?|https://(www\.)?gama-software\.com)$'
+          ADMIN_USERNAME="admin"
+
           cat > .env <<EOF
           APP_ENV=test
           APP_DEBUG=1
@@ -40,38 +60,6 @@ jobs:
           ADMIN_USERNAME=${ADMIN_USERNAME}
           ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
           EOF
-        env:
-          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
-          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
-          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
-          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
-          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
-          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
-          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
-          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
-      - name: Validate backend env inputs
-        shell: bash
-        env:
-          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
-          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
-          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
-          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
-          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
-          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
-          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
-          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
-        run: |
-          : "${APP_SECRET:?Missing GitHub secret BACKEND_APP_SECRET}"
-          : "${DATABASE_URL:?Missing GitHub secret BACKEND_DATABASE_URL}"
-          : "${MAILER_DSN:?Missing GitHub secret BACKEND_MAILER_DSN}"
-          : "${DEFAULT_URI:?Missing GitHub variable BACKEND_DEFAULT_URI}"
-          : "${CORS_ALLOW_ORIGIN:?Missing GitHub variable BACKEND_CORS_ALLOW_ORIGIN}"
-          : "${CONTACT_RECIPIENT:?Missing GitHub variable BACKEND_CONTACT_RECIPIENT}"
-          : "${CONTACT_SENDER:?Missing GitHub variable BACKEND_CONTACT_SENDER}"
-          : "${ADMIN_USERNAME:?Missing GitHub variable BACKEND_ADMIN_USERNAME}"
-          : "${ADMIN_PASSWORD_HASH:?Missing GitHub variable BACKEND_ADMIN_PASSWORD_HASH}"
 
       - name: Cache Composer dependencies
         uses: actions/cache@v4
@@ -112,7 +100,27 @@ jobs:
 
       - name: Prepare backend env
         shell: bash
+        env:
+          APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
+          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
+          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
+          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
         run: |
+          : "${APP_SECRET:?Missing GitHub secret PROD_COMPANY_API_APP_SECRET}"
+          : "${COMPANY_DB_PASSWORD:?Missing GitHub secret PROD_COMPANY_DB_PASSWORD}"
+          : "${MAILER_DSN:?Missing GitHub secret PROD_MAILER_DSN}"
+          : "${CONTACT_RECIPIENT:?Missing GitHub secret PROD_CONTACT_RECIPIENT}"
+          : "${CONTACT_SENDER:?Missing GitHub secret PROD_CONTACT_SENDER}"
+          : "${ADMIN_PASSWORD_HASH:?Missing GitHub secret PROD_ADMIN_PASSWORD_HASH}"
+
+          ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$COMPANY_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["RAW_DB_PASSWORD"], safe=""))')"
+          DATABASE_URL="postgresql://gama_admin:${ENCODED_DB_PASSWORD}@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
+          DEFAULT_URI="http://localhost"
+          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?|https://(www\.)?gama-software\.com)$'
+          ADMIN_USERNAME="admin"
+
           cat > .env <<EOF
           APP_ENV=test
           APP_DEBUG=1
@@ -126,39 +134,6 @@ jobs:
           ADMIN_USERNAME=${ADMIN_USERNAME}
           ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
           EOF
-        env:
-          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
-          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
-          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
-          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
-          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
-          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
-          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
-          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
-
-      - name: Validate backend env inputs
-        shell: bash
-        env:
-          APP_SECRET: ${{ secrets.BACKEND_APP_SECRET }}
-          DATABASE_URL: ${{ secrets.BACKEND_DATABASE_URL }}
-          MAILER_DSN: ${{ secrets.BACKEND_MAILER_DSN }}
-          DEFAULT_URI: ${{ vars.BACKEND_DEFAULT_URI }}
-          CORS_ALLOW_ORIGIN: ${{ vars.BACKEND_CORS_ALLOW_ORIGIN }}
-          CONTACT_RECIPIENT: ${{ vars.BACKEND_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ vars.BACKEND_CONTACT_SENDER }}
-          ADMIN_USERNAME: ${{ vars.BACKEND_ADMIN_USERNAME }}
-          ADMIN_PASSWORD_HASH: ${{ vars.BACKEND_ADMIN_PASSWORD_HASH }}
-        run: |
-          : "${APP_SECRET:?Missing GitHub secret BACKEND_APP_SECRET}"
-          : "${DATABASE_URL:?Missing GitHub secret BACKEND_DATABASE_URL}"
-          : "${MAILER_DSN:?Missing GitHub secret BACKEND_MAILER_DSN}"
-          : "${DEFAULT_URI:?Missing GitHub variable BACKEND_DEFAULT_URI}"
-          : "${CORS_ALLOW_ORIGIN:?Missing GitHub variable BACKEND_CORS_ALLOW_ORIGIN}"
-          : "${CONTACT_RECIPIENT:?Missing GitHub variable BACKEND_CONTACT_RECIPIENT}"
-          : "${CONTACT_SENDER:?Missing GitHub variable BACKEND_CONTACT_SENDER}"
-          : "${ADMIN_USERNAME:?Missing GitHub variable BACKEND_ADMIN_USERNAME}"
-          : "${ADMIN_PASSWORD_HASH:?Missing GitHub variable BACKEND_ADMIN_PASSWORD_HASH}"
 
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
