@@ -1,24 +1,22 @@
-name: Deploy to Production
+name: Rollback Production
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to rollback to (e.g. sha-abc123... or main-latest)"
+        required: true
+        default: "main-latest"
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  deploy:
-    name: Deploy to Server
+  rollback:
+    name: Rollback on VM2
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Prepare image metadata
         id: image
         shell: bash
@@ -27,50 +25,15 @@ jobs:
           OWNER_LOWER="${GITHUB_REPOSITORY_OWNER,,}"
           FRONTEND_IMAGE_REPO="ghcr.io/${OWNER_LOWER}/company-site"
           BACKEND_IMAGE_REPO="ghcr.io/${OWNER_LOWER}/company-site-backend"
-          IMAGE_TAG="sha-${GITHUB_SHA}"
-          echo "frontend_image_repo=$FRONTEND_IMAGE_REPO" >> "$GITHUB_OUTPUT"
-          echo "backend_image_repo=$BACKEND_IMAGE_REPO" >> "$GITHUB_OUTPUT"
-          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          echo "frontend_image=${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "backend_image=${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: build/Dockerfile
-          push: true
-          cache-from: type=gha,scope=company-site-frontend
-          cache-to: type=gha,mode=max,scope=company-site-frontend
-          tags: |
-            ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
-            ${{ steps.image.outputs.frontend_image_repo }}:main-latest
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: backend
-          file: backend/Dockerfile.prod
-          push: true
-          cache-from: type=gha,scope=company-site-backend
-          cache-to: type=gha,mode=max,scope=company-site-backend
-          tags: |
-            ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
-            ${{ steps.image.outputs.backend_image_repo }}:main-latest
-
-      - name: Deploy to server via SSH
+      - name: Rollback via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
+          APP_IMAGE: ${{ steps.image.outputs.frontend_image }}
+          API_IMAGE: ${{ steps.image.outputs.backend_image }}
           MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
           CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
           CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
@@ -120,11 +83,11 @@ jobs:
               ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH:-}" \
               docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-api personal-site
 
-      - name: Verify deployment
+      - name: Verify rollback
         uses: appleboy/ssh-action@v1.0.3
         env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
+          APP_IMAGE: ${{ steps.image.outputs.frontend_image }}
+          API_IMAGE: ${{ steps.image.outputs.backend_image }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -133,14 +96,6 @@ jobs:
           envs: APP_IMAGE,API_IMAGE
           script: |
             set -euo pipefail
-            echo "Expected frontend image: $APP_IMAGE"
-            echo "Expected backend image: $API_IMAGE"
+            echo "Rolled back frontend image: $APP_IMAGE"
+            echo "Rolled back backend image: $API_IMAGE"
             sudo docker ps --filter name=vm2_personal_site --filter name=vm2_company_api --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
-
-      - name: Notify success
-        if: success()
-        run: echo "✅ Deployment successful!"
-
-      - name: Notify failure
-        if: failure()
-        run: echo "❌ Deployment failed!"

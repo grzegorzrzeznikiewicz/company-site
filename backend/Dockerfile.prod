@@ -20,9 +20,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
+# Copy dependency manifests first to maximize Docker layer cache hits.
+COPY composer.json composer.lock symfony.lock /app/
+
+RUN composer install --no-dev --no-interaction --prefer-dist --no-progress --no-scripts
+
 COPY . /app
 
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+RUN composer dump-autoload --no-dev --optimize --no-interaction
 
 EXPOSE 8080
 
