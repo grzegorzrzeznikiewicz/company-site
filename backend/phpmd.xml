@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="Company Site Backend Rules"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 https://pmd.github.io/schema/ruleset_xml_schema.xsd">
+  <description>PHPMD rules for Symfony backend, excluding framework-friendly static factory calls.</description>
+
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+
+  <rule ref="rulesets/cleancode.xml">
+    <exclude name="StaticAccess"/>
+  </rule>
+  <rule ref="rulesets/codesize.xml"/>
+  <rule ref="rulesets/naming.xml"/>
+  <rule ref="rulesets/unusedcode.xml"/>
+</ruleset>

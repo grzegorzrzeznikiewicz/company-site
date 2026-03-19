@@ -1,0 +1,28 @@
+{% extends 'admin/layout.html.twig' %}
+
+{% set app_name = 'Gama Software' %}
+{% block page_title %}Panel startowy{% endblock %}
+
+{% block admin_content %}
+<section>
+  <p>To miejsce stanie się centrum zarządzania treścią, wpisami i leadami. Poniżej lista planowanych modułów:</p>
+  <div class="card-grid">
+    {% for module in modules %}
+      <article class="card">
+        <h3>{{ module.title }}</h3>
+        <p>{{ module.description }}</p>
+        <span>{{ module.cta }}</span>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+<section class="roadmap">
+  <h3>Suggested roadmap</h3>
+  <ul>
+    <li>📦 Integruj Doctrine + migracje dla CMS i bloga.</li>
+    <li>🔐 Zamień Basic Auth na pełny proces logowania (np. Guard / Symfony UX).</li>
+    <li>🧩 Połącz frontend Vite z API GraphQL/REST odsłaniającym treści.</li>
+    <li>📈 Dodaj statystyki leadów i eksport raportów.</li>
+  </ul>
+</section>
+{% endblock %}
