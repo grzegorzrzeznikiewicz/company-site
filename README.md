@@ -1,5 +1,7 @@
-
 # Gama Software - Firmowa Strona
+
+[![CI Quality Checks](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/ci.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/ci.yml)
+[![Deploy to Production](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/deploy.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/deploy.yml)
 
 Strona wizytówka dla Gama Software - specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu agentów AI.
 
@@ -21,6 +23,12 @@ npm install
 
 # Uruchomienie serwera deweloperskiego
 npm run dev
+
+# Sprawdzenie jakości
+npm run lint
+npm run typecheck
+npm run test:ci
+npm run format:check
 
 # Build produkcyjny
 npm run build
@@ -51,7 +59,8 @@ Kluczowe zmienne środowiskowe backendu (patrz `backend/.env.local.example`, sko
 - `DATABASE_URL` – połączenie z bazą danych (domyślnie Postgres w kontenerze).
 - `MAILER_DSN` – połączenie SMTP (np. `smtp://login:haslo@smtp.server:587`).
 - (`dev`) Po default `MAILER_DSN"smtp://mailhog:1025"` kieruje wysyłkę do lokalnego MailHoga.
-- `CONTACT_RECIPIENT` / `CONTACT_SENDER` – adresy formularza kontaktowego.
+- `CONTACT_RECIPIENT` – adres odbiorcy formularza kontaktowego.
+- `CONTACT_SENDER` – wymagany, stały i zweryfikowany adres nadawcy zgodny z polityką SMTP/SPF/DMARC.
 - `CORS_ALLOW_ORIGIN` – regex akceptowanych originów (localhost + `company.test`).
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` – dane HTTP Basic chroniące `/admin` (zmień hasło i hash!).
 - `ADMIN_PANEL_TITLE` – podpis widoczny w nagłówku panelu.
@@ -69,6 +78,16 @@ Doctrine/ORM jest gotowe na kolejne encje (`backend/src/Entity`). Po utworzeniu 
 
 ```bash
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec symfony php bin/console doctrine:migrations:migrate
+```
+
+### Backend quality gates
+
+```bash
+# Instalacja zależności backendu
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml run --rm symfony-composer install
+
+# Uruchomienie quality gates i testów
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml run --rm symfony-composer qa
 ```
 
 ### Lokalna domena `company.test`
@@ -130,9 +149,10 @@ Wszystkie pliki związane z deploymentem znajdują się w katalogu `build/`:
 
 ### Automatyczny deployment (CI/CD)
 
-Projekt jest skonfigurowany dla automatycznych deploymentów przez:
-- **GitHub Actions** (rekomendowane) - `.github/workflows/deploy.yml`
-- **GitLab CI/CD** (alternatywa) - `.gitlab-ci.yml`
+Projekt używa GitHub Actions do quality gates i deploymentu:
+
+- `.github/workflows/ci.yml` uruchamia frontendowy lint/typecheck/test/build oraz backendowe linty i testy przy każdym `push` i `pull_request`.
+- `.github/workflows/deploy.yml` odpowiada za automatyczny deployment po pushu do `main`.
 
 Push do brancha `main` automatycznie deployuje na produkcję.
 
@@ -209,4 +229,3 @@ Najważniejsze zmienne:
 ## Licencja
 
 © 2026 Gama Software. Wszystkie prawa zastrzeżone.
-  

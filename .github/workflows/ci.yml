@@ -21,7 +21,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          tools: composer:v2, phpstan, phpmd, php-cs-fixer
+          tools: composer:v2
           coverage: none
 
       - name: Prepare backend env
@@ -73,13 +73,13 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: PHP coding standards (PSR-12 + Symfony)
-        run: php-cs-fixer fix --dry-run --diff --using-cache=no --config=.php-cs-fixer.dist.php
+        run: composer lint:cs
 
       - name: Static analysis (PHPStan)
-        run: phpstan analyse src --no-progress --level=5
+        run: composer lint:phpstan
 
       - name: Mess detector (PHPMD)
-        run: phpmd src text phpmd.xml
+        run: composer lint:md
 
   backend-tests:
     name: Backend Tests
@@ -135,32 +135,22 @@ jobs:
           ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
           EOF
 
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Detect backend tests
-        id: detect_backend_tests
-        shell: bash
-        run: |
-          if [ -d tests ] && find tests -type f | grep -q .; then
-            echo "has_tests=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_tests=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Brak testow backendowych (unit/integracyjne) w backend/tests."
-          fi
-
       - name: Run backend tests
-        if: steps.detect_backend_tests.outputs.has_tests == 'true'
-        shell: bash
-        run: |
-          if [ -x vendor/bin/phpunit ]; then
-            vendor/bin/phpunit
-          else
-            echo "::notice::Wykryto pliki testowe, ale phpunit nie jest skonfigurowany."
-          fi
+        run: composer test
 
   frontend-quality-tests:
-    name: Frontend Build and Tests
+    name: Frontend Quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -171,41 +161,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci --include=dev
 
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        run: npm run test:ci
+
       - name: Build frontend
         run: npm run build
-
-      - name: Detect frontend test scripts
-        id: detect_frontend_tests
-        shell: bash
-        run: |
-          node -e "const p=require('./package.json');const s=p.scripts||{};const hasUnit=Boolean(s.test||s['test:unit']||s.unit);const hasE2E=Boolean(s.e2e||s['test:e2e']);console.log('has_unit_tests=' + hasUnit);console.log('has_e2e_tests=' + hasE2E);" >> "$GITHUB_OUTPUT"
-          if [ "$(grep '^has_unit_tests=' "$GITHUB_OUTPUT" | cut -d= -f2)" != "true" ]; then
-            echo "::notice::Brak skonfigurowanych testow frontendowych unit/jest."
-          fi
-          if [ "$(grep '^has_e2e_tests=' "$GITHUB_OUTPUT" | cut -d= -f2)" != "true" ]; then
-            echo "::notice::Brak skonfigurowanych testow frontendowych e2e."
-          fi
-
-      - name: Run frontend unit tests
-        if: steps.detect_frontend_tests.outputs.has_unit_tests == 'true'
-        run: |
-          if npm run | grep -q "test:unit"; then
-            npm run test:unit
-          elif npm run | grep -q " test"; then
-            npm test
-          elif npm run | grep -q " unit"; then
-            npm run unit
-          fi
-
-      - name: Run frontend e2e tests
-        if: steps.detect_frontend_tests.outputs.has_e2e_tests == 'true'
-        run: |
-          if npm run | grep -q "test:e2e"; then
-            npm run test:e2e
-          elif npm run | grep -q " e2e"; then
-            npm run e2e
-          fi

@@ -5,7 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "format": "prettier --write README.md index.html vite.config.ts eslint.config.js tsconfig.json package.json .prettierrc.json .github/workflows/*.yml src/**/*.{ts,tsx,css}",
+    "format:check": "prettier --check README.md index.html vite.config.ts eslint.config.js tsconfig.json package.json .prettierrc.json .github/workflows/*.yml src/**/*.{ts,tsx,css}",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest",
+    "test:ci": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -65,10 +71,26 @@
     "vaul": "1.1.2"
   },
   "devDependencies": {
+    "@eslint/js": "9.36.0",
     "@tailwindcss/vite": "4.1.12",
+    "@testing-library/jest-dom": "6.8.0",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.5.2",
+    "@types/react": "18.3.24",
+    "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.7.0",
+    "eslint": "9.36.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "eslint-plugin-react-refresh": "0.4.20",
+    "globals": "16.4.0",
+    "jsdom": "26.1.0",
+    "prettier": "3.6.2",
     "tailwindcss": "4.1.12",
-    "vite": "^6.4.1"
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.44.1",
+    "vite": "^6.4.1",
+    "vitest": "2.1.9"
   },
   "peerDependencies": {
     "react": "18.3.1",
