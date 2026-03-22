@@ -5,10 +5,16 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const devHost = env.VITE_DEV_HOST || 'localhost';
-  const devPort = Number(env.VITE_DEV_PORT || '5173');
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
-  const usePolling = env.VITE_USE_POLLING === '1';
+  const devHost = process.env.VITE_DEV_HOST ?? env.VITE_DEV_HOST ?? 'localhost';
+  const devPort = Number(
+    process.env.VITE_DEV_PORT ?? env.VITE_DEV_PORT ?? '5173',
+  );
+  const apiProxyTarget =
+    process.env.VITE_API_PROXY_TARGET ??
+    env.VITE_API_PROXY_TARGET ??
+    'http://localhost:8080';
+  const usePolling =
+    (process.env.VITE_USE_POLLING ?? env.VITE_USE_POLLING) === '1';
   const allowedHosts = [
     'localhost',
     '127.0.0.1',
