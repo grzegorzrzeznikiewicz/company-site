@@ -1,9 +1,9 @@
 services:
-  symfony:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: gama-symfony-api
+    container_name: gama-backend-api
     working_dir: /app
     volumes:
       - ./backend:/app
@@ -34,15 +34,15 @@ services:
       VITE_DEV_HOST: 0.0.0.0
       VITE_DEV_PORT: ${VITE_DEV_PORT:-5173}
       VITE_API_BASE_URL: ""
-      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://symfony:8080}
+      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://backend:8080}
       VITE_USE_POLLING: "1"
     depends_on:
-      symfony:
+      backend:
         condition: service_started
     entrypoint: ["/bin/bash", "/app/docker/frontend-entrypoint.sh"]
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
 
-  frontend-npm:
+  frontend-tools:
     image: node:${FRONTEND_NODE_VERSION:-24.14.0}
     working_dir: /app
     volumes:
@@ -50,14 +50,14 @@ services:
       - frontend-node-modules:/app/node_modules
     environment:
       VITE_API_BASE_URL: ""
-      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://symfony:8080}
+      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://backend:8080}
       VITE_USE_POLLING: "1"
       CI: "1"
     entrypoint: ["/bin/bash", "/app/docker/frontend-entrypoint.sh"]
     command: ["npm", "--version"]
     profiles: ["tools"]
 
-  symfony-composer:
+  backend-tools:
     build:
       context: ./backend
       dockerfile: Dockerfile

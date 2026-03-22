@@ -2,6 +2,7 @@ name: CI Quality Checks
 
 env:
   FRONTEND_NODE_VERSION: '24.14.0'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 on:
   pull_request:
@@ -16,7 +17,7 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -63,7 +64,7 @@ jobs:
           EOF
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.4
         with:
           path: backend/vendor
           key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
@@ -90,7 +91,7 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -137,7 +138,7 @@ jobs:
           EOF
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.4
         with:
           path: backend/vendor
           key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
@@ -155,10 +156,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.FRONTEND_NODE_VERSION }}
           cache: 'npm'

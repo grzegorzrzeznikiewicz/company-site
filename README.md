@@ -25,6 +25,12 @@ cp backend/.env.local.example backend/.env.local
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml up -d
 ```
 
+Jeśli aktualizujesz starszy lokalny stack ze starymi nazwami usług (`symfony`, `symfony-composer`, `frontend-npm`), uruchom jednorazowo:
+
+```bash
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml up -d --remove-orphans
+```
+
 Po starcie dostępne są:
 
 - frontend: `http://localhost:5173`
@@ -34,25 +40,25 @@ Po starcie dostępne są:
 
 ### Frontend (Docker)
 
-Serwis `frontend` uruchamia Vite dev server w Dockerze. Domyślnie frontend korzysta z proxy Vite, więc wywołania `/api/*` są przekazywane do backendu `symfony` bez potrzeby ustawiania `VITE_API_BASE_URL`.
+Serwis `frontend` uruchamia Vite dev server w Dockerze. Domyślnie frontend korzysta z proxy Vite, więc wywołania `/api/*` są przekazywane do backendu `backend` bez potrzeby ustawiania `VITE_API_BASE_URL`.
 
 Najważniejsze zmienne z `.env`:
 
 - `FRONTEND_NODE_VERSION` – wspólna wersja Node dla Dockera i GitHub Actions (`24.14.0`)
 - `VITE_DEV_PORT` – port frontendu na hoście (`5173`)
 - `VITE_API_BASE_URL` – opcjonalny jawny adres API; zostaw pusty, aby używać proxy Vite
-- `VITE_API_PROXY_TARGET` – target proxy dla środowiska uruchamianego poza Dockerem; kontener `frontend` nadpisuje go na `http://symfony:8080`
+- `VITE_API_PROXY_TARGET` – target proxy dla środowiska uruchamianego poza Dockerem; kontener `frontend` nadpisuje go na `http://backend:8080`
 
 #### Frontend quality gates w modelu Plan B
 
-Jednorazowe komendy frontendowe uruchamiaj przez serwis `frontend-npm`:
+Jednorazowe komendy frontendowe uruchamiaj przez serwis `frontend-tools`:
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-npm npm run format:check
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-npm npm run lint
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-npm npm run typecheck
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-npm npm run test:ci
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-npm npm run build
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run format:check
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run lint
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run typecheck
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run test:ci
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run build
 ```
 
 ### Backend (Symfony 8 API + Admin)
@@ -79,7 +85,7 @@ Kluczowe zmienne środowiskowe backendu (patrz `backend/.env.local.example`, sko
 Hash hasła admina wygenerujesz przez:
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec symfony php -r "echo password_hash('TwojeHaslo', PASSWORD_BCRYPT), PHP_EOL;"
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec backend php -r "echo password_hash('TwojeHaslo', PASSWORD_BCRYPT), PHP_EOL;"
 ```
 
 Wynik umieść w `backend/.env.local` jako `ADMIN_PASSWORD_HASH`.
@@ -94,14 +100,14 @@ MailHog przechwytuje wszystkie wiadomości – podgląd pod `http://localhost:80
 Doctrine/ORM jest gotowe na kolejne encje (`backend/src/Entity`). Po utworzeniu modeli uruchom migracje:
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec symfony php bin/console doctrine:migrations:migrate
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec backend php bin/console doctrine:migrations:migrate
 ```
 
 ### Backend quality gates
 
 ```bash
 # Uruchomienie quality gates i testów
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml run --rm symfony-composer qa
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml run --rm backend-tools qa
 ```
 
 ### Lokalna domena `company.test`
