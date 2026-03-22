@@ -1,13 +1,48 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { e2eEnvironment } from '../support/environment';
 import { findMailhogMessageByToken } from '../support/mailhog';
+
+async function waitForContactEndpointReady(
+  request: APIRequestContext,
+  url: string,
+  label: string,
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const response = await request.fetch(url, {
+          method: 'OPTIONS',
+          failOnStatusCode: false,
+        });
+
+        return response.status();
+      },
+      {
+        timeout: 20_000,
+        intervals: [500, 1_000, 2_000],
+        message: `Expected ${label} contact endpoint to become ready.`,
+      },
+    )
+    .toBe(204);
+}
 
 test('submits the contact form and delivers the message to MailHog', async ({
   page,
   request,
 }) => {
   const uniqueToken = `PLAYWRIGHT-MAIL-${Date.now()}`;
+
+  await waitForContactEndpointReady(
+    request,
+    `${e2eEnvironment.backendUrl}/api/contact`,
+    'backend',
+  );
+  await waitForContactEndpointReady(
+    request,
+    `${e2eEnvironment.frontendUrl}/api/contact`,
+    'frontend proxy',
+  );
 
   await page.goto('/');
   await page.locator('#contact').scrollIntoViewIfNeeded();
@@ -26,8 +61,9 @@ test('submits the contact form and delivers the message to MailHog', async ({
 
   await page.getByRole('button', { name: 'Wyślij wiadomość' }).click();
   const contactResponse = await contactResponsePromise;
+  const contactResponseBody = await contactResponse.text();
 
-  expect(contactResponse.status()).toBe(201);
+  expect(contactResponse.status(), contactResponseBody).toBe(201);
 
   await expect(
     page.getByText('Dziękujemy! Wrócimy do Ciebie wkrótce.'),

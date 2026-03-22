@@ -249,6 +249,34 @@ jobs:
             done
           }
 
+          wait_for_contact_endpoint() {
+            local url="$1"
+            local label="$2"
+            local attempts=30
+
+            while true; do
+              status="$(
+                curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+                  --request OPTIONS \
+                  "$url" || true
+              )"
+
+              if [ "$status" = "204" ]; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for ${label} contact endpoint at ${url}. Last status: ${status}" >&2
+                docker compose -f docker-compose.symfony.yml logs backend frontend >&2 || true
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
           wait_for_url "http://127.0.0.1:5173" "frontend" '^(200)$'
           wait_for_url "http://127.0.0.1:8080/admin" "backend admin" '^(200|401)$'
           wait_for_url "http://127.0.0.1:8026" "MailHog" '^(200)$'
@@ -274,6 +302,8 @@ jobs:
           }
 
           wait_for_smtp
+          wait_for_contact_endpoint "http://127.0.0.1:8080/api/contact" "backend"
+          wait_for_contact_endpoint "http://127.0.0.1:5173/api/contact" "frontend proxy"
 
       - name: Run end-to-end tests
         env:
@@ -284,6 +314,10 @@ jobs:
           E2E_ADMIN_USERNAME: admin
           E2E_ADMIN_PASSWORD: Admin123!
         run: npm run test:e2e:ci
+
+      - name: Print backend logs on E2E failure
+        if: failure()
+        run: docker compose -f docker-compose.symfony.yml logs backend frontend mailhog
 
       - name: Stop Docker stack
         if: always()
