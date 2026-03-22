@@ -249,16 +249,16 @@ jobs:
             done
           }
 
-          wait_for_url "http://localhost:5173" "frontend" '^(200)$'
-          wait_for_url "http://localhost:8080/admin" "backend admin" '^(200|401)$'
-          wait_for_url "http://localhost:8026" "MailHog" '^(200)$'
+          wait_for_url "http://127.0.0.1:5173" "frontend" '^(200)$'
+          wait_for_url "http://127.0.0.1:8080/admin" "backend admin" '^(200|401)$'
+          wait_for_url "http://127.0.0.1:8026" "MailHog" '^(200)$'
 
       - name: Run end-to-end tests
         env:
-          PLAYWRIGHT_FRONTEND_URL: http://localhost:5173
-          PLAYWRIGHT_BACKEND_URL: http://localhost:8080
-          PLAYWRIGHT_ADMIN_URL: http://localhost:8080/admin
-          PLAYWRIGHT_MAILHOG_URL: http://localhost:8026
+          PLAYWRIGHT_FRONTEND_URL: http://127.0.0.1:5173
+          PLAYWRIGHT_BACKEND_URL: http://127.0.0.1:8080
+          PLAYWRIGHT_ADMIN_URL: http://127.0.0.1:8080/admin
+          PLAYWRIGHT_MAILHOG_URL: http://127.0.0.1:8026
           E2E_ADMIN_USERNAME: admin
           E2E_ADMIN_PASSWORD: Admin123!
         run: npm run test:e2e:ci
