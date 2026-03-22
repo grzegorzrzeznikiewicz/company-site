@@ -1,12 +1,28 @@
-import path from 'path'
-import { defineConfig, loadEnv } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const devHost = env.VITE_DEV_HOST || 'localhost'
-  const devPort = Number(env.VITE_DEV_PORT || '5173')
+  const env = loadEnv(mode, process.cwd(), '');
+  const devHost = process.env.VITE_DEV_HOST ?? env.VITE_DEV_HOST ?? 'localhost';
+  const devPort = Number(
+    process.env.VITE_DEV_PORT ?? env.VITE_DEV_PORT ?? '5173',
+  );
+  const apiProxyTarget =
+    process.env.VITE_API_PROXY_TARGET ??
+    env.VITE_API_PROXY_TARGET ??
+    'http://localhost:8080';
+  const usePolling =
+    (process.env.VITE_USE_POLLING ?? env.VITE_USE_POLLING) === '1';
+  const allowedHosts = [
+    'localhost',
+    '127.0.0.1',
+    'host.docker.internal',
+    'frontend',
+    'company.test',
+    '.company.test',
+  ];
 
   return {
     plugins: [
@@ -22,13 +38,35 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      allowedHosts,
       host: devHost,
       port: devPort,
+      watch: {
+        usePolling,
+      },
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
     preview: {
       host: devHost,
       port: devPort,
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
-  }
-})
-2
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+      css: true,
+      include: ['src/**/*.test.{ts,tsx}'],
+      exclude: ['tests/e2e/**', 'backend/**'],
+    },
+  };
+});

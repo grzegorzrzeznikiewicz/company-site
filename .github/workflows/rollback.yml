@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to rollback to (e.g. sha-abc123... or main-latest)"
+        description: 'Image tag to rollback to (e.g. sha-abc123... or main-latest)'
         required: true
-        default: "main-latest"
+        default: 'main-latest'
 
 permissions:
   contents: read

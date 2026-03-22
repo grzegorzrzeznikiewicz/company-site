@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: build/Dockerfile
-    container_name: gama-software-web
+    container_name: gama-web
     restart: unless-stopped
     ports:
       - "80:80"
@@ -19,7 +19,7 @@ services:
 
   certbot:
     image: certbot/certbot
-    container_name: gama-software-certbot
+    container_name: gama-certbot
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt
       - /var/www/certbot:/var/www/certbot

@@ -1,10 +1,18 @@
 name: CI Quality Checks
 
+env:
+  FRONTEND_NODE_VERSION: '24.14.0'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 on:
   pull_request:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend-quality:
@@ -15,81 +23,7 @@ jobs:
         working-directory: backend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          tools: composer:v2, phpstan, phpmd, php-cs-fixer
-          coverage: none
-
-      - name: Prepare backend env
-        shell: bash
-        env:
-          APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
-          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
-          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
-          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
-          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
-        run: |
-          : "${APP_SECRET:?Missing GitHub secret PROD_COMPANY_API_APP_SECRET}"
-          : "${COMPANY_DB_PASSWORD:?Missing GitHub secret PROD_COMPANY_DB_PASSWORD}"
-          : "${MAILER_DSN:?Missing GitHub secret PROD_MAILER_DSN}"
-          : "${CONTACT_RECIPIENT:?Missing GitHub secret PROD_CONTACT_RECIPIENT}"
-          : "${CONTACT_SENDER:?Missing GitHub secret PROD_CONTACT_SENDER}"
-          : "${ADMIN_PASSWORD_HASH:?Missing GitHub secret PROD_ADMIN_PASSWORD_HASH}"
-
-          ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$COMPANY_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["RAW_DB_PASSWORD"], safe=""))')"
-          DATABASE_URL="postgresql://gama_admin:${ENCODED_DB_PASSWORD}@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
-          DEFAULT_URI="http://localhost"
-          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?|https://(www\.)?gama-software\.com)$'
-          ADMIN_USERNAME="admin"
-
-          cat > .env <<EOF
-          APP_ENV=test
-          APP_DEBUG=1
-          APP_SECRET=${APP_SECRET}
-          DATABASE_URL=${DATABASE_URL}
-          MAILER_DSN=${MAILER_DSN}
-          DEFAULT_URI=${DEFAULT_URI}
-          CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN}
-          CONTACT_RECIPIENT=${CONTACT_RECIPIENT}
-          CONTACT_SENDER=${CONTACT_SENDER}
-          ADMIN_USERNAME=${ADMIN_USERNAME}
-          ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
-          EOF
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: backend/vendor
-          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
-          restore-keys: |
-            composer-${{ runner.os }}-
-
-      - name: Install backend dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: PHP coding standards (PSR-12 + Symfony)
-        run: php-cs-fixer fix --dry-run --diff --using-cache=no --config=.php-cs-fixer.dist.php
-
-      - name: Static analysis (PHPStan)
-        run: phpstan analyse src --no-progress --level=5
-
-      - name: Mess detector (PHPMD)
-        run: phpmd src text phpmd.xml
-
-  backend-tests:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -135,77 +69,262 @@ jobs:
           ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
           EOF
 
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: backend/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Detect backend tests
-        id: detect_backend_tests
+      - name: PHP coding standards (PSR-12 + Symfony)
+        run: composer lint:cs
+
+      - name: Static analysis (PHPStan)
+        run: composer lint:phpstan
+
+      - name: Mess detector (PHPMD)
+        run: composer lint:md
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Prepare backend env
         shell: bash
+        env:
+          APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
+          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
+          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
+          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
+          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
         run: |
-          if [ -d tests ] && find tests -type f | grep -q .; then
-            echo "has_tests=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_tests=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Brak testow backendowych (unit/integracyjne) w backend/tests."
-          fi
+          : "${APP_SECRET:?Missing GitHub secret PROD_COMPANY_API_APP_SECRET}"
+          : "${COMPANY_DB_PASSWORD:?Missing GitHub secret PROD_COMPANY_DB_PASSWORD}"
+          : "${MAILER_DSN:?Missing GitHub secret PROD_MAILER_DSN}"
+          : "${CONTACT_RECIPIENT:?Missing GitHub secret PROD_CONTACT_RECIPIENT}"
+          : "${CONTACT_SENDER:?Missing GitHub secret PROD_CONTACT_SENDER}"
+          : "${ADMIN_PASSWORD_HASH:?Missing GitHub secret PROD_ADMIN_PASSWORD_HASH}"
+
+          ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$COMPANY_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["RAW_DB_PASSWORD"], safe=""))')"
+          DATABASE_URL="postgresql://gama_admin:${ENCODED_DB_PASSWORD}@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
+          DEFAULT_URI="http://localhost"
+          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?|https://(www\.)?gama-software\.com)$'
+          ADMIN_USERNAME="admin"
+
+          cat > .env <<EOF
+          APP_ENV=test
+          APP_DEBUG=1
+          APP_SECRET=${APP_SECRET}
+          DATABASE_URL=${DATABASE_URL}
+          MAILER_DSN=${MAILER_DSN}
+          DEFAULT_URI=${DEFAULT_URI}
+          CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN}
+          CONTACT_RECIPIENT=${CONTACT_RECIPIENT}
+          CONTACT_SENDER=${CONTACT_SENDER}
+          ADMIN_USERNAME=${ADMIN_USERNAME}
+          ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+          EOF
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: backend/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run backend tests
-        if: steps.detect_backend_tests.outputs.has_tests == 'true'
-        shell: bash
-        run: |
-          if [ -x vendor/bin/phpunit ]; then
-            vendor/bin/phpunit
-          else
-            echo "::notice::Wykryto pliki testowe, ale phpunit nie jest skonfigurowany."
-          fi
+        run: composer test
 
   frontend-quality-tests:
-    name: Frontend Build and Tests
+    name: Frontend Quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: ${{ env.FRONTEND_NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci --include=dev
 
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        run: npm run test:ci
+
       - name: Build frontend
         run: npm run build
 
-      - name: Detect frontend test scripts
-        id: detect_frontend_tests
+  end-to-end-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.FRONTEND_NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --include=dev
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare Docker env files
         shell: bash
         run: |
-          node -e "const p=require('./package.json');const s=p.scripts||{};const hasUnit=Boolean(s.test||s['test:unit']||s.unit);const hasE2E=Boolean(s.e2e||s['test:e2e']);console.log('has_unit_tests=' + hasUnit);console.log('has_e2e_tests=' + hasE2E);" >> "$GITHUB_OUTPUT"
-          if [ "$(grep '^has_unit_tests=' "$GITHUB_OUTPUT" | cut -d= -f2)" != "true" ]; then
-            echo "::notice::Brak skonfigurowanych testow frontendowych unit/jest."
-          fi
-          if [ "$(grep '^has_e2e_tests=' "$GITHUB_OUTPUT" | cut -d= -f2)" != "true" ]; then
-            echo "::notice::Brak skonfigurowanych testow frontendowych e2e."
-          fi
+          cp .env.example .env
+          cat > backend/.env.local <<EOF
+          DATABASE_URL="postgresql://gama_admin:gama_pass@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
+          MAILER_DSN="smtp://mailhog:1025"
+          CONTACT_RECIPIENT=founders@gama-software.com
+          CONTACT_SENDER=no-reply@gama-software.com
+          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?)$'
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD_HASH=\$2y\$12\$RD1fgY97zpLxdRva4wPq4.Wi2CWNJXqIsxaiSfDFvdIFH0MabNUw2
+          ADMIN_PANEL_TITLE="Panel administracyjny"
+          EOF
+          chmod +x bin/*
 
-      - name: Run frontend unit tests
-        if: steps.detect_frontend_tests.outputs.has_unit_tests == 'true'
-        run: |
-          if npm run | grep -q "test:unit"; then
-            npm run test:unit
-          elif npm run | grep -q " test"; then
-            npm test
-          elif npm run | grep -q " unit"; then
-            npm run unit
-          fi
+      - name: Start Docker stack
+        run: ./bin/start
 
-      - name: Run frontend e2e tests
-        if: steps.detect_frontend_tests.outputs.has_e2e_tests == 'true'
+      - name: Wait for local services
+        shell: bash
         run: |
-          if npm run | grep -q "test:e2e"; then
-            npm run test:e2e
-          elif npm run | grep -q " e2e"; then
-            npm run e2e
-          fi
+          wait_for_url() {
+            local url="$1"
+            local label="$2"
+            local expected_pattern="$3"
+            local attempts=30
+
+            while true; do
+              status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$url" || true)"
+
+              if [[ "$status" =~ $expected_pattern ]]; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for ${label} at ${url}. Last status: ${status}" >&2
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
+          wait_for_contact_endpoint() {
+            local url="$1"
+            local label="$2"
+            local attempts=30
+
+            while true; do
+              status="$(
+                curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+                  --request OPTIONS \
+                  "$url" || true
+              )"
+
+              if [ "$status" = "204" ]; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for ${label} contact endpoint at ${url}. Last status: ${status}" >&2
+                docker compose -f docker-compose.symfony.yml logs backend frontend >&2 || true
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
+          wait_for_url "http://127.0.0.1:5173" "frontend" '^(200)$'
+          wait_for_url "http://127.0.0.1:8080/admin" "backend admin" '^(200|401)$'
+          wait_for_url "http://127.0.0.1:8026" "MailHog" '^(200)$'
+
+          wait_for_smtp() {
+            local attempts=30
+
+            while true; do
+              if docker compose -f docker-compose.symfony.yml exec -T backend php -r '$socket = @fsockopen("mailhog", 1025, $errno, $errstr, 2); if (!$socket) { fwrite(STDERR, "MailHog SMTP not ready\n"); exit(1); } fclose($socket);'; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for MailHog SMTP on mailhog:1025." >&2
+                docker compose -f docker-compose.symfony.yml logs backend mailhog >&2 || true
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
+          wait_for_smtp
+          wait_for_contact_endpoint "http://127.0.0.1:8080/api/contact" "backend"
+          wait_for_contact_endpoint "http://127.0.0.1:5173/api/contact" "frontend proxy"
+
+      - name: Run end-to-end tests
+        env:
+          PLAYWRIGHT_FRONTEND_URL: http://127.0.0.1:5173
+          PLAYWRIGHT_BACKEND_URL: http://127.0.0.1:8080
+          PLAYWRIGHT_ADMIN_URL: http://127.0.0.1:8080/admin
+          PLAYWRIGHT_MAILHOG_URL: http://127.0.0.1:8026
+          E2E_ADMIN_USERNAME: admin
+          E2E_ADMIN_PASSWORD: Admin123!
+        run: npm run test:e2e:ci
+
+      - name: Print backend logs on E2E failure
+        if: failure()
+        run: docker compose -f docker-compose.symfony.yml logs backend frontend mailhog
+
+      - name: Stop Docker stack
+        if: always()
+        run: ./bin/stop

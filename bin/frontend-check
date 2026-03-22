@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+"$SCRIPT_DIR/_compose" --profile tools run --rm frontend-tools bash -lc \
+  'npm run format:check && npm run lint && npm run typecheck && npm run test:ci && npm run build'

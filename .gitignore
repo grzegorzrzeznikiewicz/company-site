@@ -38,6 +38,8 @@ yarn-error.log*
 
 # Testing
 coverage/
+playwright-report/
+test-results/
 
 # Docker
 *.tar
@@ -45,3 +47,5 @@ coverage/
 # Temporary files
 tmp/
 temp/
+.vite.pid
+CODEX.md
