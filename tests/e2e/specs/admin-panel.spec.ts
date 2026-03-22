@@ -5,13 +5,17 @@ import { e2eEnvironment } from '../support/environment';
 test('renders the admin dashboard after HTTP Basic authentication', async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const authHeader = Buffer.from(
+    `${e2eEnvironment.adminUsername}:${e2eEnvironment.adminPassword}`,
+  ).toString('base64');
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      Authorization: `Basic ${authHeader}`,
+    },
+  });
   const page = await context.newPage();
-  const adminUrl = new URL(e2eEnvironment.adminUrl);
-  adminUrl.username = e2eEnvironment.adminUsername;
-  adminUrl.password = e2eEnvironment.adminPassword;
 
-  const response = await page.goto(adminUrl.toString(), {
+  const response = await page.goto(e2eEnvironment.adminUrl, {
     waitUntil: 'domcontentloaded',
   });
 

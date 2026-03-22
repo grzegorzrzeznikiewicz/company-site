@@ -253,6 +253,28 @@ jobs:
           wait_for_url "http://127.0.0.1:8080/admin" "backend admin" '^(200|401)$'
           wait_for_url "http://127.0.0.1:8026" "MailHog" '^(200)$'
 
+          wait_for_smtp() {
+            local attempts=30
+
+            while true; do
+              if docker compose -f docker-compose.symfony.yml exec -T backend php -r '$socket = @fsockopen("mailhog", 1025, $errno, $errstr, 2); if (!$socket) { fwrite(STDERR, "MailHog SMTP not ready\n"); exit(1); } fclose($socket);'; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for MailHog SMTP on mailhog:1025." >&2
+                docker compose -f docker-compose.symfony.yml logs backend mailhog >&2 || true
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
+          wait_for_smtp
+
       - name: Run end-to-end tests
         env:
           PLAYWRIGHT_FRONTEND_URL: http://127.0.0.1:5173
