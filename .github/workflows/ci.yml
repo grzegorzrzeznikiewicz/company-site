@@ -182,3 +182,87 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+  end-to-end-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.FRONTEND_NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --include=dev
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare Docker env files
+        shell: bash
+        run: |
+          cp .env.example .env
+          cat > backend/.env.local <<EOF
+          DATABASE_URL="postgresql://gama_admin:gama_pass@symfony-db:5432/gama_site?serverVersion=16&charset=utf8"
+          MAILER_DSN="smtp://mailhog:1025"
+          CONTACT_RECIPIENT=founders@gama-software.com
+          CONTACT_SENDER=no-reply@gama-software.com
+          CORS_ALLOW_ORIGIN='^(https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https?://(api\.)?company\.test(:[0-9]+)?)$'
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD_HASH=\$2y\$12\$RD1fgY97zpLxdRva4wPq4.Wi2CWNJXqIsxaiSfDFvdIFH0MabNUw2
+          ADMIN_PANEL_TITLE="Panel administracyjny"
+          EOF
+          chmod +x bin/*
+
+      - name: Start Docker stack
+        run: ./bin/start
+
+      - name: Wait for local services
+        shell: bash
+        run: |
+          wait_for_url() {
+            local url="$1"
+            local label="$2"
+            local expected_pattern="$3"
+            local attempts=30
+
+            while true; do
+              status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$url" || true)"
+
+              if [[ "$status" =~ $expected_pattern ]]; then
+                return 0
+              fi
+
+              attempts=$((attempts - 1))
+
+              if [ "$attempts" -le 0 ]; then
+                echo "Timed out waiting for ${label} at ${url}. Last status: ${status}" >&2
+                exit 1
+              fi
+
+              sleep 2
+            done
+          }
+
+          wait_for_url "http://localhost:5173" "frontend" '^(200)$'
+          wait_for_url "http://localhost:8080/admin" "backend admin" '^(200|401)$'
+          wait_for_url "http://localhost:8026" "MailHog" '^(200)$'
+
+      - name: Run end-to-end tests
+        env:
+          PLAYWRIGHT_FRONTEND_URL: http://localhost:5173
+          PLAYWRIGHT_BACKEND_URL: http://localhost:8080
+          PLAYWRIGHT_ADMIN_URL: http://localhost:8080/admin
+          PLAYWRIGHT_MAILHOG_URL: http://localhost:8026
+          E2E_ADMIN_USERNAME: admin
+          E2E_ADMIN_PASSWORD: Admin123!
+        run: npm run test:e2e:ci
+
+      - name: Stop Docker stack
+        if: always()
+        run: ./bin/stop

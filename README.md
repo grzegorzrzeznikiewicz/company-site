@@ -8,6 +8,9 @@ Company website for Gama Software.
 Figma source:
 [Firmowa Wizytówka Strony](https://www.figma.com/design/cxRnksVttQoJbK9Q3R2Bk2/Firmowa-Wizyt%C3%B3wka-Strony)
 
+Release history:
+[CHANGELOG.md](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/CHANGELOG.md)
+
 ## Requirements
 
 - Docker
@@ -24,7 +27,7 @@ Local system `php` and `node` are not required for development.
 cp .env.example .env
 cp backend/.env.local.example backend/.env.local
 
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml up -d
+bin/start
 ```
 
 If you are updating an older local stack that still used `symfony`, `symfony-composer`, or `frontend-npm`, run this once:
@@ -39,6 +42,23 @@ HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml
 - Backend API: `http://localhost:8080/api/contact`
 - Admin panel: `http://localhost:8080/admin`
 - MailHog: `http://localhost:8026`
+
+## Environment Commands
+
+```bash
+bin/start
+bin/stop
+bin/restart
+bin/backend-start
+bin/backend-stop
+bin/frontend-start
+bin/frontend-stop
+bin/logs-frontend
+bin/logs-backend
+bin/backend-check
+bin/frontend-check
+bin/e2e-check
+```
 
 ## Frontend
 
@@ -56,11 +76,13 @@ Requests to `/api/*` are proxied to the `backend` service. `VITE_API_BASE_URL` c
 ### Frontend quality checks
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run format:check
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run lint
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run typecheck
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run test:ci
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml --profile tools run --rm frontend-tools npm run build
+bin/frontend-check
+```
+
+### Frontend end-to-end checks
+
+```bash
+bin/e2e-check
 ```
 
 ## Backend
@@ -91,6 +113,7 @@ Copy [backend/.env.local.example](/Users/grzegorzrzeznikiewicz/Programowanie/PHP
 - `ADMIN_PANEL_TITLE`
 
 In local development, `MAILER_DSN="smtp://mailhog:1025"` sends email to MailHog.
+The example local admin credentials are `admin / Admin123!`.
 
 ### Useful backend commands
 
@@ -109,7 +132,7 @@ HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml
 Run backend quality checks and tests:
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml run --rm backend-tools qa
+bin/backend-check
 ```
 
 ## Local `company.test` Domain
@@ -131,22 +154,12 @@ HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml
 3. Start the stack:
 
    ```bash
-   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml up -d
+   bin/start
    ```
 
 4. Access:
    - frontend: `http://company.test:5173`
    - backend/admin: `http://api.company.test:8080`
-
-## Docker Helper
-
-The repository includes [docker.sh](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/docker.sh) for the build stack in [build/docker-compose.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/build/docker-compose.yml).
-
-```bash
-./docker.sh up
-./docker.sh logs
-./docker.sh down
-```
 
 ## Deployment
 
@@ -158,9 +171,9 @@ Deployment-related files are in [build/](/Users/grzegorzrzeznikiewicz/Programowa
 
 ### GitHub Actions
 
-- [ci.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/ci.yml) runs frontend formatting, linting, type checks, tests, build, and backend quality checks and tests on every `push` and `pull_request`
-- [deploy.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/deploy.yml) deploys on `main`
-- [rollback.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/rollback.yml) performs a manual rollback to a selected image tag
+- [ci.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/ci.yml)
+- [deploy.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/deploy.yml)
+- [rollback.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/rollback.yml)
 
 ### Required GitHub Secrets
 
@@ -182,11 +195,12 @@ Deployment-related files are in [build/](/Users/grzegorzrzeznikiewicz/Programowa
 ```text
 .
 ├── src/                  # React application source
+├── tests/e2e/            # Playwright end-to-end tests
 ├── backend/              # Symfony 8 API and admin panel
+├── bin/                  # Local environment command wrappers
 ├── docker/               # Local Docker helper scripts
 ├── build/                # Build and deployment files
 ├── .github/workflows/    # GitHub Actions workflows
-├── docker.sh             # Helper for the build stack
 ├── .nvmrc                # Project Node version
 └── package.json
 ```

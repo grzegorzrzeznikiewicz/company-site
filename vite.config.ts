@@ -9,6 +9,14 @@ export default defineConfig(({ mode }) => {
   const devPort = Number(env.VITE_DEV_PORT || '5173');
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
   const usePolling = env.VITE_USE_POLLING === '1';
+  const allowedHosts = [
+    'localhost',
+    '127.0.0.1',
+    'host.docker.internal',
+    'frontend',
+    'company.test',
+    '.company.test',
+  ];
 
   return {
     plugins: [
@@ -24,6 +32,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      allowedHosts,
       host: devHost,
       port: devPort,
       watch: {
@@ -50,6 +59,8 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       css: true,
+      include: ['src/**/*.test.{ts,tsx}'],
+      exclude: ['tests/e2e/**', 'backend/**'],
     },
   };
 });
