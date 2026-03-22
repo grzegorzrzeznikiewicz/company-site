@@ -1,7 +1,8 @@
 import type { ContactFormValues } from '../types/contact';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const API_BASE_URL = typeof apiBaseUrl === 'string' ? apiBaseUrl : 'http://localhost:8080';
+const API_BASE_URL =
+  typeof apiBaseUrl === 'string' ? apiBaseUrl : 'http://localhost:8080';
 
 type ContactApiPayload = {
   message?: string;
@@ -24,7 +25,9 @@ export class ContactApiError extends Error {
   }
 }
 
-export async function submitContactRequest(values: ContactFormValues): Promise<{ message: string }> {
+export async function submitContactRequest(
+  values: ContactFormValues,
+): Promise<{ message: string }> {
   const endpoint = `${API_BASE_URL.replace(/\/$/, '')}/api/contact`;
 
   const response = await fetch(endpoint, {
@@ -35,9 +38,9 @@ export async function submitContactRequest(values: ContactFormValues): Promise<{
     body: JSON.stringify(values),
   });
 
-  const payload = (await response
-    .json()
-    .catch(() => ({ message: 'Nie udało się przetworzyć odpowiedzi serwera.' }))) as ContactApiPayload;
+  const payload = (await response.json().catch(() => ({
+    message: 'Nie udało się przetworzyć odpowiedzi serwera.',
+  }))) as ContactApiPayload;
 
   if (!response.ok) {
     throw new ContactApiError(

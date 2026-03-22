@@ -9,8 +9,9 @@ export function BlogSection() {
           </div>
           <h3 className="mb-4 text-2xl text-gray-900">W budowie</h3>
           <p className="text-gray-600">
-            Nasz blog jest obecnie w przygotowaniu. Wkrótce znajdziesz tutaj cenne artykuły o
-            e-commerce, technologiach AI i najlepszych praktykach w branży.
+            Nasz blog jest obecnie w przygotowaniu. Wkrótce znajdziesz tutaj
+            cenne artykuły o e-commerce, technologiach AI i najlepszych
+            praktykach w branży.
           </p>
         </div>
       </div>

@@ -1,7 +1,13 @@
 import { motion } from 'motion/react';
 
 import { Button } from '../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../ui/card';
 import { MODULES } from '../../content/siteContent';
 import { fadeInUp, staggerContainer } from './animations';
 
@@ -18,7 +24,9 @@ export function ModulesSection() {
           transition={{ duration: 0.5 }}
         >
           <h2 className="mb-4 text-4xl text-gray-900">Moduły Magento 2</h2>
-          <p className="text-xl text-gray-600">Profesjonalne rozszerzenia dostępne w modelu subskrypcji</p>
+          <p className="text-xl text-gray-600">
+            Profesjonalne rozszerzenia dostępne w modelu subskrypcji
+          </p>
         </motion.div>
 
         <motion.div
@@ -57,8 +65,13 @@ export function ModulesSection() {
         </motion.div>
 
         <div className="mt-12 text-center">
-          <p className="mb-4 text-gray-600">Wkrótce dostępne w formie subskrypcji</p>
-          <Button size="lg" className="bg-blue-600 text-white hover:bg-blue-700">
+          <p className="mb-4 text-gray-600">
+            Wkrótce dostępne w formie subskrypcji
+          </p>
+          <Button
+            size="lg"
+            className="bg-blue-600 text-white hover:bg-blue-700"
+          >
             Zapisz się na listę oczekujących
           </Button>
         </div>

@@ -18,10 +18,12 @@ export function HeroSection({ onExploreServices }: HeroSectionProps) {
         variants={fadeInUp}
         transition={{ duration: 0.6 }}
       >
-        <h1 className="mb-6 text-5xl text-gray-900 md:text-6xl">Gama Software</h1>
+        <h1 className="mb-6 text-5xl text-gray-900 md:text-6xl">
+          Gama Software
+        </h1>
         <p className="mx-auto mb-8 max-w-3xl text-xl text-gray-600 md:text-2xl">
-          Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu
-          agentów AI dla Twojego biznesu
+          Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz
+          budowaniu agentów AI dla Twojego biznesu
         </p>
         <Button
           size="lg"

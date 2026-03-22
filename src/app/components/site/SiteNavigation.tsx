@@ -27,7 +27,11 @@ export function SiteNavigation({
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
           <div className="flex items-center">
-            <img src={logoSrc} alt="Gama Software" className="h-16 drop-shadow-lg mix-blend-multiply md:h-20" />
+            <img
+              src={logoSrc}
+              alt="Gama Software"
+              className="h-16 drop-shadow-lg mix-blend-multiply md:h-20"
+            />
           </div>
 
           <div className="hidden space-x-8 md:flex">
@@ -46,7 +50,11 @@ export function SiteNavigation({
           <div className="md:hidden">
             <button
               type="button"
-              aria-label={mobileMenuOpen ? 'Zamknij menu nawigacyjne' : 'Otwórz menu nawigacyjne'}
+              aria-label={
+                mobileMenuOpen
+                  ? 'Zamknij menu nawigacyjne'
+                  : 'Otwórz menu nawigacyjne'
+              }
               aria-controls={mobileMenuId}
               aria-expanded={mobileMenuOpen}
               onClick={onToggleMobileMenu}
@@ -59,7 +67,10 @@ export function SiteNavigation({
       </div>
 
       {mobileMenuOpen && (
-        <div id={mobileMenuId} className="border-t border-gray-200 bg-white md:hidden">
+        <div
+          id={mobileMenuId}
+          className="border-t border-gray-200 bg-white md:hidden"
+        >
           <div className="space-y-1 px-4 pb-3 pt-2">
             {items.map((item) => (
               <button

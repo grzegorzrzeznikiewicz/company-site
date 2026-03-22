@@ -4,7 +4,14 @@ import { useForm } from 'react-hook-form';
 import { ContactApiError, submitContactRequest } from '../../lib/contactApi';
 import type { ContactFormValues } from '../../types/contact';
 import { Button } from '../ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../ui/form';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 
@@ -41,7 +48,9 @@ export function ContactForm() {
     } catch (error) {
       if (error instanceof ContactApiError) {
         if (error.fieldErrors) {
-          for (const [fieldName, messages] of Object.entries(error.fieldErrors)) {
+          for (const [fieldName, messages] of Object.entries(
+            error.fieldErrors,
+          )) {
             const message = messages?.[0];
 
             if (message) {
@@ -90,7 +99,11 @@ export function ContactForm() {
               <FormItem className="text-left">
                 <FormLabel>Imię i nazwisko</FormLabel>
                 <FormControl>
-                  <Input {...field} className={fieldClassName} autoComplete="name" />
+                  <Input
+                    {...field}
+                    className={fieldClassName}
+                    autoComplete="name"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -130,7 +143,12 @@ export function ContactForm() {
             <FormItem className="text-left">
               <FormLabel>Telefon</FormLabel>
               <FormControl>
-                <Input {...field} type="tel" className={fieldClassName} autoComplete="tel" />
+                <Input
+                  {...field}
+                  type="tel"
+                  className={fieldClassName}
+                  autoComplete="tel"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

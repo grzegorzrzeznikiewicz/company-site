@@ -23,12 +23,15 @@ describe('ContactForm', () => {
   it('submits the form and resets fields after success', async () => {
     const user = userEvent.setup();
     vi.mocked(global.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ message: 'Dziękujemy! Wrócimy do Ciebie wkrótce.' }), {
-        status: 201,
-        headers: {
-          'Content-Type': 'application/json',
+      new Response(
+        JSON.stringify({ message: 'Dziękujemy! Wrócimy do Ciebie wkrótce.' }),
+        {
+          status: 201,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         },
-      }),
+      ),
     );
 
     render(<ContactForm />);
@@ -40,7 +43,9 @@ describe('ContactForm', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    expect(screen.getByText('Dziękujemy! Wrócimy do Ciebie wkrótce.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Dziękujemy! Wrócimy do Ciebie wkrótce.'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Imię i nazwisko')).toHaveValue('');
     expect(screen.getByLabelText('Wiadomość')).toHaveValue('');
   });
@@ -70,9 +75,15 @@ describe('ContactForm', () => {
     await fillForm(user);
     await user.click(screen.getByRole('button', { name: 'Wyślij wiadomość' }));
 
-    expect(await screen.findByText('Podaj poprawny adres e-mail.')).toBeInTheDocument();
-    expect(screen.getByText('Wiadomość nie może być pusta.')).toBeInTheDocument();
-    expect(screen.getByText('Proszę uzupełnić wszystkie pola.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Podaj poprawny adres e-mail.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Wiadomość nie może być pusta.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Proszę uzupełnić wszystkie pola.'),
+    ).toBeInTheDocument();
   });
 
   it('shows a general transport error when the request fails', async () => {

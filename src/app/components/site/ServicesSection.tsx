@@ -1,7 +1,13 @@
 import { motion } from 'motion/react';
 
 import { SERVICES } from '../../content/siteContent';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../ui/card';
 import { fadeInUp, staggerContainer } from './animations';
 
 export function ServicesSection() {
@@ -30,7 +36,11 @@ export function ServicesSection() {
             const Icon = service.icon;
 
             return (
-              <motion.div key={service.title} variants={fadeInUp} transition={{ duration: 0.5 }}>
+              <motion.div
+                key={service.title}
+                variants={fadeInUp}
+                transition={{ duration: 0.5 }}
+              >
                 <Card className="border-none shadow-lg transition-shadow hover:shadow-xl">
                   <CardHeader>
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
@@ -39,7 +49,9 @@ export function ServicesSection() {
                     <CardTitle>{service.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-base">{service.description}</CardDescription>
+                    <CardDescription className="text-base">
+                      {service.description}
+                    </CardDescription>
                   </CardContent>
                 </Card>
               </motion.div>
