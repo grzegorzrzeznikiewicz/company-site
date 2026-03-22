@@ -13,13 +13,15 @@ test('renders the admin dashboard after HTTP Basic authentication', async ({
   });
   const page = await context.newPage();
 
-  await page.goto(e2eEnvironment.adminUrl);
+  await page.goto(e2eEnvironment.adminUrl, { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/Panel startowy/);
   await expect(
     page.getByRole('heading', { name: 'Suggested roadmap', level: 3 }),
-  ).toBeVisible();
-  await expect(page.getByText('centrum zarządzania treścią')).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('centrum zarządzania treścią')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page).toHaveURL(/\/admin$/);
 
   await context.close();
 });

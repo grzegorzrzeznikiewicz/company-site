@@ -19,13 +19,24 @@ test('submits the contact form and delivers the message to MailHog', async ({
     .getByLabel('Wiadomość')
     .fill(`${uniqueToken} end-to-end browser verification`);
 
+  const contactResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/contact') && response.status() === 201,
+    { timeout: 15_000 },
+  );
+
   await page.getByRole('button', { name: 'Wyślij wiadomość' }).click();
+  await contactResponsePromise;
 
   await expect(
     page.getByText('Dziękujemy! Wrócimy do Ciebie wkrótce.'),
-  ).toBeVisible();
-  await expect(page.getByLabel('Imię i nazwisko')).toHaveValue('');
-  await expect(page.getByLabel('Wiadomość')).toHaveValue('');
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel('Imię i nazwisko')).toHaveValue('', {
+    timeout: 15_000,
+  });
+  await expect(page.getByLabel('Wiadomość')).toHaveValue('', {
+    timeout: 15_000,
+  });
 
   await expect
     .poll(

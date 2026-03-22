@@ -30,11 +30,7 @@ cp backend/.env.local.example backend/.env.local
 bin/start
 ```
 
-If you are updating an older local stack that still used `symfony`, `symfony-composer`, or `frontend-npm`, run this once:
-
-```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml up -d --remove-orphans
-```
+`bin/start` and `bin/restart` safely remove orphaned containers that belong to this Docker Compose project, including legacy service names from older local stack revisions.
 
 ### Endpoints
 
