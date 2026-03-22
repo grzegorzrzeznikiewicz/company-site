@@ -2,7 +2,7 @@ import type { ContactFormValues } from '../types/contact';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL =
-  typeof apiBaseUrl === 'string' ? apiBaseUrl : 'http://localhost:8080';
+  import.meta.env.DEV || typeof apiBaseUrl !== 'string' ? '' : apiBaseUrl;
 
 type ContactApiPayload = {
   message?: string;
