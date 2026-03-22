@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const devHost = env.VITE_DEV_HOST || 'localhost';
   const devPort = Number(env.VITE_DEV_PORT || '5173');
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
+  const usePolling = env.VITE_USE_POLLING === '1';
 
   return {
     plugins: [
@@ -24,10 +26,25 @@ export default defineConfig(({ mode }) => {
     server: {
       host: devHost,
       port: devPort,
+      watch: {
+        usePolling,
+      },
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
     preview: {
       host: devHost,
       port: devPort,
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
     test: {
       environment: 'jsdom',

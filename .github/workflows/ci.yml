@@ -1,10 +1,11 @@
 name: CI Quality Checks
 
+env:
+  FRONTEND_NODE_VERSION: '24.14.0'
+
 on:
   pull_request:
   push:
-    branches:
-      - main
 
 jobs:
   backend-quality:
@@ -159,7 +160,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.FRONTEND_NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: package-lock.json
 

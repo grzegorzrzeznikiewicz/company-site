@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "engines": {
+    "node": "24.14.0"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite",
@@ -108,5 +111,8 @@
     "overrides": {
       "vite": "6.3.5"
     }
+  },
+  "volta": {
+    "node": "24.14.0"
   }
 }

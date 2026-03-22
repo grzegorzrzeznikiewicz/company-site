@@ -28,7 +28,8 @@ export class ContactApiError extends Error {
 export async function submitContactRequest(
   values: ContactFormValues,
 ): Promise<{ message: string }> {
-  const endpoint = `${API_BASE_URL.replace(/\/$/, '')}/api/contact`;
+  const normalizedBaseUrl = API_BASE_URL ? API_BASE_URL.replace(/\/$/, '') : '';
+  const endpoint = `${normalizedBaseUrl}/api/contact`;
 
   const response = await fetch(endpoint, {
     method: 'POST',

@@ -21,6 +21,42 @@ services:
     command: >
       bash -lc "if [ ! -d vendor ]; then composer install; fi && php -S 0.0.0.0:8080 -t public"
 
+  frontend:
+    image: node:${FRONTEND_NODE_VERSION:-24.14.0}
+    container_name: gama-frontend
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - "${VITE_DEV_PORT:-5173}:5173"
+    environment:
+      VITE_DEV_HOST: 0.0.0.0
+      VITE_DEV_PORT: ${VITE_DEV_PORT:-5173}
+      VITE_API_BASE_URL: ""
+      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://symfony:8080}
+      VITE_USE_POLLING: "1"
+    depends_on:
+      symfony:
+        condition: service_started
+    entrypoint: ["/bin/bash", "/app/docker/frontend-entrypoint.sh"]
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
+  frontend-npm:
+    image: node:${FRONTEND_NODE_VERSION:-24.14.0}
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - frontend-node-modules:/app/node_modules
+    environment:
+      VITE_API_BASE_URL: ""
+      VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET:-http://symfony:8080}
+      VITE_USE_POLLING: "1"
+      CI: "1"
+    entrypoint: ["/bin/bash", "/app/docker/frontend-entrypoint.sh"]
+    command: ["npm", "--version"]
+    profiles: ["tools"]
+
   symfony-composer:
     build:
       context: ./backend
@@ -66,3 +102,4 @@ services:
 
 volumes:
   symfony-db-data:
+  frontend-node-modules:
