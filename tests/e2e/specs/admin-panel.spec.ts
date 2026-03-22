@@ -5,15 +5,18 @@ import { e2eEnvironment } from '../support/environment';
 test('renders the admin dashboard after HTTP Basic authentication', async ({
   browser,
 }) => {
-  const context = await browser.newContext({
-    httpCredentials: {
-      username: e2eEnvironment.adminUsername,
-      password: e2eEnvironment.adminPassword,
-    },
-  });
+  const context = await browser.newContext();
   const page = await context.newPage();
+  const adminUrl = new URL(e2eEnvironment.adminUrl);
+  adminUrl.username = e2eEnvironment.adminUsername;
+  adminUrl.password = e2eEnvironment.adminPassword;
 
-  await page.goto(e2eEnvironment.adminUrl, { waitUntil: 'domcontentloaded' });
+  const response = await page.goto(adminUrl.toString(), {
+    waitUntil: 'domcontentloaded',
+  });
+
+  expect(response).not.toBeNull();
+  expect(response?.status()).toBe(200);
 
   await expect(
     page.getByRole('heading', { name: 'Suggested roadmap', level: 3 }),

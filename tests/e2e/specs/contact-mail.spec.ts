@@ -20,13 +20,14 @@ test('submits the contact form and delivers the message to MailHog', async ({
     .fill(`${uniqueToken} end-to-end browser verification`);
 
   const contactResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/contact') && response.status() === 201,
+    (response) => response.url().endsWith('/api/contact'),
     { timeout: 15_000 },
   );
 
   await page.getByRole('button', { name: 'Wyślij wiadomość' }).click();
-  await contactResponsePromise;
+  const contactResponse = await contactResponsePromise;
+
+  expect(contactResponse.status()).toBe(201);
 
   await expect(
     page.getByText('Dziękujemy! Wrócimy do Ciebie wkrótce.'),
