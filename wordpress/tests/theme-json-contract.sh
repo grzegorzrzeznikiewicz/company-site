@@ -20,11 +20,36 @@ docker run --rm --network none \
 
 cp "$THEME_JSON" "$fixture_dir/invalid.json"
 sed 's/"version": 3/"version": 999/' "$fixture_dir/invalid.json" >"$fixture_dir/mutated.json"
-if docker run --rm --network none \
+chmod 0755 "$fixture_dir"
+chmod 0644 "$fixture_dir/invalid.json" "$fixture_dir/mutated.json"
+file_mode() {
+  if stat -f '%Lp' "$1" >/dev/null 2>&1; then
+    stat -f '%Lp' "$1"
+  else
+    stat -c '%a' "$1"
+  fi
+}
+if [[ "$(file_mode "$fixture_dir")" != 755 || "$(file_mode "$fixture_dir/mutated.json")" != 644 ]]; then
+  echo 'Negative schema fixture is not safely traversable/readable by the container user.' >&2
+  exit 1
+fi
+set +e
+mutation_output="$(docker run --rm --network none \
   --volume "$fixture_dir:/fixture:ro" \
   --volume "$SCHEMA_DIR:/schema:ro" \
-  gama-theme-qa:gsweb12 php /qa/validate-theme-json.php /fixture/mutated.json /schema/wp-7.1-theme.json; then
+  gama-theme-qa:gsweb12 php /qa/validate-theme-json.php /fixture/mutated.json /schema/wp-7.1-theme.json 2>&1)"
+mutation_status=$?
+set -e
+if [[ "$mutation_status" -eq 0 ]]; then
   echo 'Schema validator accepted the deliberate invalid version mutation.' >&2
+  exit 1
+fi
+if ! grep -Fq 'theme.json failed WordPress 7.1 schema validation:' <<<"$mutation_output"; then
+  printf 'Negative fixture failed for a reason other than schema rejection:\n%s\n' "$mutation_output" >&2
+  exit 1
+fi
+if grep -Eqi 'permission denied|could not read' <<<"$mutation_output"; then
+  printf 'Negative fixture hit a permission/read failure:\n%s\n' "$mutation_output" >&2
   exit 1
 fi
 

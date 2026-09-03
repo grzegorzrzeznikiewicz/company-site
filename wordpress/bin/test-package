@@ -69,6 +69,9 @@ query_project_resource_ids() {
     network)
       docker network ls --quiet --filter "$project_filter"
       ;;
+    image)
+      docker image ls --quiet --filter "$project_filter"
+      ;;
     *)
       echo "Unsupported Docker resource kind: $resource_kind" >&2
       return 64
@@ -78,8 +81,13 @@ query_project_resource_ids() {
 
 assert_project_absent() {
   local resource_kind resource_ids query_status
+  local resource_kinds=(container volume network)
 
-  for resource_kind in container volume network; do
+  if [[ "$package_kind" == theme ]]; then
+    resource_kinds+=(image)
+  fi
+
+  for resource_kind in "${resource_kinds[@]}"; do
     resource_ids="$(query_project_resource_ids "$resource_kind")" || {
       query_status=$?
       echo "Could not query pre-existing $resource_kind resources for $project_name." >&2
@@ -93,6 +101,55 @@ assert_project_absent() {
   done
 }
 
+collect_browser_artifacts() {
+  local artifact_root="${GAMA_THEME_ARTIFACT_ROOT:-${TMPDIR:-/tmp}/codex-gsweb12-artifacts}"
+  local artifact_directory="$artifact_root/$project_name"
+  local artifact_archive="$artifact_directory/browser-artifacts.tar"
+  local partial_archive="$artifact_archive.partial"
+  local volume_ids volume_id command_status
+
+  volume_ids="$(docker volume ls --quiet \
+    --filter "label=com.docker.compose.project=$project_name" \
+    --filter "name=^${project_name}_browser-artifacts$")" || {
+    command_status=$?
+    echo "Could not query the browser artifact volume for $project_name." >&2
+    return "$command_status"
+  }
+  if [[ -z "$volume_ids" ]]; then
+    echo "No browser artifact volume exists for $project_name; nothing can be collected." >&2
+    return 0
+  fi
+  if [[ "$(wc -l <<<"$volume_ids" | tr -d '[:space:]')" -ne 1 ]]; then
+    echo "Expected exactly one labelled browser artifact volume for $project_name." >&2
+    printf '%s\n' "$volume_ids" >&2
+    return 1
+  fi
+  volume_id="$volume_ids"
+  if [[ "$volume_id" != "${project_name}_browser-artifacts" ]]; then
+    echo "Refusing unexpected labelled artifact volume: $volume_id" >&2
+    return 1
+  fi
+  mkdir -p "$artifact_directory" || return $?
+  if [[ -e "$artifact_archive" || -L "$artifact_archive" || -e "$partial_archive" || -L "$partial_archive" ]]; then
+    echo "Refusing to overwrite an existing browser artifact archive for $project_name." >&2
+    return 1
+  fi
+
+  docker run --rm --network none \
+    --volume "$volume_id:/artifacts:ro" \
+    --entrypoint tar \
+    wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99 \
+    -C /artifacts -cf - . >"$partial_archive"
+  command_status=$?
+  if [[ "$command_status" -ne 0 ]]; then
+    unlink "$partial_archive" 2>/dev/null || true
+    echo "Browser artifact collection failed with status $command_status for $project_name." >&2
+    return "$command_status"
+  fi
+  mv "$partial_archive" "$artifact_archive" || return $?
+  echo "Collected complete browser artifact volume: $artifact_archive"
+}
+
 echo "Disposable Compose project: $project_name"
 assert_project_absent
 echo "Disposable project label is unused before start."
@@ -101,20 +158,36 @@ cleanup() {
   local test_status=$?
   local cleanup_status=0
   local command_status resource_kind remaining_resources
+  local resource_kinds=(container volume network)
+
+  if [[ "$package_kind" == theme ]]; then
+    resource_kinds+=(image)
+  fi
 
   set +e
   echo "Cleaning only disposable Compose project: $project_name"
+  if [[ "$package_kind" == theme ]]; then
+    collect_browser_artifacts
+    command_status=$?
+    if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+      cleanup_status=$command_status
+    fi
+  fi
   "${COMPOSE[@]}" ps --all
   command_status=$?
   if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
     cleanup_status=$command_status
   fi
-  "${COMPOSE[@]}" down --volumes --remove-orphans
+  if [[ "$package_kind" == theme ]]; then
+    "${COMPOSE[@]}" down --volumes --remove-orphans --rmi local
+  else
+    "${COMPOSE[@]}" down --volumes --remove-orphans
+  fi
   command_status=$?
   if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
     cleanup_status=$command_status
   fi
-  for resource_kind in container volume network; do
+  for resource_kind in "${resource_kinds[@]}"; do
     remaining_resources="$(query_project_resource_ids "$resource_kind")"
     command_status=$?
     if [[ "$command_status" -ne 0 ]]; then
@@ -196,6 +269,15 @@ $walk = static function (array $blocks, string $source) use (&$walk, $fail): voi
     }
 };
 foreach (array_merge(glob($root . "/templates/*.html"), glob($root . "/parts/*.html")) as $file) { $walk(parse_blocks(file_get_contents($file)), basename($file)); }
+$search_blocks = parse_blocks(file_get_contents($root . "/templates/search.html"));
+$find_search = static function (array $blocks) use (&$find_search): ?array { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/search") { return $block; } $found = $find_search($block["innerBlocks"] ?? []); if ($found !== null) { return $found; } } return null; };
+$search = $find_search($search_blocks);
+if (!is_array($search) || ($search["attrs"] ?? []) !== ["showLabel" => true]) { $fail("Search block does not defer labels to Core localization"); }
+$translate_search = static fn ($translation, $text) => $text === "Search" ? "GSWEB12 localized search" : $translation;
+add_filter("gettext", $translate_search, 10, 2);
+$rendered_search = render_block($search);
+remove_filter("gettext", $translate_search, 10);
+if (!str_contains($rendered_search, "GSWEB12 localized search")) { $fail("Core-localized Search defaults were not rendered"); }
 $pattern = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/not-found");
 if (!is_array($pattern) || empty($pattern["content"])) { $fail("Theme pattern was not registered"); }
 $walk(parse_blocks($pattern["content"]), "registered pattern");
@@ -241,8 +323,8 @@ echo "editor-policy-ok";'
   wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
 
   "${COMPOSE[@]}" build browser
-  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @open
-  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @save
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=open browser npx playwright test --grep @open
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=save browser npx playwright test --grep @save
 
   pair_a_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$slug, $type]) {
@@ -259,7 +341,7 @@ foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$sl
   wp_cmd theme activate "$alternate_theme"
   wp_cmd theme activate gama-software
   wp_cmd eval "$pair_a_contract" | grep -Eq 'front-page|header'
-  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @reset
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=reset browser npx playwright test --grep @reset
 
   pair_b_output="$(wp_cmd eval '$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
 $create = static function (string $route, string $content): int {
@@ -268,26 +350,34 @@ $create = static function (string $route, string $content): int {
     return (int) $response->get_data()["wp_id"];
 };
 $page = get_block_template("gama-software//page", "wp_template");
-$footer = get_block_template("gama-software//footer", "wp_template_part");
+$single = get_block_template("gama-software//single", "wp_template");
 $page_id = $create("/wp/v2/templates/gama-software//page", $page->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B page</p><!-- /wp:paragraph -->");
-$footer_id = $create("/wp/v2/template-parts/gama-software//footer", $footer->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B footer</p><!-- /wp:paragraph -->");
-echo $page_id . "," . $footer_id;')"
+$single_id = $create("/wp/v2/templates/gama-software//single", $single->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B single</p><!-- /wp:paragraph -->");
+echo $page_id . "," . $single_id;')"
   pair_b_ids="$(tail -n 1 <<<"$pair_b_output")"
   [[ "$pair_b_ids" =~ ^[0-9]+,[0-9]+$ ]]
   sentinel="gsweb12-${RANDOM}-${RANDOM}"
   wp_cmd option update gama_theme_test_sentinel "$sentinel"
   helper_body="$(sed '/^<\?php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/reset-theme-overrides.php")"
   ids_php="[${pair_b_ids/,/, }]"
-  targets_php="[['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'footer','type'=>'wp_template_part']]"
+  targets_php="[['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]"
   helper_prefix="define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);"
+  assert_pair_b_exists="foreach ([$pair_b_ids] as \$id) { if (!get_post(\$id)) { fwrite(STDERR, 'Pair B override disappeared during a rejected reset.' . PHP_EOL); exit(1); } } echo 'pair-b-still-exists';"
+  duplicate_id="${pair_b_ids%%,*}"
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', [$duplicate_id,$duplicate_id]); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'page','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted duplicate IDs.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'single','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'page','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted swapped same-type ID/slug bindings.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'other-theme','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted a wrong theme.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
   if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', false); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted missing confirmation.' >&2; exit 1; fi
   if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', 'production'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted durable project.' >&2; exit 1; fi
   if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', 'wrong-sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted wrong sentinel.' >&2; exit 1; fi
   if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', []); define('GAMA_THEME_RESET_TARGETS', []);$helper_body"; then echo 'Reset helper accepted empty IDs.' >&2; exit 1; fi
-  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'index','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'footer','type'=>'wp_template_part']]);$helper_body"; then echo 'Reset helper accepted wrong slug.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'index','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted wrong slug.' >&2; exit 1; fi
   wp_cmd eval "$helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
 
-  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @public
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=public browser npx playwright test --grep @public
 
   original_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'
@@ -299,7 +389,7 @@ echo $page_id . "," . $footer_id;')"
   restored_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   [[ "$original_hashes" == "$restored_hashes" ]]
 
-  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'test -f /artifacts/report/index.html && find /artifacts -type f -print | sort'
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
   debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
   runtime_output="$("${COMPOSE[@]}" logs --no-color)"
   if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi

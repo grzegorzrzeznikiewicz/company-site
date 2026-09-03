@@ -41,6 +41,17 @@ if ( ! is_array( GAMA_THEME_RESET_TARGETS ) || count( GAMA_THEME_RESET_IDS ) !==
 	$gama_theme_reset_fail( 'The exact reset target map is required.' );
 }
 
+$gama_theme_seen_ids = array();
+foreach ( GAMA_THEME_RESET_IDS as $gama_theme_post_id ) {
+	if ( ! is_int( $gama_theme_post_id ) || 1 > $gama_theme_post_id ) {
+		$gama_theme_reset_fail( 'Every reset post ID must be a positive integer.' );
+	}
+	if ( isset( $gama_theme_seen_ids[ $gama_theme_post_id ] ) ) {
+		$gama_theme_reset_fail( 'Duplicate reset post IDs are forbidden.' );
+	}
+	$gama_theme_seen_ids[ $gama_theme_post_id ] = true;
+}
+
 $gama_theme_verified = array();
 foreach ( GAMA_THEME_RESET_IDS as $gama_theme_index => $gama_theme_post_id ) {
 	$gama_theme_target = GAMA_THEME_RESET_TARGETS[ $gama_theme_index ];
@@ -59,9 +70,13 @@ foreach ( GAMA_THEME_RESET_IDS as $gama_theme_index => $gama_theme_post_id ) {
 	$gama_theme_slug     = (string) ( $gama_theme_target['slug'] ?? '' );
 	$gama_theme_template = get_block_template( "gama-software//{$gama_theme_slug}", $gama_theme_post->post_type );
 	if ( ! $gama_theme_template instanceof WP_Block_Template
+		|| (int) $gama_theme_template->wp_id !== $gama_theme_post_id
+		|| 'gama-software' !== $gama_theme_template->theme
+		|| $gama_theme_slug !== $gama_theme_template->slug
+		|| $gama_theme_post->post_type !== $gama_theme_template->type
 		|| 'custom' !== $gama_theme_template->source
 		|| true !== $gama_theme_template->has_theme_file ) {
-		$gama_theme_reset_fail( 'Target is not a custom override backed by a theme file.' );
+		$gama_theme_reset_fail( 'Target is not the exact custom override backed by the named theme file.' );
 	}
 	$gama_theme_verified[] = array(
 		'id'    => $gama_theme_post_id,

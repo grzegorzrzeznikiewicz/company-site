@@ -60,7 +60,9 @@ services:
     image: wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99
     user: "33:33"
     environment:
-      HOME: /tmp
+      WP_CLI_CACHE_DIR: /tmp/gama-theme-wp-cli/cache
+      WP_CLI_CONFIG_PATH: /tmp/gama-theme-wp-cli/config.yml
+      WP_CLI_PACKAGES_DIR: /tmp/gama-theme-wp-cli/packages
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_NAME: wordpress_theme_test
       WORDPRESS_DB_USER: wordpress_theme_test
@@ -78,7 +80,6 @@ services:
         condition: service_healthy
 
   browser:
-    image: gama-theme-browser:gsweb12
     build:
       context: ../..
       dockerfile: wordpress/qa/browser.Dockerfile

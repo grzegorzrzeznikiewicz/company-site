@@ -1,5 +1,11 @@
 import { defineConfig } from '@playwright/test';
 
+const artifactRun = process.env.GAMA_PLAYWRIGHT_RUN ?? 'adhoc';
+if (!/^[a-z][a-z0-9-]*$/.test(artifactRun)) {
+  throw new Error('GAMA_PLAYWRIGHT_RUN must be a safe artifact directory name.');
+}
+const artifactRoot = `/artifacts/${artifactRun}`;
+
 export default defineConfig({
   testDir: './specs',
   fullyParallel: false,
@@ -12,9 +18,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  outputDir: '/artifacts/test-results',
+  outputDir: `${artifactRoot}/test-results`,
   reporter: [
     ['list'],
-    ['html', { outputFolder: '/artifacts/report', open: 'never' }],
+    ['html', { outputFolder: `${artifactRoot}/report`, open: 'never' }],
   ],
 });

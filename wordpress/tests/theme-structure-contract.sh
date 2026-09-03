@@ -21,7 +21,11 @@ grep -Fq '<!-- wp:post-title {"level":1' "$THEME_DIR/templates/single.html"
 grep -Fq '<!-- wp:post-featured-image' "$THEME_DIR/templates/single.html"
 grep -Fq '<!-- wp:query-title {"type":"archive","level":1' "$THEME_DIR/templates/archive.html"
 grep -Fq '<!-- wp:query-title {"type":"search","level":1' "$THEME_DIR/templates/search.html"
-grep -Fq '<!-- wp:search ' "$THEME_DIR/templates/search.html"
+grep -Fq '<!-- wp:search {"showLabel":true} /-->' "$THEME_DIR/templates/search.html"
+if grep -Eq '"(label|buttonText)"' "$THEME_DIR/templates/search.html"; then
+  echo 'Search template hard-codes a label instead of using Core-localized defaults.' >&2
+  exit 1
+fi
 grep -Fq '<!-- wp:pattern {"slug":"gama-software/not-found"} /-->' "$THEME_DIR/templates/404.html"
 
 grep -Fq '"className":"gama-site-header"' "$THEME_DIR/parts/header.html"

@@ -26,7 +26,7 @@ $expected_images = array(
 	'uploads-init' => 'wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d',
 	'wordpress'    => 'wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d',
 	'wp'           => 'wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99',
-	'browser'      => 'gama-theme-browser:gsweb12',
+	'browser'      => null,
 );
 $expected_mounts = array(
 	'browser'      => array( array( 'volume', 'browser-artifacts', '/artifacts', false ) ),
@@ -67,6 +67,13 @@ foreach ( $expected_images as $name => $image ) {
 }
 if ( array( array( 'wp', 'bind', $expected_zip, '/package/gama-software.zip', true ) ) !== $binds ) {
 	gama_theme_compose_fail( 'canonical read-only ZIP must be the only bind mount' );
+}
+$wp_environment = $services['wp']['environment'] ?? array();
+if ( array_key_exists( 'HOME', $wp_environment )
+	|| '/tmp/gama-theme-wp-cli/cache' !== ( $wp_environment['WP_CLI_CACHE_DIR'] ?? null )
+	|| '/tmp/gama-theme-wp-cli/config.yml' !== ( $wp_environment['WP_CLI_CONFIG_PATH'] ?? null )
+	|| '/tmp/gama-theme-wp-cli/packages' !== ( $wp_environment['WP_CLI_PACKAGES_DIR'] ?? null ) ) {
+	gama_theme_compose_fail( 'WP-CLI must use task-specific paths without overriding HOME' );
 }
 $browser_build = $services['browser']['build'] ?? array();
 if ( ! str_ends_with( (string) ( $browser_build['context'] ?? '' ), '/web' )
