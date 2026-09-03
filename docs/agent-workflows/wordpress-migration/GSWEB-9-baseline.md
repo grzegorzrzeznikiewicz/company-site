@@ -1,6 +1,7 @@
 # GSWEB-9 — stan bazowy i bezpieczny punkt startowy migracji
 
-- Stan dokumentu: **gotowy do recenzji i zatwierdzenia Gate A0**
+- Stan dokumentu: **niezależnie zrecenzowany; oczekuje akceptacji właściciela
+  Gate A0**
 - Data obserwacji produkcji: **2026-09-03, Europe/Warsaw**
 - Zgłoszenie: [GSWEB-9](https://gamasoftware.atlassian.net/browse/GSWEB-9)
 - Autor pomiaru i dokumentacji: **Codex, we współpracy z właścicielem
@@ -538,6 +539,7 @@ nie zmieniła produkcji.
 | Kontrola istnienia i sum kontrolnych PNG                                                     | PASS                                                                      |
 | Wyszukanie sygnatur kluczy prywatnych, tokenów GitHub i JWT w Markdown/metadata PNG          | brak dopasowań                                                            |
 | Kontrola bieżącego worktree                                                                  | tylko katalog dokumentacji GSWEB-9; brak plików JWT i zmian aplikacyjnych |
+| Niezależna recenzja `main..cd3cb87`                                                          | PASS; brak P0/P1/P2/P3, werdykt „zaakceptować”, Gate A0 review `GO`       |
 
 Pierwsza próba lokalnego `npm run build` na hoście nie wystartowała z powodu
 brakującej opcjonalnej paczki natywnej Rollupa w istniejącym `node_modules` i
@@ -564,7 +566,7 @@ cofania usuwać dwóch stashy WIP opisanych w sekcji 2.
       dostępności/wydajności/SEO.
 - [x] Wymieniono nazwy konfiguracji i sekretów bez ich wartości.
 - [x] Zapisano otwarte decyzje, właścicieli i terminy.
-- [ ] Niezależna recenzja nie ma otwartych uwag blokujących ani wysokich.
+- [x] Niezależna recenzja nie ma otwartych uwag P0/P1/P2/P3.
 - [ ] Właściciel zatwierdził Gate A0.
 
 GSWEB-10 nie może rozpocząć się przed zaznaczeniem dwóch ostatnich punktów.
