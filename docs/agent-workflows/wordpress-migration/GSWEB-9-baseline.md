@@ -1,7 +1,6 @@
 # GSWEB-9 — stan bazowy i bezpieczny punkt startowy migracji
 
-- Stan dokumentu: **niezależnie zrecenzowany; oczekuje akceptacji właściciela
-  Gate A0**
+- Stan dokumentu: **Gate A0 zatwierdzona przez właściciela 2026-09-03**
 - Data obserwacji produkcji: **2026-09-03, Europe/Warsaw**
 - Zgłoszenie: [GSWEB-9](https://gamasoftware.atlassian.net/browse/GSWEB-9)
 - Autor pomiaru i dokumentacji: **Codex, we współpracy z właścicielem
@@ -512,7 +511,6 @@ zatwierdzonego `main`.
 
 | Decyzja                                                                                                           | Właściciel                                       | Termin / blokuje                                  |
 | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------- |
-| Zatwierdzenie tego dokumentu oraz reguły „wygląd produkcji + poprawki semantyczne z main”                         | właściciel produktu                              | Gate A0, przed GSWEB-10                           |
 | Host kanoniczny (`gama-software.com` czy `www.gama-software.com`) i zachowanie kotwic w adresie                   | właściciel produktu + wykonawca techniczny       | przed GSWEB-22; założenie robocze: host bez `www` |
 | Docelowe URL-e i zatwierdzona treść Polityki prywatności oraz Regulaminu                                          | właściciel produktu / prawny                     | przed GSWEB-21 i GSWEB-22                         |
 | Czy CTA „Zapisz się na listę oczekujących” ma działać, zostać usunięte czy pozostać informacyjne                  | właściciel produktu                              | przed GSWEB-17                                    |
@@ -528,18 +526,19 @@ zatwierdzonego `main`.
 Wszystkie kontrole wykonano 2026-09-03. Żadna z nich nie wysłała formularza ani
 nie zmieniła produkcji.
 
-| Kontrola                                                                                     | Wynik                                                                     |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `git rev-parse`, relacja branchy i `git stash show`                                          | commit bazowy i dwa stałe hashe stash potwierdzone; WIP odzyskiwalny      |
-| HTTP HEAD/GET dla hostów, URL-i technicznych i nieznanej ścieżki                             | statusy oraz fallbacki zgodne z inwentarzem w sekcji 3                    |
-| Playwright 1.59.1 / Chromium 147: desktop, mobile, DOM, klawiatura, focus, kontrast, LCP/CLS | wykonane; wyniki w sekcji 8                                               |
-| Frontend w kontenerze: Prettier, ESLint, TypeScript, Vitest, Vite build                      | PASS; 2 pliki testowe, 4 testy; build zakończony                          |
-| Backend w kontenerze: PHP-CS-Fixer, PHPStan, PHPMD, PHPUnit                                  | PASS; 6 testów, 22 asercje                                                |
-| Prettier dla całego katalogu migracji i `git diff --check`                                   | PASS                                                                      |
-| Kontrola istnienia i sum kontrolnych PNG                                                     | PASS                                                                      |
-| Wyszukanie sygnatur kluczy prywatnych, tokenów GitHub i JWT w Markdown/metadata PNG          | brak dopasowań                                                            |
-| Kontrola bieżącego worktree                                                                  | tylko katalog dokumentacji GSWEB-9; brak plików JWT i zmian aplikacyjnych |
-| Niezależna recenzja `main..cd3cb87`                                                          | PASS; brak P0/P1/P2/P3, werdykt „zaakceptować”, Gate A0 review `GO`       |
+| Kontrola                                                                                     | Wynik                                                                                           |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `git rev-parse`, relacja branchy i `git stash show`                                          | commit bazowy i dwa stałe hashe stash potwierdzone; WIP odzyskiwalny                            |
+| HTTP HEAD/GET dla hostów, URL-i technicznych i nieznanej ścieżki                             | statusy oraz fallbacki zgodne z inwentarzem w sekcji 3                                          |
+| Playwright 1.59.1 / Chromium 147: desktop, mobile, DOM, klawiatura, focus, kontrast, LCP/CLS | wykonane; wyniki w sekcji 8                                                                     |
+| Frontend w kontenerze: Prettier, ESLint, TypeScript, Vitest, Vite build                      | PASS; 2 pliki testowe, 4 testy; build zakończony                                                |
+| Backend w kontenerze: PHP-CS-Fixer, PHPStan, PHPMD, PHPUnit                                  | PASS; 6 testów, 22 asercje                                                                      |
+| Prettier dla całego katalogu migracji i `git diff --check`                                   | PASS                                                                                            |
+| Kontrola istnienia i sum kontrolnych PNG                                                     | PASS                                                                                            |
+| Wyszukanie sygnatur kluczy prywatnych, tokenów GitHub i JWT w Markdown/metadata PNG          | brak dopasowań                                                                                  |
+| Kontrola bieżącego worktree                                                                  | tylko katalog dokumentacji GSWEB-9; brak plików JWT i zmian aplikacyjnych                       |
+| Niezależna recenzja `main..cd3cb87`                                                          | PASS; brak P0/P1/P2/P3, werdykt „zaakceptować”, Gate A0 review `GO`                             |
+| Akceptacja właściciela                                                                       | 2026-09-03; Gate A0 zatwierdzona wraz z regułą „wygląd produkcji + poprawki semantyczne z main” |
 
 Pierwsza próba lokalnego `npm run build` na hoście nie wystartowała z powodu
 brakującej opcjonalnej paczki natywnej Rollupa w istniejącym `node_modules` i
@@ -567,6 +566,7 @@ cofania usuwać dwóch stashy WIP opisanych w sekcji 2.
 - [x] Wymieniono nazwy konfiguracji i sekretów bez ich wartości.
 - [x] Zapisano otwarte decyzje, właścicieli i terminy.
 - [x] Niezależna recenzja nie ma otwartych uwag P0/P1/P2/P3.
-- [ ] Właściciel zatwierdził Gate A0.
+- [x] Właściciel zatwierdził Gate A0 2026-09-03.
 
-GSWEB-10 nie może rozpocząć się przed zaznaczeniem dwóch ostatnich punktów.
+Warunki Gate A0 są spełnione. Przed rozpoczęciem GSWEB-10 zatwierdzony commit
+GSWEB-9 musi jeszcze zostać scalony do gałęzi bazowej zgodnie z procesem.

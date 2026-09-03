@@ -45,10 +45,14 @@ mediów, infrastruktury i mierzalny baseline jakości.
 - [x] Zidentyfikuj oraz zachowaj wszystkie istniejące zmiany użytkownika.
 - [x] Ustal z właścicielem gałąź/commit, od którego ma rozpocząć się migracja.
 - [x] Wykonaj inwentarz i testy baseline wymagane przez GSWEB-9.
-- [ ] Zapisz dowody, poddaj zmianę recenzji i scal zaakceptowany rezultat.
+- [x] Zapisz dowody i poddaj zmianę niezależnej recenzji.
+- [ ] Scal zaakceptowany rezultat do gałęzi bazowej.
 
 **Gate A0:** Nie rozpoczynaj GSWEB-10, dopóki punkt bazowy nie jest jednoznaczny,
 a istniejące zmiany użytkownika nie są bezpiecznie zapisane.
+
+**Status 2026-09-03:** właściciel zatwierdził Gate A0; oczekuje scalenie
+zaakceptowanych commitów GSWEB-9.
 
 ## Faza 1 — fundament techniczny
 
