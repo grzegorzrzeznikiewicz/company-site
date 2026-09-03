@@ -89,6 +89,17 @@ command, fixed locale/timezone/headers and no `--skip-theme-json`. Two clean
 runs must be byte-identical to the versioned POT and contain known strings from
 both `theme.json` and PHP.
 
+Implementation note (verified 2026-09-03): the image's WP-CLI 2.12.0 PHAR
+contains `wp-cli/i18n-command` 2.6.5 but omits its `theme-i18n.json` fallback.
+With networking correctly disabled, the command therefore cannot extract
+`theme.json` by itself. QA vendors the byte-identical WordPress 7.1
+`wp-includes/theme-i18n.json` (SHA-256
+`00b0703c850691dd18d75e5a94270ebc575b663569670d01fc52497cc284562a`),
+extracts the mapped template-part titles offline into a deterministic POT seed,
+and passes that seed to the same pinned `wp i18n make-pot --merge` invocation.
+The generator remains offline and the final POT still has to match two clean
+runs byte-for-byte.
+
 ## ZIP-only browser contract
 
 The original GSWEB-11 package Compose contract remains unchanged. GSWEB-12 may
@@ -103,6 +114,15 @@ are baked into the image. They authenticate to the disposable WordPress by
 service name, exercise all Site Editor templates/parts, record browser errors,
 and retain the canonical-ZIP, exact-label preflight and zero-residue cleanup
 guarantees from `aeaf1c8`.
+
+The automated editor test first proves the exact template or template-part
+entity and its rendered editor canvas, then drives the Site Editor's loaded
+`core-data` entity store through the same edit/save/delete actions used by its
+Save and revert controls. It does not substitute an unaffiliated REST write.
+The public baseline uses a 320 px viewport and CDP page-scale 2 as an automated
+reflow proxy, explicitly not CSS `zoom` and not a claim of native browser-chrome
+zoom. Native Chrome 200% zoom remains a controller-owned manual checkpoint
+against the exact ZIP before GSWEB-12 is accepted.
 
 Gate A is an implementation gate only. Staging, production cutover and old
 stack retirement remain governed by their later gates and fresh live-operation

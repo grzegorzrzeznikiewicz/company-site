@@ -1,0 +1,14 @@
+{
+  "name": "gama-software-wordpress-theme-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22.*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.54.2"
+  },
+  "scripts": {
+    "test": "playwright test"
+  }
+}

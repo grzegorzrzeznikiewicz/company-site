@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+"$ROOT_DIR/tests/theme-source-contract.sh"
+"$ROOT_DIR/tests/theme-structure-contract.sh"
+"$ROOT_DIR/tests/theme-functions-contract.sh"
+"$ROOT_DIR/tests/theme-json-contract.sh"
+"$ROOT_DIR/tests/theme-php-quality.sh"
+"$ROOT_DIR/tests/theme-i18n-contract.sh"
+"$ROOT_DIR/tests/theme-package-contract.sh"
+"$ROOT_DIR/tests/theme-package-compose-contract.sh"
+"$ROOT_DIR/tests/theme-browser-contract.sh"

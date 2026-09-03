@@ -2,10 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
-
 if [[ "$#" -ne 1 ]]; then
-  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip>" >&2
+  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip|gama-software-0.1.0.zip>" >&2
   exit 64
 fi
 
@@ -18,16 +16,38 @@ if ! zip_dir="$(cd "$(dirname "$1")" && pwd -P)"; then
   exit 64
 fi
 zip_path="$zip_dir/$(basename "$1")"
+artifact_name="$(basename "$zip_path")"
+case "$artifact_name" in
+  gama-contact-0.1.0.zip)
+    package_kind=plugin
+    project_prefix=gama-package
+    COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
+    site_url=http://gama-package.test
+    admin_user=package-admin
+    admin_password=package-test-password-only
+    ;;
+  gama-software-0.1.0.zip)
+    package_kind=theme
+    project_prefix=gama-theme-package
+    COMPOSE_FILE="$ROOT_DIR/tests/theme-package-compose.yaml"
+    site_url=http://wordpress
+    admin_user=theme-admin
+    admin_password=theme-test-password-only
+    ;;
+  *)
+    echo "Unsupported package artifact: $artifact_name" >&2
+    exit 64
+    ;;
+esac
 if [[ "$zip_dir" != "$dist_dir" \
-  || "$(basename "$zip_path")" != "gama-contact-0.1.0.zip" \
   || -L "$zip_path" \
   || ! -f "$zip_path" ]]; then
-  echo "Expected a regular, non-symlink gama-contact-0.1.0.zip directly in $dist_dir." >&2
+  echo "Expected a supported regular, non-symlink package ZIP directly in $dist_dir." >&2
   exit 64
 fi
 
-project_name="gama-package-$(date +%s)-$$-${RANDOM}"
-if [[ ! "$project_name" =~ ^gama-package-[0-9]+-[0-9]+-[0-9]+$ || "$project_name" == "gama-wordpress" ]]; then
+project_name="${project_prefix}-$(date +%s)-$$-${RANDOM}"
+if [[ ! "$project_name" =~ ^gama-(package|theme-package)-[0-9]+-[0-9]+-[0-9]+$ || "$project_name" == "gama-wordpress" ]]; then
   echo "Refusing unsafe disposable Compose project name: $project_name" >&2
   exit 1
 fi
@@ -132,15 +152,160 @@ wp_cmd() {
 "${COMPOSE[@]}" up --detach --wait db wordpress
 
 wp_cmd core install \
-  --url=http://gama-package.test \
+  --url="$site_url" \
   --title='Gama package test' \
-  --admin_user=package-admin \
-  --admin_password=package-test-password-only \
+  --admin_user="$admin_user" \
+  --admin_password="$admin_password" \
   --admin_email=package-admin@example.test \
   --skip-email
 
 wp_cmd core version | grep -Fx '7.1'
 wp_cmd eval 'if (version_compare(PHP_VERSION, "8.4", "<") || version_compare(PHP_VERSION, "8.5", ">=")) { exit(1); } echo PHP_VERSION;' | grep -E '^8\.4\.'
+
+if [[ "$package_kind" == theme ]]; then
+  offline_update_eval='$now = time(); $core = (object) ["last_checked" => $now, "version_checked" => get_bloginfo("version"), "updates" => []]; $extensions = (object) ["last_checked" => $now, "checked" => [], "response" => [], "no_update" => [], "translations" => []]; set_site_transient("update_core", $core, DAY_IN_SECONDS); set_site_transient("update_plugins", $extensions, DAY_IN_SECONDS); set_site_transient("update_themes", $extensions, DAY_IN_SECONDS); echo "offline-update-transients-ok";'
+  install_offline_translation_guard() {
+    wp_cmd eval '$directory = WP_CONTENT_DIR . "/mu-plugins"; if (!is_dir($directory) && !mkdir($directory, 0755, true)) { exit(1); } $code = "<?php\nadd_filter( \"translations_api\", static fn () => array( \"translations\" => array() ) );\n"; if (file_put_contents($directory . "/gama-offline-translation-harness.php", $code) === false) { exit(1); } echo "offline-translation-guard-installed";' | grep -Fx 'offline-translation-guard-installed'
+  }
+  remove_offline_translation_guard() {
+    wp_cmd eval '$file = WP_CONTENT_DIR . "/mu-plugins/gama-offline-translation-harness.php"; if (is_file($file) && !unlink($file)) { exit(1); } echo "offline-translation-guard-removed";' | grep -Fx 'offline-translation-guard-removed'
+  }
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+  install_offline_translation_guard
+  wp_cmd theme install /package/gama-software.zip --force
+  remove_offline_translation_guard
+  wp_cmd theme activate gama-software
+  wp_cmd theme get gama-software --field=version | grep -Fx '0.1.0'
+
+  installed_contract='require_once ABSPATH . "wp-admin/includes/theme.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$root = realpath(get_theme_root("gama-software") . "/gama-software");
+if ($root !== WP_CONTENT_DIR . "/themes/gama-software") { $fail("Theme is not at the exact installed ZIP path"); }
+foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "parts/header.html", "patterns/not-found.php"] as $file) {
+    $path = realpath($root . "/" . $file);
+    if ($path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR)) { $fail("Runtime file escaped installed theme: " . $file); }
+}
+$walk = static function (array $blocks, string $source) use (&$walk, $fail): void {
+    foreach ($blocks as $block) {
+        if (($block["blockName"] ?? null) === null) {
+            if (trim((string) ($block["innerHTML"] ?? "")) !== "") { $fail("Non-block fragment in " . $source); }
+        } else {
+            if (!WP_Block_Type_Registry::get_instance()->is_registered($block["blockName"])) { $fail("Unregistered block " . $block["blockName"] . " in " . $source); }
+            $walk($block["innerBlocks"] ?? [], $source);
+        }
+    }
+};
+foreach (array_merge(glob($root . "/templates/*.html"), glob($root . "/parts/*.html")) as $file) { $walk(parse_blocks(file_get_contents($file)), basename($file)); }
+$pattern = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/not-found");
+if (!is_array($pattern) || empty($pattern["content"])) { $fail("Theme pattern was not registered"); }
+$walk(parse_blocks($pattern["content"]), "registered pattern");
+echo "installed-theme-parse-and-provenance-ok";'
+  wp_cmd eval "$installed_contract" | grep -Fx 'installed-theme-parse-and-provenance-ok'
+
+  policy_contract='require_once ABSPATH . "wp-admin/includes/user.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+WP_Block_Type_Registry::get_instance()->register(new WP_Block_Type("gama-test/extra"));
+$context = new WP_Block_Editor_Context(["name" => "core/edit-site"]);
+$admin = get_user_by("login", "theme-admin");
+wp_set_current_user($admin->ID);
+foreach ([true, false, ["core/html", "core/paragraph"]] as $input) {
+    if (gama_software_filter_allowed_blocks($input, $context) !== $input) { $fail("Administrative block policy changed input"); }
+}
+$settings = ["codeEditingEnabled" => true, "sentinel" => 7];
+if (gama_software_filter_editor_settings($settings, $context) !== $settings) { $fail("Administrative editor settings changed"); }
+$editor_id = wp_create_user("theme-editor", "test-only-password", "theme-editor@example.test");
+$editor = get_user_by("id", $editor_id); $editor->set_role("editor"); wp_set_current_user($editor_id);
+if (gama_software_filter_allowed_blocks(false, $context) !== false) { $fail("False policy was not preserved"); }
+$array = gama_software_filter_allowed_blocks(["core/html", "core/paragraph"], $context);
+if ($array !== ["core/paragraph"]) { $fail("Existing allowlist was widened or filtered incorrectly"); }
+$all = gama_software_filter_allowed_blocks(true, $context);
+if (!in_array("gama-test/extra", $all, true) || in_array("core/html", $all, true)) { $fail("True policy did not preserve registered blocks minus core/html"); }
+$filtered = gama_software_filter_editor_settings(["codeEditingEnabled" => true, "sentinel" => 7], $context);
+if (($filtered["codeEditingEnabled"] ?? null) !== false || ($filtered["sentinel"] ?? null) !== 7) { $fail("Editor code policy changed unrelated settings"); }
+wp_delete_user($editor_id);
+echo "editor-policy-ok";'
+  policy_status=0
+  policy_output="$(wp_cmd eval "$policy_contract")" || policy_status=$?
+  printf '%s\n' "$policy_output"
+  [[ "$policy_status" -eq 0 ]] || exit "$policy_status"
+  grep -Fx 'editor-policy-ok' <<<"$policy_output"
+
+  wp_cmd eval 'update_option("permalink_structure", "/%postname%/"); flush_rewrite_rules(false); echo "permalinks-ok";' | grep -Fx 'permalinks-ok'
+  wp_cmd post update 1 --post_date='2026-09-01 12:00:00' --post_name=hello-world --post_status=publish
+  wp_cmd post update 2 --post_name=sample-page --post_status=publish
+  home_id="$(wp_cmd post create --post_type=page --post_title=Home --post_name=home --post_status=publish --porcelain | tail -n 1)"
+  blog_id="$(wp_cmd post create --post_type=page --post_title=Blog --post_name=blog --post_status=publish --porcelain | tail -n 1)"
+  wp_cmd option update show_on_front page
+  wp_cmd option update page_on_front "$home_id"
+  wp_cmd option update page_for_posts "$blog_id"
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+
+  "${COMPOSE[@]}" build browser
+  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @open
+  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @save
+
+  pair_a_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$slug, $type]) {
+    $template = get_block_template("gama-software//" . $slug, $type);
+    if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true) { $fail("Pair A is not a backed custom override: " . $slug); }
+    echo $template->wp_id . ":" . $slug . PHP_EOL;
+}'
+  pair_a_output="$(wp_cmd eval "$pair_a_contract")"
+  grep -Eq '^[0-9]+:front-page$' <<<"$pair_a_output"
+  grep -Eq '^[0-9]+:header$' <<<"$pair_a_output"
+
+  alternate_theme="$(wp_cmd theme list --status=inactive --field=name | grep -E '^twenty' | head -n 1)"
+  [[ -n "$alternate_theme" ]]
+  wp_cmd theme activate "$alternate_theme"
+  wp_cmd theme activate gama-software
+  wp_cmd eval "$pair_a_contract" | grep -Eq 'front-page|header'
+  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @reset
+
+  pair_b_output="$(wp_cmd eval '$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
+$create = static function (string $route, string $content): int {
+    $request = new WP_REST_Request("POST", $route); $request->set_body_params(["content" => $content]);
+    $response = rest_do_request($request); if ($response->is_error()) { fwrite(STDERR, wp_json_encode($response->as_error()) . PHP_EOL); exit(1); }
+    return (int) $response->get_data()["wp_id"];
+};
+$page = get_block_template("gama-software//page", "wp_template");
+$footer = get_block_template("gama-software//footer", "wp_template_part");
+$page_id = $create("/wp/v2/templates/gama-software//page", $page->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B page</p><!-- /wp:paragraph -->");
+$footer_id = $create("/wp/v2/template-parts/gama-software//footer", $footer->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B footer</p><!-- /wp:paragraph -->");
+echo $page_id . "," . $footer_id;')"
+  pair_b_ids="$(tail -n 1 <<<"$pair_b_output")"
+  [[ "$pair_b_ids" =~ ^[0-9]+,[0-9]+$ ]]
+  sentinel="gsweb12-${RANDOM}-${RANDOM}"
+  wp_cmd option update gama_theme_test_sentinel "$sentinel"
+  helper_body="$(sed '/^<\?php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/reset-theme-overrides.php")"
+  ids_php="[${pair_b_ids/,/, }]"
+  targets_php="[['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'footer','type'=>'wp_template_part']]"
+  helper_prefix="define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);"
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', false); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted missing confirmation.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', 'production'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted durable project.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', 'wrong-sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted wrong sentinel.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', []); define('GAMA_THEME_RESET_TARGETS', []);$helper_body"; then echo 'Reset helper accepted empty IDs.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'index','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'footer','type'=>'wp_template_part']]);$helper_body"; then echo 'Reset helper accepted wrong slug.' >&2; exit 1; fi
+  wp_cmd eval "$helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
+
+  "${COMPOSE[@]}" run --rm --no-deps browser npx playwright test --grep @public
+
+  original_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
+  "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'
+  wp_cmd eval '$response = wp_remote_get("http://wordpress/"); if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200 || !str_contains(wp_remote_retrieve_body($response), "gama-template--index")) { exit(1); } echo "index-fallback-ok";' | grep -Fx 'index-fallback-ok'
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+  install_offline_translation_guard
+  wp_cmd theme install /package/gama-software.zip --force
+  remove_offline_translation_guard
+  restored_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
+  [[ "$original_hashes" == "$restored_hashes" ]]
+
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'test -f /artifacts/report/index.html && find /artifacts -type f -print | sort'
+  debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
+  runtime_output="$("${COMPOSE[@]}" logs --no-color)"
+  if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi
+  echo "ZIP-only theme lifecycle passed for $zip_path in $project_name."
+  exit 0
+fi
 
 original_theme="$(wp_cmd theme list --status=active --field=name | tail -n 1)"
 alternate_theme="$(wp_cmd theme list --status=inactive --field=name | grep -E '^twenty' | head -n 1)"
