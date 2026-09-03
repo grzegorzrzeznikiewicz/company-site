@@ -5,14 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 
-# The address is a reserved invalid domain. The local SMTP plugin routes it to
-# Mailpit, and this script verifies receipt through Mailpit's localhost-only API.
-"$SCRIPT_DIR/wp" eval 'if (!wp_mail("gsweb10-smoke@invalid.test", "GSWEB-10 SMTP smoke", "Mailpit-only test message")) { exit(1); }'
+# The address is a reserved invalid domain. The unique token prevents a stale
+# Mailpit message from satisfying this invocation's delivery assertion.
+token="gsweb10-mail-$(date +%s)-$$"
+"$SCRIPT_DIR/wp" eval "if (!wp_mail('${token}@invalid.test', '${token}', 'Mailpit-only test message: ${token}')) { exit(1); }"
 
 mailpit_port="$(sed -n 's/^MAILPIT_HTTP_PORT=//p' "$ENV_FILE" | tail -n 1)"
 mailpit_port="${mailpit_port:-8027}"
 for _ in $(seq 1 15); do
-  if curl --fail --silent --show-error "http://127.0.0.1:${mailpit_port}/api/v1/messages" | grep -q 'gsweb10-smoke@invalid.test'; then
+  if curl --fail --silent --show-error "http://127.0.0.1:${mailpit_port}/api/v1/messages" | grep -Fq "$token"; then
+    printf '%s\n' "$token"
     exit 0
   fi
   sleep 1

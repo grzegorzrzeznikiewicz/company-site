@@ -19,8 +19,6 @@ fi
 
 wp_port="$(sed -n 's/^WP_HTTP_PORT=//p' "$ROOT_DIR/.env" | tail -n 1)"
 wp_port="${wp_port:-8090}"
-mailpit_port="$(sed -n 's/^MAILPIT_HTTP_PORT=//p' "$ROOT_DIR/.env" | tail -n 1)"
-mailpit_port="${mailpit_port:-8027}"
 
 if [[ "${1:-}" == "--clean" ]]; then
   "$ROOT_DIR/bin/reset" --confirm
@@ -41,15 +39,18 @@ done
 "$ROOT_DIR/bin/wp" theme list --status=active --field=name | grep -Fx 'gama-software'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-local-mailpit'
 
-upload_path="$("$ROOT_DIR/bin/wp" eval '$upload = wp_upload_bits("gsweb10-smoke.txt", null, "persistent"); if (!empty($upload["error"])) { fwrite(STDERR, $upload["error"]); exit(1); } echo $upload["file"];')"
-test -f "$upload_path"
+upload_token="gsweb10-upload-$(date +%s)-$$"
+"$ROOT_DIR/bin/wp" eval "\$upload = wp_upload_bits('${upload_token}.txt', null, 'persistent'); if (!empty(\$upload['error'])) { fwrite(STDERR, \$upload['error']); exit(1); } update_option('gsweb10_smoke_upload_path', \$upload['file']);"
+assert_upload_persisted() {
+  "$ROOT_DIR/bin/wp" eval '$path = get_option("gsweb10_smoke_upload_path"); if (!$path || !is_file($path)) { exit(1); }'
+}
+assert_upload_persisted
 
 "$ROOT_DIR/bin/restart"
-test -f "$upload_path"
+assert_upload_persisted
 curl --fail --silent --show-error "http://127.0.0.1:${wp_port}/" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:${wp_port}/wp-admin/" >/dev/null
 
 "$ROOT_DIR/bin/test-mail"
-curl --fail --silent --show-error "http://127.0.0.1:${mailpit_port}/api/v1/messages" | grep -q 'gsweb10-smoke@invalid.test'
 
 cleanup "${1:-}"

@@ -53,7 +53,7 @@ services:
       mailpit:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "php -r '$$socket = @fsockopen(\"127.0.0.1\", 80); exit($$socket ? 0 : 1);'"]
+      test: ["CMD-SHELL", "php -r '$$body = @file_get_contents(\"http://127.0.0.1/wp-login.php\"); $$status = $$http_response_header[0] ?? \"\"; exit(str_starts_with($$status, \"HTTP/\") && !str_contains($$status, \" 4\") && !str_contains($$status, \" 5\") ? 0 : 1);'"]
       interval: 5s
       timeout: 5s
       retries: 20
