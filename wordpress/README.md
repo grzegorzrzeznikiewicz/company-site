@@ -14,6 +14,8 @@ wordpress/bin/validate-extensions-lock
 wordpress/bin/package plugin gama-contact
 wordpress/tests/plugin-package-contract.sh
 wordpress/tests/package-compose-contract.sh
+wordpress/tests/test-package-input-contract.sh
+wordpress/tests/test-package-isolation-contract.sh
 wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip
 ```
 

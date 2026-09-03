@@ -8,14 +8,60 @@ ZIP_PATH="$DIST_DIR/gama-contact-0.1.0.zip"
 MANIFEST_PATH="$DIST_DIR/gama-contact-0.1.0.manifest.txt"
 SHA_PATH="$DIST_DIR/gama-contact-0.1.0.zip.sha256"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-package-contract.XXXXXX")"
-injected_symlink="$ROOT_DIR/plugins/gama-contact/forbidden-link.php"
-injected_file="$ROOT_DIR/plugins/gama-contact/developer-only.txt"
+plugin_source="$ROOT_DIR/plugins/gama-contact"
+owned_source_paths=()
+
+cleanup_owned_source_paths() {
+  local cleanup_status=0
+  local owned_path
+
+  for owned_path in ${owned_source_paths[@]+"${owned_source_paths[@]}"}; do
+    if [[ -L "$owned_path" || -f "$owned_path" ]]; then
+      unlink "$owned_path" || cleanup_status=1
+    elif [[ -e "$owned_path" ]]; then
+      echo "Refusing to clean changed source fixture: $owned_path" >&2
+      cleanup_status=1
+    fi
+  done
+  return "$cleanup_status"
+}
+
+create_unique_regular_fixture() {
+  local prefix="$1"
+
+  created_path="$(mktemp "$plugin_source/.gama-package-contract-${prefix}.XXXXXX")"
+  owned_source_paths+=("$created_path")
+}
+
+create_unique_symlink_fixture() {
+  local attempt candidate
+
+  for attempt in {1..50}; do
+    candidate="$plugin_source/.gama-package-contract-link.$$.$RANDOM.$attempt.php"
+    if ln -s gama-contact.php "$candidate" 2>/dev/null; then
+      created_path="$candidate"
+      owned_source_paths+=("$created_path")
+      return 0
+    fi
+  done
+  echo "Could not reserve an exclusive source symlink fixture." >&2
+  return 1
+}
 
 cleanup() {
-  [[ ! -L "$injected_symlink" ]] || unlink "$injected_symlink"
-  [[ ! -f "$injected_file" ]] || unlink "$injected_file"
-  find "$fixture_dir" -type f -delete
-  rmdir "$fixture_dir"
+  local test_status=$?
+  local cleanup_status=0
+
+  set +e
+  cleanup_owned_source_paths || cleanup_status=1
+  find "$fixture_dir" -type f -delete || cleanup_status=1
+  find "$fixture_dir" -depth -type d -exec rmdir {} \; || cleanup_status=1
+  set -e
+  trap - EXIT
+  if [[ "$test_status" -ne 0 ]]; then
+    exit "$test_status"
+  fi
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
 
@@ -114,16 +160,50 @@ if "$ROOT_DIR/bin/package" plugin ../gama-contact; then
   exit 1
 fi
 
-ln -s gama-contact.php "$injected_symlink"
+create_unique_symlink_fixture
+injected_symlink="$created_path"
 if SOURCE_DATE_EPOCH=1767225600 "$ROOT_DIR/bin/package" plugin gama-contact; then
   echo "Package command accepted a source symlink." >&2
   exit 1
 fi
 unlink "$injected_symlink"
 
+old_static_sentinel="$plugin_source/developer-only.txt"
+if ! (set -o noclobber; printf '%s\n' 'pre-existing-user-sentinel' >"$old_static_sentinel") 2>/dev/null; then
+  echo "Static sentinel path already exists; refusing to overwrite it: $old_static_sentinel" >&2
+  exit 1
+fi
+owned_source_paths+=("$old_static_sentinel")
+sentinel_sha_before="$(shasum -a 256 "$old_static_sentinel" | cut -d' ' -f1)"
+
+create_unique_regular_fixture extra-file
+injected_file="$created_path"
 printf '%s\n' 'development only' >"$injected_file"
 if SOURCE_DATE_EPOCH=1767225600 "$ROOT_DIR/bin/package" plugin gama-contact; then
   echo "Package command accepted a file outside its positive allowlist." >&2
   exit 1
 fi
+sentinel_sha_after="$(shasum -a 256 "$old_static_sentinel" | cut -d' ' -f1)"
+if [[ "$sentinel_sha_after" != "$sentinel_sha_before" ]]; then
+  echo "Package contract changed the pre-existing static sentinel." >&2
+  exit 1
+fi
 unlink "$injected_file"
+unlink "$old_static_sentinel"
+
+failure_fixture_record="$fixture_dir/failure-fixture-path.txt"
+set +e
+(
+  owned_source_paths=()
+  trap 'failure_status=$?; cleanup_owned_source_paths; exit "$failure_status"' EXIT
+  create_unique_regular_fixture forced-failure
+  printf '%s\n' "$created_path" >"$failure_fixture_record"
+  exit 73
+)
+failure_status=$?
+set -e
+failure_fixture="$(<"$failure_fixture_record")"
+if [[ "$failure_status" -ne 73 || -e "$failure_fixture" || -L "$failure_fixture" ]]; then
+  echo "Failure-path cleanup did not remove only its owned source fixture." >&2
+  exit 1
+fi

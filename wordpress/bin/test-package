@@ -9,10 +9,20 @@ if [[ "$#" -ne 1 ]]; then
   exit 64
 fi
 
-zip_dir="$(cd "$(dirname "$1")" && pwd)"
+if ! dist_dir="$(cd "$ROOT_DIR/dist" && pwd -P)"; then
+  echo "Canonical artifact directory does not exist: $ROOT_DIR/dist" >&2
+  exit 64
+fi
+if ! zip_dir="$(cd "$(dirname "$1")" && pwd -P)"; then
+  echo "Artifact parent directory does not exist: $(dirname "$1")" >&2
+  exit 64
+fi
 zip_path="$zip_dir/$(basename "$1")"
-if [[ ! -f "$zip_path" || "$(basename "$zip_path")" != "gama-contact-0.1.0.zip" ]]; then
-  echo "Expected an existing gama-contact-0.1.0.zip file." >&2
+if [[ "$zip_dir" != "$dist_dir" \
+  || "$(basename "$zip_path")" != "gama-contact-0.1.0.zip" \
+  || -L "$zip_path" \
+  || ! -f "$zip_path" ]]; then
+  echo "Expected a regular, non-symlink gama-contact-0.1.0.zip directly in $dist_dir." >&2
   exit 64
 fi
 
@@ -25,30 +35,87 @@ fi
 export PACKAGE_ZIP="$zip_path"
 COMPOSE=(docker compose --project-name "$project_name" --file "$COMPOSE_FILE")
 
+query_project_resource_ids() {
+  local resource_kind="$1"
+  local project_filter="label=com.docker.compose.project=$project_name"
+
+  case "$resource_kind" in
+    container)
+      docker container ls --all --quiet --filter "$project_filter"
+      ;;
+    volume)
+      docker volume ls --quiet --filter "$project_filter"
+      ;;
+    network)
+      docker network ls --quiet --filter "$project_filter"
+      ;;
+    *)
+      echo "Unsupported Docker resource kind: $resource_kind" >&2
+      return 64
+      ;;
+  esac
+}
+
+assert_project_absent() {
+  local resource_kind resource_ids query_status
+
+  for resource_kind in container volume network; do
+    resource_ids="$(query_project_resource_ids "$resource_kind")" || {
+      query_status=$?
+      echo "Could not query pre-existing $resource_kind resources for $project_name." >&2
+      return "$query_status"
+    }
+    if [[ -n "$resource_ids" ]]; then
+      echo "Refusing to start: disposable project label already has $resource_kind resources: $project_name" >&2
+      printf '%s\n' "$resource_ids" >&2
+      return 1
+    fi
+  done
+}
+
 echo "Disposable Compose project: $project_name"
-echo "Disposable resources before start (expected empty):"
-"${COMPOSE[@]}" ps --all
+assert_project_absent
+echo "Disposable project label is unused before start."
 
 cleanup() {
-  test_status=$?
+  local test_status=$?
+  local cleanup_status=0
+  local command_status resource_kind remaining_resources
+
   set +e
   echo "Cleaning only disposable Compose project: $project_name"
   "${COMPOSE[@]}" ps --all
-  "${COMPOSE[@]}" down --volumes --remove-orphans
-  cleanup_status=$?
-  remaining_containers="$(docker container ls --all --quiet --filter "label=com.docker.compose.project=$project_name")"
-  remaining_volumes="$(docker volume ls --quiet --filter "label=com.docker.compose.project=$project_name")"
-  remaining_networks="$(docker network ls --quiet --filter "label=com.docker.compose.project=$project_name")"
-  if [[ -n "$remaining_containers$remaining_volumes$remaining_networks" ]]; then
-    echo "Disposable project cleanup left labelled resources behind." >&2
-    cleanup_status=1
+  command_status=$?
+  if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+    cleanup_status=$command_status
   fi
+  "${COMPOSE[@]}" down --volumes --remove-orphans
+  command_status=$?
+  if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+    cleanup_status=$command_status
+  fi
+  for resource_kind in container volume network; do
+    remaining_resources="$(query_project_resource_ids "$resource_kind")"
+    command_status=$?
+    if [[ "$command_status" -ne 0 ]]; then
+      echo "Could not verify cleanup of $resource_kind resources for $project_name." >&2
+      if [[ "$cleanup_status" -eq 0 ]]; then
+        cleanup_status=$command_status
+      fi
+    elif [[ -n "$remaining_resources" ]]; then
+      echo "Disposable project cleanup left labelled $resource_kind resources behind." >&2
+      printf '%s\n' "$remaining_resources" >&2
+      if [[ "$cleanup_status" -eq 0 ]]; then
+        cleanup_status=1
+      fi
+    fi
+  done
   set -e
   trap - EXIT
-  if [[ "$test_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
-    exit "$cleanup_status"
+  if [[ "$test_status" -ne 0 ]]; then
+    exit "$test_status"
   fi
-  exit "$test_status"
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
 

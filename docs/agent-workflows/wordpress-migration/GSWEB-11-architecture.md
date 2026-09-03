@@ -96,14 +96,19 @@ The real acceptance command is:
 wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip
 ```
 
-It uses a generated `gama-package-*` Compose project with disposable,
-project-scoped volumes, no ports, no checkout source mounts, and the exact
-GSWEB-10 WordPress/PHP/WP-CLI/MariaDB images. It installs only the ZIP on clean
-Core, switches between installed Core themes, exercises repeated lifecycle and
-preservation, proves class files load only below the installed plugin path,
-checks the behavior-free boundary, scans debug/container logs, and removes only
-the generated project. It never calls the `gama-wordpress` wrappers or touches
-their containers or volumes.
+It accepts only the regular, non-symlink artifact at the canonical
+`wordpress/dist/gama-contact-0.1.0.zip` path. It uses a generated
+`gama-package-*` Compose project with disposable, project-scoped volumes, no
+ports, no checkout source mounts, and the exact GSWEB-10
+WordPress/PHP/WP-CLI/MariaDB images. Before startup it rejects any container,
+volume, or network already carrying that exact project label. It installs only
+the ZIP on clean Core, switches between installed Core themes, exercises
+repeated lifecycle and preservation, proves class files load only below the
+installed plugin path, checks the behavior-free boundary, scans debug/container
+logs, and removes only the generated project. Cleanup treats every residue-query
+failure as a failure while preserving the original lifecycle failure status. It
+never calls the `gama-wordpress` wrappers or touches their containers or
+volumes.
 
 Artifacts are local and ignored. Building or testing does not authorize an
 upload, release, WordPress.org publication, external attachment, or any other

@@ -11,26 +11,9 @@ resolved="$({ PACKAGE_ZIP="$PACKAGE_ZIP" docker compose \
   --file "$ROOT_DIR/tests/package-compose.yaml" \
   config --format json; })"
 
-for image in \
-  'mariadb:10.11.18-jammy' \
-  'wordpress:7.1.0-php8.4-apache' \
-  'wordpress:cli-2.12.0-php8.4'; do
-  grep -Fq "\"image\": \"$image\"" <<<"$resolved"
-done
-
-if grep -Fq '"ports"' <<<"$resolved"; then
-  echo "Disposable package Compose must not publish ports." >&2
-  exit 1
-fi
-
-if grep -Eq '"source": ".*(theme|plugins)/' <<<"$resolved"; then
-  echo "Disposable package Compose must not mount checkout sources." >&2
-  exit 1
-fi
-
-grep -Fq '"target": "/package/gama-contact.zip"' <<<"$resolved"
-
-if grep -Eq '"external": true|"name": "gama-wordpress' <<<"$resolved"; then
-  echo "Disposable package Compose must use only project-scoped volumes." >&2
-  exit 1
-fi
+printf '%s\n' "$resolved" | docker run --rm --interactive \
+  --env "EXPECTED_PACKAGE_ZIP=$PACKAGE_ZIP" \
+  --volume "$ROOT_DIR/tests:/contract:ro" \
+  --entrypoint php \
+  wordpress:cli-2.12.0-php8.4 \
+  /contract/assert-package-compose.php

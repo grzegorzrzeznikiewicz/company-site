@@ -90,6 +90,8 @@ wordpress/bin/validate-extensions-lock     # validate the empty external-extensi
 wordpress/bin/package plugin gama-contact  # build the local reproducible plugin ZIP
 wordpress/tests/plugin-package-contract.sh # verify contents and two byte-identical builds
 wordpress/tests/package-compose-contract.sh # verify isolated image/mount parity
+wordpress/tests/test-package-input-contract.sh # reject non-canonical ZIP inputs before Docker
+wordpress/tests/test-package-isolation-contract.sh # verify exact-label preflight and cleanup semantics
 wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip # clean ZIP-only lifecycle
 ```
 
