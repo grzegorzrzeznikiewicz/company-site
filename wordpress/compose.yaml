@@ -54,8 +54,8 @@ services:
     volumes:
       - gama-wordpress-core:/var/www/html
       - gama-wordpress-uploads:/var/www/html/wp-content/uploads
-      - ./theme:/var/www/html/wp-content/themes:ro
-      - ./plugins:/var/www/html/wp-content/plugins:ro
+      - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
+      - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
     depends_on:
       db:
         condition: service_healthy
@@ -87,8 +87,8 @@ services:
     volumes:
       - gama-wordpress-core:/var/www/html
       - gama-wordpress-uploads:/var/www/html/wp-content/uploads
-      - ./theme:/var/www/html/wp-content/themes:ro
-      - ./plugins:/var/www/html/wp-content/plugins:ro
+      - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
+      - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
       - ./bin/bootstrap:/usr/local/bin/gama-wordpress-bootstrap:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/gama-wordpress-bootstrap"]
     depends_on:

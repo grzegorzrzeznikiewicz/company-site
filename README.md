@@ -82,6 +82,7 @@ wordpress/bin/restart     # recreate containers without deleting data
 wordpress/bin/logs        # follow WordPress-project logs
 wordpress/bin/wp core version
 wordpress/bin/test-mail   # prove outbound local mail reaches Mailpit
+wordpress/tests/mount-contract.sh        # validate safe theme/plugin bind mounts
 wordpress/tests/runtime-smoke.sh           # non-destructive runtime smoke check
 wordpress/tests/runtime-smoke.sh --clean   # explicit clean-volume bootstrap check
 wordpress/bin/reset --list-targets         # inspect targets before a reset
