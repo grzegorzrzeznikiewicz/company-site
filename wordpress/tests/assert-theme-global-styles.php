@@ -240,11 +240,11 @@ foreach ( array( 'overflow-x: hidden', 'outline: none', '@font-face', 'linear-gr
 		$fail( "style.css contains forbidden fragment {$forbidden}" );
 	}
 }
-if ( ! preg_match( '/Version:\s*0\.2\.0\b/', $style_css )
-	|| ! str_contains( $read( 'README.md' ), 'Version 0.2.0' )
-	|| ! str_contains( $read( 'CHANGELOG.md' ), '## 0.2.0 - 2026-09-03' )
-	|| ! str_contains( $read( 'languages/gama-software.pot' ), 'Project-Id-Version: Gama Software 0.2.0' ) ) {
-	$fail( 'theme version metadata is not consistently 0.2.0' );
+if ( ! preg_match( '/Version:\s*0\.3\.0\b/', $style_css )
+	|| ! str_contains( $read( 'README.md' ), 'Version 0.3.0' )
+	|| ! str_contains( $read( 'CHANGELOG.md' ), '## 0.3.0 - 2026-09-03' )
+	|| ! str_contains( $read( 'languages/gama-software.pot' ), 'Project-Id-Version: Gama Software 0.3.0' ) ) {
+	$fail( 'theme version metadata is not consistently 0.3.0' );
 }
 
 $all_source = '';

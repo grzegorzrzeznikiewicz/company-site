@@ -1,4 +1,17 @@
-import { expect, test, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type FrameLocator,
+  type Page,
+} from '@playwright/test';
+import {
+  assertDiagnosticsClean,
+  login,
+  rest,
+  waitForEditorCanvas,
+  watchWordPressDiagnostics,
+  type BrowserDiagnostics,
+} from './support/wordpress';
 
 const palette = [
   ['base', '#ffffff'],
@@ -32,55 +45,7 @@ const spacingSizes = [
   ['section', '5rem'],
 ] as const;
 const shadowSlugs = ['elevation-1', 'elevation-2', 'elevation-3'];
-const browserErrors: string[] = [];
-const externalFontRequests: string[] = [];
-
-async function login(
-  page: Page,
-  user: string,
-  password: string,
-): Promise<void> {
-  await page.context().clearCookies();
-  await page.goto('/wp-login.php');
-  await page.locator('#user_login').fill(user);
-  await page.locator('#user_pass').fill(password);
-  await Promise.all([
-    page.waitForURL(/\/wp-admin\//),
-    page.locator('#wp-submit').click(),
-  ]);
-}
-
-async function rest<T>(
-  page: Page,
-  route: string,
-  method = 'GET',
-  body?: unknown,
-): Promise<T> {
-  return page.evaluate(
-    async ({ route, method, body }) => {
-      const nonce = await fetch('/wp-admin/admin-ajax.php?action=rest-nonce', {
-        credentials: 'same-origin',
-      }).then((response) => response.text());
-      const [restPath, restQuery] = route.split('?', 2);
-      const response = await fetch(
-        `/index.php?rest_route=${restPath}${restQuery ? `&${restQuery}` : ''}`,
-        {
-          method,
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(
-          `${method} ${route}: ${response.status} ${await response.text()}`,
-        );
-      }
-      return response.json();
-    },
-    { route, method, body },
-  ) as Promise<T>;
-}
+let diagnostics: BrowserDiagnostics;
 
 function rgb(hex: string): string {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -119,19 +84,17 @@ async function hideCaret(page: Page): Promise<void> {
   });
 }
 
-async function waitForPostEditor(
-  page: Page,
-): Promise<ReturnType<Page['frameLocator']>> {
-  const canvas = page.locator('iframe[name="editor-canvas"]');
-  await expect(canvas).toBeVisible();
-  const frame = page.frameLocator('iframe[name="editor-canvas"]');
-  await expect(frame.locator('.editor-styles-wrapper')).toBeVisible();
-  const welcome = page.getByRole('dialog', { name: 'Welcome to the editor' });
-  if (await welcome.isVisible()) {
-    await welcome.getByRole('button', { name: 'Close' }).click();
-    await expect(welcome).toBeHidden();
-  }
-  return frame;
+async function waitForExactEditorParagraph(
+  frame: FrameLocator,
+  expectedText: string,
+): Promise<void> {
+  if (expectedText.trim() === '')
+    throw new Error('The editor readiness fixture must be non-empty.');
+  const paragraph = frame
+    .locator('[data-type="core/paragraph"]')
+    .filter({ hasText: expectedText });
+  await expect(paragraph).toHaveCount(1, { timeout: 45_000 });
+  await expect(paragraph).toHaveText(expectedText, { timeout: 45_000 });
 }
 
 type PrimitiveStyles = Record<string, Record<string, string>>;
@@ -313,57 +276,16 @@ async function keyboardFocus(page: Page, selector: string): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  browserErrors.length = 0;
-  externalFontRequests.length = 0;
-  page.on('console', (message) => {
-    const location = message.location().url;
-    const expectedRestrictedSettingsResponse =
-      message.type() === 'error' &&
-      message.text().includes('403 (Forbidden)') &&
-      location !== '' &&
-      // Core probes this Administrator-only endpoint in the Editor UI.
-      new URL(location).pathname === '/wp-json/wp/v2/settings';
-    if (
-      message.type() === 'error' &&
-      !expectedRestrictedSettingsResponse &&
-      !message
-        .text()
-        .includes('Failed to load resource: net::ERR_NAME_NOT_RESOLVED')
-    ) {
-      browserErrors.push(
-        `console: ${message.text()}${location ? ` at ${location}` : ''}`,
-      );
-    }
-  });
-  page.on('pageerror', (error) =>
-    browserErrors.push(`pageerror: ${error.message}`),
-  );
-  page.on('requestfailed', (request) => {
-    const hostname = new URL(request.url()).hostname;
-    if (
-      !['secure.gravatar.com', 's.w.org'].includes(hostname) &&
-      request.failure()?.errorText !== 'net::ERR_ABORTED'
-    ) {
-      browserErrors.push(
-        `requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`,
-      );
-    }
-  });
-  page.on('request', (request) => {
-    const url = new URL(request.url());
-    if (request.resourceType() === 'font' && url.hostname !== 'wordpress')
-      externalFontRequests.push(request.url());
+  diagnostics = watchWordPressDiagnostics(page, {
+    allowRestrictedSettingsResponse: true,
   });
 });
 
 test.afterEach(() => {
-  expect(browserErrors, browserErrors.join('\n')).toEqual([]);
-  expect(externalFontRequests, 'Remote font requests are forbidden.').toEqual(
-    [],
-  );
+  assertDiagnosticsClean(diagnostics);
 });
 
-test('exposes only approved editor choices and lets an Editor save a preset in the ordinary editor @global-styles', async ({
+test('exposes only approved editor choices and lets an Editor save a preset in the ordinary editor @global-styles @global-styles-editor-choices', async ({
   page,
 }) => {
   await login(
@@ -374,7 +296,11 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
   const home = await rest<any[]>(page, '/wp/v2/pages?slug=home&context=edit');
   expect(home).toHaveLength(1);
   await page.goto(`/wp-admin/post.php?post=${home[0].id}&action=edit`);
-  await waitForPostEditor(page);
+  const adminFrame = await waitForEditorCanvas(page);
+  await waitForExactEditorParagraph(
+    adminFrame,
+    'Body primitive with a visible text link.',
+  );
   const adminSettings = await page.evaluate(() => {
     const settings = (window as any).wp.data
       .select('core/block-editor')
@@ -432,10 +358,8 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
   expect(fixtures).toHaveLength(1);
   const fixture = fixtures[0];
   await page.goto(`/wp-admin/post.php?post=${fixture.id}&action=edit`);
-  const frame = await waitForPostEditor(page);
-  await expect(
-    frame.locator('[data-type="core/paragraph"]'),
-  ).toHaveText('Editor preset fixture');
+  const frame = await waitForEditorCanvas(page);
+  await waitForExactEditorParagraph(frame, 'Editor preset fixture');
   const saved = await page.evaluate(async () => {
     const wp = (window as any).wp;
     const block = wp.data.select('core/block-editor').getBlocks()[0];
@@ -467,7 +391,7 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
   await expect(paragraph).toHaveCSS('line-height', '32px');
 });
 
-test('renders exact primitives without overflow across the responsive matrix @global-styles', async ({
+test('renders exact primitives without overflow across the responsive matrix @global-styles @global-styles-front-snapshots', async ({
   page,
 }) => {
   for (const [width, expectedPadding] of [
@@ -521,9 +445,10 @@ test('renders exact primitives without overflow across the responsive matrix @gl
   expect(contrast(rgb('#99a1af'), rgb('#101828'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('keeps the same primitive styles in the editor canvas @global-styles', async ({
+test('keeps the same primitive styles in the editor canvas @global-styles @global-styles-editor-snapshots', async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await login(
     page,
     process.env.WP_ADMIN_USER ?? 'theme-admin',
@@ -536,7 +461,11 @@ test('keeps the same primitive styles in the editor canvas @global-styles', asyn
     await page.goto('/');
     const front = await primitiveStyles(page, '.gama-global-styles-fixture');
     await page.goto(`/wp-admin/post.php?post=${home[0].id}&action=edit`);
-    const frame = await waitForPostEditor(page);
+    const frame = await waitForEditorCanvas(page);
+    await waitForExactEditorParagraph(
+      frame,
+      'Body primitive with a visible text link.',
+    );
     await frame.locator('body').evaluate((body) => {
       const style = document.createElement('style');
       style.textContent = '* { caret-color: transparent !important; }';
@@ -607,18 +536,20 @@ test('keeps the same primitive styles in the editor canvas @global-styles', asyn
   }
 });
 
-test('provides keyboard-visible focus for every current Core interactive surface @global-styles', async ({
+test('provides keyboard-visible focus for every current Core interactive surface @global-styles @global-styles-focus', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/');
   for (const selector of [
     'header .wp-block-site-logo a',
-    'header .wp-block-site-title a',
+    'header .wp-block-navigation__responsive-container-open',
     '.gama-fixture-link',
     '.wp-block-button__link',
     '.wp-block-search__input',
     '.wp-block-search__button',
+    'footer .wp-block-site-logo a',
+    'footer .wp-block-navigation-item__content',
   ]) {
     await keyboardFocus(page, selector);
   }
@@ -628,16 +559,17 @@ test('provides keyboard-visible focus for every current Core interactive surface
   await keyboardFocus(page, '.wp-block-post-navigation-link a');
 });
 
-test('persists an Administrator Global Styles change and reflects it publicly @global-styles', async ({
+test('persists an Administrator Global Styles change and reflects it publicly @global-styles @global-styles-admin-persistence', async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await login(
     page,
     process.env.WP_ADMIN_USER ?? 'theme-admin',
     process.env.WP_ADMIN_PASSWORD ?? 'theme-test-password-only',
   );
   await page.goto('/wp-admin/site-editor.php?path=%2Fstyles');
-  await expect(page.locator('iframe[name="editor-canvas"]')).toBeVisible();
+  await waitForEditorCanvas(page);
   const saved = await page.evaluate(async () => {
     const wp = (window as any).wp;
     const id = await wp.data
@@ -671,7 +603,7 @@ test('persists an Administrator Global Styles change and reflects it publicly @g
   await expect(page.locator('.gama-global-styles-fixture')).toBeVisible();
 });
 
-test('checks DPR2 only as automation and does not satisfy the native 200% zoom checkpoint @global-styles', async ({
+test('checks DPR2 only as automation and does not satisfy the native 200% zoom checkpoint @global-styles @global-styles-dpr2', async ({
   browser,
 }) => {
   const context = await browser.newContext({

@@ -7,7 +7,7 @@ Description: Production block-theme foundation for the Gama Software website.
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.4
-Version: 0.2.0
+Version: 0.3.0
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: gama-software
@@ -35,6 +35,76 @@ Domain Path: /languages
 .wp-site-blocks :where(p, a, li, figcaption, pre, code, .wp-block-embed),
 .editor-styles-wrapper :where(p, a, li, figcaption, pre, code, .wp-block-embed) {
 	overflow-wrap: anywhere;
+}
+
+html {
+	scroll-padding-top: 7rem;
+}
+
+.wp-site-blocks :where([id]) {
+	scroll-margin-top: 7rem;
+}
+
+.gama-site-header {
+	position: sticky;
+	top: 0;
+	z-index: 99999;
+	background-color: var(--wp--preset--color--base);
+	border-bottom: 1px solid var(--wp--preset--color--border-subtle);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.admin-bar .gama-site-header {
+	top: 32px;
+}
+
+.gama-site-header__surface,
+.gama-site-header__inner {
+	width: 100%;
+}
+
+.gama-site-header__surface,
+.gama-site-footer__surface {
+	padding-top: var(--wp--preset--spacing--md);
+	padding-bottom: var(--wp--preset--spacing--md);
+}
+
+.gama-site-header__surface .wp-block-site-logo img,
+.gama-site-footer__surface .wp-block-site-logo img {
+	display: block;
+	width: auto;
+	max-height: 3rem;
+	object-fit: contain;
+}
+
+.gama-site-footer__inner,
+.gama-footer-navigation,
+.gama-footer-navigation .wp-block-navigation__container {
+	max-width: 100%;
+	flex-wrap: wrap;
+}
+
+.gama-footer-navigation .wp-block-navigation-item,
+.gama-footer-navigation .wp-block-navigation-item__content {
+	max-width: 100%;
+	white-space: normal;
+}
+
+@media (max-width: 782px) {
+	.admin-bar .gama-site-header {
+		top: 46px;
+	}
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+	.gama-primary-navigation.wp-block-navigation .wp-block-navigation__responsive-container:not(.is-menu-open) {
+		display: none;
+		position: fixed;
+	}
+
+	.gama-primary-navigation.wp-block-navigation .wp-block-navigation__responsive-container-open:not(.always-shown) {
+		display: flex;
+	}
 }
 
 .has-small-font-size {

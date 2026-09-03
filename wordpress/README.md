@@ -21,7 +21,7 @@ wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip
 
 wordpress/bin/package theme gama-software
 wordpress/tests/theme-contract.sh
-wordpress/bin/test-package wordpress/dist/gama-software-0.1.0.zip
+wordpress/bin/test-package wordpress/dist/gama-software-0.3.0.zip
 ```
 
 `wordpress/dist` contains ignored local artifacts only. Do not upload, release,

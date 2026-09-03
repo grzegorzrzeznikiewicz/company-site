@@ -80,6 +80,10 @@ if ( ! str_ends_with( (string) ( $browser_build['context'] ?? '' ), '/web' )
 	|| 'wordpress/qa/browser.Dockerfile' !== ( $browser_build['dockerfile'] ?? null ) ) {
 	gama_theme_compose_fail( 'browser build boundary changed' );
 }
+if ( '1073741824' !== ( $services['browser']['shm_size'] ?? null )
+	|| array_key_exists( 'ipc', $services['browser'] ) ) {
+	gama_theme_compose_fail( 'browser must use an isolated 1 GiB shared-memory allocation' );
+}
 if ( true !== ( $resolved['networks']['default']['internal'] ?? false ) ) {
 	gama_theme_compose_fail( 'default project network must be internal' );
 }

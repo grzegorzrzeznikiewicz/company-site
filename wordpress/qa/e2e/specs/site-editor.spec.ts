@@ -1,49 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
+import {
+  assertDiagnosticsClean,
+  login,
+  rest,
+  waitForEditorCanvas,
+  watchWordPressDiagnostics,
+  type BrowserDiagnostics,
+} from './support/wordpress';
 
 const templateSlugs = ['index', 'front-page', 'page', 'single', 'home', 'archive', 'search', '404'];
 const partSlugs = ['header', 'footer'];
-const browserErrors: string[] = [];
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/wp-login.php');
-  await page.locator('#user_login').fill(process.env.WP_ADMIN_USER ?? 'theme-admin');
-  await page.locator('#user_pass').fill(process.env.WP_ADMIN_PASSWORD ?? 'theme-test-password-only');
-  await Promise.all([
-    page.waitForURL(/\/wp-admin\//),
-    page.locator('#wp-submit').click(),
-  ]);
-}
-
-async function rest<T>(page: Page, route: string, method = 'GET', body?: unknown): Promise<T> {
-  return page.evaluate(async ({ route, method, body }) => {
-    const nonce = await fetch('/wp-admin/admin-ajax.php?action=rest-nonce', { credentials: 'same-origin' }).then((response) => response.text());
-    const [restPath, restQuery] = route.split('?', 2);
-    const response = await fetch(`/index.php?rest_route=${restPath}${restQuery ? `&${restQuery}` : ''}`, {
-      method,
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`${method} ${route}: ${response.status} ${await response.text()}`);
-    return response.json();
-  }, { route, method, body }) as Promise<T>;
-}
+let diagnostics: BrowserDiagnostics;
 
 test.beforeEach(async ({ page }, testInfo) => {
-  browserErrors.length = 0;
-  page.on('console', (message) => {
-    const location = message.location().url;
-    const expectedMissingRoute = new URL(page.url()).pathname === '/missing-gsweb12/' && message.text().includes('404 (Not Found)');
-    if (message.type() === 'error' && !message.text().includes('Failed to load resource: net::ERR_NAME_NOT_RESOLVED') && !expectedMissingRoute) {
-      browserErrors.push(`console: ${message.text()}${location ? ` at ${location}` : ''}`);
-    }
-  });
-  page.on('pageerror', (error) => browserErrors.push(`pageerror: ${error.message}`));
-  page.on('requestfailed', (request) => {
-    const host = new URL(request.url()).hostname;
-    if (!['secure.gravatar.com', 's.w.org'].includes(host) && request.failure()?.errorText !== 'net::ERR_ABORTED') {
-      browserErrors.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
-    }
+  diagnostics = watchWordPressDiagnostics(page, {
+    expectedMissingPaths: ['/missing-gsweb12/'],
   });
   if (!testInfo.title.includes('@public')) {
     await login(page);
@@ -51,37 +22,42 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test.afterEach(() => {
-  expect(browserErrors, browserErrors.join('\n')).toEqual([]);
+  assertDiagnosticsClean(diagnostics);
 });
 
-test('opens every template and part in the Site Editor @open', async ({ page }) => {
-  for (const slug of templateSlugs) {
+for (const slug of templateSlugs) {
+  test(`opens the ${slug} template in the Site Editor @open`, async ({ page }) => {
+    test.slow();
     const entity = await rest<any>(page, `/wp/v2/templates/gama-software//${slug}?context=edit`);
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
     const id = encodeURIComponent(`gama-software//${slug}`);
     await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=wp_template&canvas=edit`);
     expect(new URL(page.url()).pathname).toBe('/wp-admin/site-editor.php');
-    await expect(page.locator('iframe[name="editor-canvas"]')).toBeVisible();
-    await expect(page.frameLocator('iframe[name="editor-canvas"]').locator(`main.gama-template--${slug}`)).toHaveCount(1);
-  }
-  for (const slug of partSlugs) {
+    const frame = await waitForEditorCanvas(page);
+    await expect(frame.locator(`main.gama-template--${slug}`)).toHaveCount(1);
+  });
+}
+
+for (const slug of partSlugs) {
+  test(`opens the ${slug} template part in the Site Editor @open`, async ({ page }) => {
+    test.slow();
     const entity = await rest<any>(page, `/wp/v2/template-parts/gama-software//${slug}?context=edit`);
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
     const id = encodeURIComponent(`gama-software//${slug}`);
     await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=wp_template_part&canvas=edit`);
     expect(new URL(page.url()).pathname).toBe('/wp-admin/site-editor.php');
-    await expect(page.locator('iframe[name="editor-canvas"]')).toBeVisible();
-    await expect(page.frameLocator('iframe[name="editor-canvas"]').locator(`.gama-site-${slug}`)).toHaveCount(1);
-  }
-});
+    const frame = await waitForEditorCanvas(page);
+    await expect(frame.locator(`.gama-site-${slug}__surface`)).toHaveCount(1);
+  });
+}
 
 async function addParagraphAndSave(page: Page, type: 'wp_template' | 'wp_template_part', slug: string, content: string): Promise<void> {
   const recordId = `gama-software//${slug}`;
   const id = encodeURIComponent(recordId);
   await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=${type}&canvas=edit`);
-  await expect(page.locator('iframe[name="editor-canvas"]')).toBeVisible();
+  await waitForEditorCanvas(page);
   const saved = await page.evaluate(async ({ type, recordId, paragraph }) => {
     const wp = (window as any).wp;
     const record = wp.data.select('core').getEntityRecord('postType', type, recordId);
@@ -116,7 +92,7 @@ test('uses the Site Editor core-data revert action for overrides @reset', async 
   for (const [type, slug] of [['wp_template', 'front-page'], ['wp_template_part', 'header']] as const) {
     const id = `gama-software//${slug}`;
     await page.goto(`/wp-admin/site-editor.php?postId=${encodeURIComponent(id)}&postType=${type}&canvas=edit`);
-    await expect(page.locator('iframe[name="editor-canvas"]')).toBeVisible();
+    await waitForEditorCanvas(page);
     const result = await page.evaluate(async ({ type, id }) => {
       return (window as any).wp.data.dispatch('core').deleteEntityRecord('postType', type, id, { force: true });
     }, { type, id });

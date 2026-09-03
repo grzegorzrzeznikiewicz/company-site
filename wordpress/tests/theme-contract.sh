@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$ROOT_DIR/tests/theme-source-contract.sh"
 "$ROOT_DIR/tests/theme-structure-contract.sh"
+"$ROOT_DIR/tests/theme-header-footer-contract.sh"
 "$ROOT_DIR/tests/theme-functions-contract.sh"
 "$ROOT_DIR/tests/theme-json-contract.sh"
 "$ROOT_DIR/tests/theme-global-styles-contract.sh"

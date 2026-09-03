@@ -83,10 +83,13 @@ services:
     build:
       context: ../..
       dockerfile: wordpress/qa/browser.Dockerfile
+    shm_size: "1gb"
     environment:
       WP_BASE_URL: http://wordpress
       WP_ADMIN_USER: theme-admin
       WP_ADMIN_PASSWORD: theme-test-password-only
+      WP_EDITOR_USER: theme-navigation-editor
+      WP_EDITOR_PASSWORD: navigation-editor-test-only
     volumes:
       - browser-artifacts:/artifacts
     depends_on:

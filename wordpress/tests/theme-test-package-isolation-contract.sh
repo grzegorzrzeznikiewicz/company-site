@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_PACKAGE="$ROOT_DIR/bin/test-package"
 theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$ROOT_DIR/theme/gama-software/style.css")"
-[[ "$theme_version" == '0.2.0' ]]
+[[ "$theme_version" == '0.3.0' ]]
 ARTIFACT="$ROOT_DIR/dist/gama-software-$theme_version.zip"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-test-package-isolation.XXXXXX")"
 fake_bin="$fixture_dir/bin"
@@ -23,6 +23,15 @@ trap cleanup EXIT
 
 if [[ ! -f "$ARTIFACT" || -L "$ARTIFACT" ]]; then
   echo "Canonical regular theme artifact is required: $ARTIFACT" >&2
+  exit 1
+fi
+
+if grep -Eq 'wp_cmd .*\| grep -[^ ]*q|wp_cmd .*\| grep .*[|] head' "$TEST_PACKAGE"; then
+  echo 'Theme test-package streams verbose WP-CLI output into an early-closing pipeline.' >&2
+  exit 1
+fi
+if grep -Eq '(\$\{COMPOSE\[@\]\}|docker compose).*[|][[:space:]]*(grep[[:space:]]+-[^[:space:]]*q|head[[:space:]]+-n)' "$TEST_PACKAGE"; then
+  echo 'Theme test-package streams verbose Compose output into an early-closing pipeline.' >&2
   exit 1
 fi
 

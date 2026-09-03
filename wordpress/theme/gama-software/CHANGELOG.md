@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 - 2026-09-03
+
+- Add editable Core block header, primary Navigation, mobile overlay and footer template parts.
+- Add semantic landmarks, sticky header behavior and cross-route homepage navigation URLs.
+
 ## 0.2.0 - 2026-09-03
 
 - Add the controlled Global Styles palette, typography, spacing, radius, shadow and button tokens.
