@@ -4,6 +4,11 @@ This decision records Gate A for the repository structure. It separates
 presentation from reusable behavior before GSWEB-12 and GSWEB-20 build on the
 interfaces.
 
+Gate A was approved on 2026-09-03 after the final GSWEB-11 fix re-review and
+the independent GSWEB-12 brief re-review returned no findings. The exact
+toolchain, schema integrity and ZIP-only browser decisions are recorded in
+[`GSWEB-12-gate-a.md`](GSWEB-12-gate-a.md).
+
 ## Versioned package layout
 
 - `wordpress/theme/gama-software` is the first-party block-theme source.

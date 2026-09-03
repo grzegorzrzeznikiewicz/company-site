@@ -102,6 +102,9 @@ uploads, and WordPress volumes. It never targets the React/Symfony project.
 The WordPress package architecture, code/runtime classification, lifecycle,
 dependency-lock policy, and exact next-plugin procedure are recorded in
 [`GSWEB-11-architecture.md`](docs/agent-workflows/wordpress-migration/GSWEB-11-architecture.md).
+The approved immutable QA inputs and ZIP-only browser contract for the first
+production theme are recorded in
+[`GSWEB-12-gate-a.md`](docs/agent-workflows/wordpress-migration/GSWEB-12-gate-a.md).
 The current `gama-software` theme is only the GSWEB-10 runtime scaffold;
 GSWEB-12 owns its production implementation and packaging. Files in
 `wordpress/dist` are ignored local artifacts and must not be uploaded,
