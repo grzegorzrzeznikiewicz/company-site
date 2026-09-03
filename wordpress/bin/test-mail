@@ -12,7 +12,7 @@ token="gsweb10-mail-$(date +%s)-$$"
 
 mailpit_port="$(sed -n 's/^MAILPIT_HTTP_PORT=//p' "$ENV_FILE" | tail -n 1)"
 mailpit_port="${mailpit_port:-8027}"
-for _ in $(seq 1 15); do
+for ((attempt = 1; attempt <= 15; attempt++)); do
   if curl --fail --silent --show-error "http://127.0.0.1:${mailpit_port}/api/v1/messages" | grep -Fq "$token"; then
     printf '%s\n' "$token"
     exit 0

@@ -52,7 +52,7 @@ fi
 
 for service in db wordpress mailpit; do
   status="$("${COMPOSE[@]}" ps --format json "$service")"
-  grep -q 'healthy' <<<"$status"
+  grep -Fq '"Health":"healthy"' <<<"$status"
 done
 
 "$ROOT_DIR/bin/wp" core is-installed
