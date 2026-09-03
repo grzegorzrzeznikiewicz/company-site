@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
+
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip>" >&2
+  exit 64
+fi
+
+zip_dir="$(cd "$(dirname "$1")" && pwd)"
+zip_path="$zip_dir/$(basename "$1")"
+if [[ ! -f "$zip_path" || "$(basename "$zip_path")" != "gama-contact-0.1.0.zip" ]]; then
+  echo "Expected an existing gama-contact-0.1.0.zip file." >&2
+  exit 64
+fi
+
+project_name="gama-package-$(date +%s)-$$-${RANDOM}"
+if [[ ! "$project_name" =~ ^gama-package-[0-9]+-[0-9]+-[0-9]+$ || "$project_name" == "gama-wordpress" ]]; then
+  echo "Refusing unsafe disposable Compose project name: $project_name" >&2
+  exit 1
+fi
+
+export PACKAGE_ZIP="$zip_path"
+COMPOSE=(docker compose --project-name "$project_name" --file "$COMPOSE_FILE")
+
+echo "Disposable Compose project: $project_name"
+echo "Disposable resources before start (expected empty):"
+"${COMPOSE[@]}" ps --all
+
+cleanup() {
+  test_status=$?
+  set +e
+  echo "Cleaning only disposable Compose project: $project_name"
+  "${COMPOSE[@]}" ps --all
+  "${COMPOSE[@]}" down --volumes --remove-orphans
+  cleanup_status=$?
+  remaining_containers="$(docker container ls --all --quiet --filter "label=com.docker.compose.project=$project_name")"
+  remaining_volumes="$(docker volume ls --quiet --filter "label=com.docker.compose.project=$project_name")"
+  remaining_networks="$(docker network ls --quiet --filter "label=com.docker.compose.project=$project_name")"
+  if [[ -n "$remaining_containers$remaining_volumes$remaining_networks" ]]; then
+    echo "Disposable project cleanup left labelled resources behind." >&2
+    cleanup_status=1
+  fi
+  set -e
+  trap - EXIT
+  if [[ "$test_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
+    exit "$cleanup_status"
+  fi
+  exit "$test_status"
+}
+trap cleanup EXIT
+
+wp_cmd() {
+  local output status=0
+  output="$("${COMPOSE[@]}" run --rm --no-deps wp "$@" 2>&1)" || status=$?
+  printf '%s\n' "$output"
+  if grep -Eqi '(^|[[:space:]])(PHP[[:space:]]+)?(warning|notice|deprecated|fatal)(:|[[:space:]])|fatal error|uncaught' <<<"$output"; then
+    return 1
+  fi
+  return "$status"
+}
+
+"${COMPOSE[@]}" up --detach --wait db wordpress
+
+wp_cmd core install \
+  --url=http://gama-package.test \
+  --title='Gama package test' \
+  --admin_user=package-admin \
+  --admin_password=package-test-password-only \
+  --admin_email=package-admin@example.test \
+  --skip-email
+
+wp_cmd core version | grep -Fx '7.1'
+wp_cmd eval 'if (version_compare(PHP_VERSION, "8.4", "<") || version_compare(PHP_VERSION, "8.5", ">=")) { exit(1); } echo PHP_VERSION;' | grep -E '^8\.4\.'
+
+original_theme="$(wp_cmd theme list --status=active --field=name | tail -n 1)"
+alternate_theme="$(wp_cmd theme list --status=inactive --field=name | grep -E '^twenty' | head -n 1)"
+if [[ -z "$original_theme" || -z "$alternate_theme" || "$original_theme" == "$alternate_theme" ]]; then
+  echo "Two installed Core themes are required for the theme-switch contract." >&2
+  exit 1
+fi
+
+wp_cmd plugin install /package/gama-contact.zip
+wp_cmd plugin is-installed gama-contact
+wp_cmd plugin get gama-contact --field=version | grep -Fx '0.1.0'
+
+lifecycle_php='require_once ABSPATH . "wp-admin/includes/plugin.php";
+global $wpdb, $wp_filter;
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$snapshot = static function () use ($wpdb): array {
+    return [
+        "posts" => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts}"),
+        "users" => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->users}"),
+        "roles" => wp_json_encode(wp_roles()->roles),
+        "cron" => maybe_serialize(_get_cron_array()),
+    ];
+};
+$before = $snapshot();
+$before_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("gama_contact_") . "%"));
+if ($before_options !== []) { $fail("Unexpected pre-existing gama-contact options"); }
+$mail_calls = 0;
+add_filter("pre_wp_mail", static function ($return) use (&$mail_calls) { ++$mail_calls; return true; });
+$result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
+if (is_wp_error($result)) { $fail($result->get_error_message()); }
+if ((string) get_option("gama_contact_schema_version") !== "1") { $fail("Activation did not write schema version 1"); }
+if (!is_plugin_active("gama-contact/gama-contact.php")) { $fail("Plugin is not active"); }
+$main_file = realpath(WP_PLUGIN_DIR . "/gama-contact/gama-contact.php");
+if ($main_file !== WP_PLUGIN_DIR . "/gama-contact/gama-contact.php") { $fail("Plugin main file is not at the exact installed path"); }
+$installed = realpath(WP_PLUGIN_DIR . "/gama-contact") . DIRECTORY_SEPARATOR;
+foreach (["GamaSoftware\\Contact\\Plugin", "GamaSoftware\\Contact\\Lifecycle\\Activator", "GamaSoftware\\Contact\\Lifecycle\\Deactivator", "GamaSoftware\\Contact\\Support\\I18n"] as $class) {
+    $file = realpath((new ReflectionClass($class))->getFileName());
+    if ($file === false || !str_starts_with($file, $installed)) { $fail("Class loaded outside installed ZIP: " . $class); }
+}
+$init_callbacks = 0;
+foreach (($wp_filter["init"]->callbacks ?? []) as $callbacks) {
+    foreach ($callbacks as $callback) {
+        $function = $callback["function"];
+        if (is_array($function) && $function[0] === "GamaSoftware\\Contact\\Support\\I18n" && $function[1] === "load") { ++$init_callbacks; }
+    }
+}
+(new GamaSoftware\Contact\Plugin())->boot();
+$init_callbacks_after = 0;
+foreach (($wp_filter["init"]->callbacks ?? []) as $callbacks) {
+    foreach ($callbacks as $callback) {
+        $function = $callback["function"];
+        if (is_array($function) && $function[0] === "GamaSoftware\\Contact\\Support\\I18n" && $function[1] === "load") { ++$init_callbacks_after; }
+    }
+}
+if ($init_callbacks !== 1 || $init_callbacks_after !== 1) { $fail("Plugin hooks were not registered exactly once"); }
+$blocks = array_filter(WP_Block_Type_Registry::get_instance()->get_all_registered(), static fn ($name) => str_starts_with((string) $name, "gama-software/"), ARRAY_FILTER_USE_KEY);
+if ($blocks !== []) { $fail("Scaffold registered a block"); }
+$routes = array_filter(array_keys(rest_get_server()->get_routes()), static fn ($route) => str_starts_with((string) $route, "/gama-contact/"));
+if ($routes !== []) { $fail("Scaffold registered a REST route"); }
+global $shortcode_tags;
+$shortcodes = array_filter(array_keys($shortcode_tags), static fn ($tag) => str_starts_with((string) $tag, "gama_contact_"));
+if ($shortcodes !== []) { $fail("Scaffold registered a shortcode"); }
+update_option("gama_contact_schema_version", 77, false);
+deactivate_plugins("gama-contact/gama-contact.php", true);
+if ((string) get_option("gama_contact_schema_version") !== "77") { $fail("Deactivation changed durable data"); }
+$result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
+if (is_wp_error($result) || (string) get_option("gama_contact_schema_version") !== "1") { $fail("Repeated activation was not idempotent"); }
+$after_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_name", $wpdb->esc_like("gama_contact_") . "%"));
+if ($after_options !== ["gama_contact_schema_version"]) { $fail("Scaffold created unexpected settings or options"); }
+if ($before !== $snapshot()) { $fail("Scaffold changed posts, users, roles, or cron"); }
+if ($mail_calls !== 0) { $fail("Scaffold attempted to send mail"); }
+echo "lifecycle-and-side-effects-ok";'
+
+wp_cmd eval "$lifecycle_php" | grep -Fx 'lifecycle-and-side-effects-ok'
+
+wp_cmd theme activate "$alternate_theme"
+wp_cmd plugin is-active gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd theme activate "$original_theme"
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+
+wp_cmd plugin deactivate gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd plugin activate gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd plugin deactivate gama-contact
+wp_cmd plugin uninstall gama-contact
+if wp_cmd plugin is-installed gama-contact; then
+  echo "Default uninstall did not remove installed plugin files." >&2
+  exit 1
+fi
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+
+debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
+runtime_output="$("${COMPOSE[@]}" logs --no-color)"
+if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output"; then
+  printf '%s\n' "$debug_output" >&2
+  exit 1
+fi
+if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$runtime_output"; then
+  printf '%s\n' "$runtime_output" >&2
+  exit 1
+fi
+
+echo "ZIP-only lifecycle passed for $zip_path in $project_name."

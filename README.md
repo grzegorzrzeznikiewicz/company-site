@@ -86,11 +86,24 @@ wordpress/tests/mount-contract.sh        # validate safe theme/plugin bind mount
 wordpress/tests/runtime-smoke.sh           # non-destructive runtime smoke check
 wordpress/tests/runtime-smoke.sh --clean   # explicit clean-volume bootstrap check
 wordpress/bin/reset --list-targets         # inspect targets before a reset
+wordpress/bin/validate-extensions-lock     # validate the empty external-extension inventory
+wordpress/bin/package plugin gama-contact  # build the local reproducible plugin ZIP
+wordpress/tests/plugin-package-contract.sh # verify contents and two byte-identical builds
+wordpress/tests/package-compose-contract.sh # verify isolated image/mount parity
+wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip # clean ZIP-only lifecycle
 ```
 
 `wordpress/bin/reset` refuses to run without `--confirm`; with that explicit
 flag it removes only the `gama-wordpress` Compose project's local database,
 uploads, and WordPress volumes. It never targets the React/Symfony project.
+
+The WordPress package architecture, code/runtime classification, lifecycle,
+dependency-lock policy, and exact next-plugin procedure are recorded in
+[`GSWEB-11-architecture.md`](docs/agent-workflows/wordpress-migration/GSWEB-11-architecture.md).
+The current `gama-software` theme is only the GSWEB-10 runtime scaffold;
+GSWEB-12 owns its production implementation and packaging. Files in
+`wordpress/dist` are ignored local artifacts and must not be uploaded,
+released, or otherwise distributed without separate approval.
 
 ## Frontend
 

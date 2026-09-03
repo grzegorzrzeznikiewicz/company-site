@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOSITORY_DIR="$(cd "$ROOT_DIR/.." && pwd)"
+SOURCE_DIR="$ROOT_DIR/plugins/gama-contact"
+DIST_DIR="$ROOT_DIR/dist"
+VERSION="0.1.0"
+
+if [[ "$#" -ne 2 || "$1" != "plugin" || "$2" != "gama-contact" ]]; then
+  echo "Usage: wordpress/bin/package plugin gama-contact" >&2
+  exit 64
+fi
+
+if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
+  SOURCE_DATE_EPOCH="$(git -C "$REPOSITORY_DIR" log -1 --format=%ct -- wordpress/plugins/gama-contact)"
+  if [[ -z "$SOURCE_DATE_EPOCH" ]]; then
+    SOURCE_DATE_EPOCH="$(git -C "$REPOSITORY_DIR" log -1 --format=%ct HEAD)"
+  fi
+fi
+
+"$ROOT_DIR/bin/validate-extensions-lock"
+
+if [[ ! "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
+  echo "SOURCE_DATE_EPOCH must be a non-negative integer." >&2
+  exit 64
+fi
+
+if timestamp="$(TZ=UTC date -r "$SOURCE_DATE_EPOCH" '+%Y%m%d%H%M.%S' 2>/dev/null)"; then
+  year="$(TZ=UTC date -r "$SOURCE_DATE_EPOCH" '+%Y' 2>/dev/null)"
+elif timestamp="$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y%m%d%H%M.%S' 2>/dev/null)"; then
+  year="$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y' 2>/dev/null)"
+else
+  echo "SOURCE_DATE_EPOCH is outside the date implementation's range." >&2
+  exit 64
+fi
+if ((10#$year < 1980 || 10#$year > 2107)); then
+  echo "SOURCE_DATE_EPOCH UTC year must be within ZIP's 1980-2107 range." >&2
+  exit 64
+fi
+
+for required_command in git find diff grep sed sort wc cp cut tr xargs mkdir mktemp touch chmod zip; do
+  if ! command -v "$required_command" >/dev/null 2>&1; then
+    echo "Required packaging command is unavailable: $required_command" >&2
+    exit 69
+  fi
+done
+
+if command -v shasum >/dev/null 2>&1; then
+  sha256_file() { shasum -a 256 "$1" | cut -d' ' -f1; }
+elif command -v sha256sum >/dev/null 2>&1; then
+  sha256_file() { sha256sum "$1" | cut -d' ' -f1; }
+else
+  echo "A SHA-256 command (shasum or sha256sum) is required." >&2
+  exit 69
+fi
+
+temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-contact-package.XXXXXX")"
+cleanup() {
+  find "$temporary_dir" -type f -delete 2>/dev/null || true
+  find "$temporary_dir" -depth -type d -exec rmdir {} \; 2>/dev/null || true
+}
+trap cleanup EXIT
+
+expected_files="$temporary_dir/expected-files.txt"
+actual_files="$temporary_dir/actual-files.txt"
+cat >"$expected_files" <<'EOF'
+CHANGELOG.md
+LICENSE
+README.md
+gama-contact.php
+languages/gama-contact.pot
+readme.txt
+src/Lifecycle/Activator.php
+src/Lifecycle/Deactivator.php
+src/Lifecycle/Uninstaller.php
+src/Plugin.php
+src/Support/I18n.php
+uninstall.php
+EOF
+
+if [[ ! -d "$SOURCE_DIR" ]]; then
+  echo "Missing package source: $SOURCE_DIR" >&2
+  exit 1
+fi
+if find "$SOURCE_DIR" -type l -print -quit | grep -q .; then
+  echo "Plugin source contains a forbidden symlink." >&2
+  exit 1
+fi
+(cd "$SOURCE_DIR" && find . -type f -print | sed 's#^\./##' | LC_ALL=C sort) >"$actual_files"
+if ! diff -u "$expected_files" "$actual_files"; then
+  echo "Plugin source differs from the positive package allowlist." >&2
+  exit 1
+fi
+if grep -Eqi '(^|/)(\.env([./]|$)|id_rsa([./]|$)|credentials?([./]|$)|secrets?([./]|$))' "$actual_files"; then
+  echo "Plugin source contains a secret-like filename." >&2
+  exit 1
+fi
+if (cd "$SOURCE_DIR" && xargs grep -EIl -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|(api[_-]?key|password|client[_-]?secret)[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/=_-]{12,}' <"$actual_files") | grep -q .; then
+  echo "Plugin source contains a secret-like value." >&2
+  exit 1
+fi
+
+for metadata in \
+  'Plugin Name: Gama Contact' \
+  'Version: 0.1.0' \
+  'Requires at least: 7.1' \
+  'Requires PHP: 8.4' \
+  'License: GPL-2.0-or-later' \
+  'License URI: https://www.gnu.org/licenses/gpl-2.0.html' \
+  'Text Domain: gama-contact' \
+  'Domain Path: /languages'; do
+  grep -Fq "$metadata" "$SOURCE_DIR/gama-contact.php" || {
+    echo "Missing or inconsistent plugin header: $metadata" >&2
+    exit 1
+  }
+done
+for metadata in \
+  'Requires at least: 7.1' \
+  'Requires PHP: 8.4' \
+  'Stable tag: 0.1.0' \
+  'License: GPL-2.0-or-later' \
+  'License URI: https://www.gnu.org/licenses/gpl-2.0.html'; do
+  grep -Fq "$metadata" "$SOURCE_DIR/readme.txt" || {
+    echo "Missing or inconsistent readme header: $metadata" >&2
+    exit 1
+  }
+done
+grep -Fq '## 0.1.0 ' "$SOURCE_DIR/CHANGELOG.md" || {
+  echo "CHANGELOG.md version does not match the package." >&2
+  exit 1
+}
+grep -Fq 'gama-software/gama-contact' "$SOURCE_DIR/README.md" || {
+  echo "README.md is missing the package identifier." >&2
+  exit 1
+}
+license_size="$(wc -c <"$SOURCE_DIR/LICENSE" | tr -d ' ')"
+if [[ "$license_size" -lt 15000 ]] || ! grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$SOURCE_DIR/LICENSE"; then
+  echo "LICENSE does not contain the full GNU GPL version 2 text." >&2
+  exit 1
+fi
+
+stage_dir="$temporary_dir/stage"
+package_dir="$stage_dir/gama-contact"
+mkdir -p \
+  "$package_dir/languages" \
+  "$package_dir/src/Lifecycle" \
+  "$package_dir/src/Support"
+while IFS= read -r relative_path; do
+  cp "$SOURCE_DIR/$relative_path" "$package_dir/$relative_path"
+done <"$expected_files"
+
+find "$stage_dir" -type d -exec chmod 0755 {} \;
+find "$stage_dir" -type f -exec chmod 0644 {} \;
+TZ=UTC find "$stage_dir" -exec touch -t "$timestamp" {} \;
+
+archive="$temporary_dir/gama-contact-${VERSION}.zip"
+(cd "$stage_dir" && find gama-contact -print | LC_ALL=C sort | TZ=UTC zip -X -q -9 "$archive" -@)
+
+mkdir -p "$DIST_DIR"
+cp "$archive" "$DIST_DIR/gama-contact-${VERSION}.zip"
+
+manifest="$temporary_dir/gama-contact-${VERSION}.manifest.txt"
+while IFS= read -r relative_path; do
+  printf '%s  gama-contact/%s\n' "$(sha256_file "$SOURCE_DIR/$relative_path")" "$relative_path"
+done <"$expected_files" | LC_ALL=C sort >"$manifest"
+cp "$manifest" "$DIST_DIR/gama-contact-${VERSION}.manifest.txt"
+
+zip_sha="$(sha256_file "$DIST_DIR/gama-contact-${VERSION}.zip")"
+printf '%s  gama-contact-%s.zip\n' "$zip_sha" "$VERSION" >"$temporary_dir/gama-contact-${VERSION}.zip.sha256"
+cp "$temporary_dir/gama-contact-${VERSION}.zip.sha256" "$DIST_DIR/gama-contact-${VERSION}.zip.sha256"
+
+echo "Built $DIST_DIR/gama-contact-${VERSION}.zip"
+echo "Manifest $DIST_DIR/gama-contact-${VERSION}.manifest.txt"
+echo "SHA-256 $zip_sha"
