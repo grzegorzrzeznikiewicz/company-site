@@ -31,6 +31,8 @@ const initialPrimaryLinks = [
   ['Kontakt', '/#contact'],
 ] as const;
 
+const persistedMobileWidths = [320, 390] as const;
+
 let diagnostics: BrowserDiagnostics;
 
 test.beforeEach(async ({ page }) => {
@@ -73,6 +75,14 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   expect(overflow.clipped).toEqual([]);
 }
 
+async function assertDocumentScrollUnlocked(page: Page): Promise<void> {
+  expect(
+    await page
+      .locator('html')
+      .evaluate((element) => getComputedStyle(element).overflow),
+  ).not.toBe('hidden');
+}
+
 async function assertLandmarksAndLogo(page: Page): Promise<void> {
   await expect(page.locator('header.gama-site-header')).toHaveCount(1);
   await expect(page.locator('main')).toHaveCount(1);
@@ -96,6 +106,47 @@ async function assertLandmarksAndLogo(page: Page): Promise<void> {
   for (const link of await logoLinks.all()) {
     await expect(link).toHaveAttribute('href', 'http://wordpress/');
   }
+}
+
+async function assertPersistedMobileNavigation(
+  page: Page,
+  width: (typeof persistedMobileWidths)[number],
+): Promise<void> {
+  await page.setViewportSize({ width, height: 844 });
+  const response = await page.goto('/sample-page/');
+  expect(response?.status()).toBe(200);
+  await assertNoHorizontalOverflow(page);
+
+  const primary = primaryNavigation(page);
+  const open = primary.getByRole('button', { name: 'Open menu' });
+  await expect(open).toBeVisible();
+  await expect(open).toHaveAttribute('aria-haspopup', 'dialog');
+  await expect(open).toHaveAttribute('aria-expanded', 'false');
+  const controlledId = await open.getAttribute('aria-controls');
+  expect(controlledId).toMatch(/^modal-[0-9]+$/);
+  await expect(page.locator(`#${controlledId}`)).toHaveCount(1);
+  await assertDocumentScrollUnlocked(page);
+
+  await open.focus();
+  await page.keyboard.press('Enter');
+  await expect(open).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('html')).toHaveClass(/has-modal-open/);
+  expect(
+    await page
+      .locator('html')
+      .evaluate((element) => getComputedStyle(element).overflow),
+  ).toBe('hidden');
+  const dialog = primary.getByRole('dialog', { name: 'Menu' });
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect(dialog.getByRole('link', { name: 'Oferta' })).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(open).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('html')).not.toHaveClass(/has-modal-open/);
+  await assertDocumentScrollUnlocked(page);
+  expect(await open.evaluate((element) => element === document.activeElement)).toBe(
+    true,
+  );
 }
 
 test('renders one semantic shell and the exact editable fallback links on every required route @navigation-initial', async ({
@@ -214,6 +265,7 @@ test('uses the Core mobile dialog for keyboard focus, state, Escape and scroll l
   const controlledId = await open.getAttribute('aria-controls');
   expect(controlledId).toMatch(/^modal-[0-9]+$/);
   await expect(page.locator(`#${controlledId}`)).toHaveCount(1);
+  await assertDocumentScrollUnlocked(page);
 
   await open.focus();
   await page.keyboard.press('Enter');
@@ -253,6 +305,7 @@ test('uses the Core mobile dialog for keyboard focus, state, Escape and scroll l
   await page.keyboard.press('Escape');
   await expect(open).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('html')).not.toHaveClass(/has-modal-open/);
+  await assertDocumentScrollUnlocked(page);
   expect(await open.evaluate((element) => element === document.activeElement)).toBe(
     true,
   );
@@ -269,6 +322,7 @@ test('uses the Core mobile dialog for keyboard focus, state, Escape and scroll l
     primaryNavigation(page).getByRole('button', { name: 'Open menu' }),
   ).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('html')).not.toHaveClass(/has-modal-open/);
+  await assertDocumentScrollUnlocked(page);
 });
 
 async function openTemplatePart(
@@ -363,7 +417,7 @@ async function assertDisposableEditorBoundary(page: Page) {
 test('lets the disposable Editor transform and save native header navigation through the Site Editor UI @navigation-save', async ({
   page,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(90_000);
   await login(
     page,
     process.env.WP_EDITOR_USER ?? 'theme-navigation-editor',
@@ -453,7 +507,6 @@ test('lets the disposable Editor transform and save native header navigation thr
 test('lets the disposable Editor change and save the native footer copyright through the Site Editor UI @navigation-save', async ({
   page,
 }, testInfo) => {
-  test.slow();
   await login(
     page,
     process.env.WP_EDITOR_USER ?? 'theme-navigation-editor',
@@ -522,6 +575,10 @@ test('keeps saved navigation and copyright public on every route after lifecycle
     ).toBeVisible();
   }
 
+  for (const width of persistedMobileWidths) {
+    await assertPersistedMobileNavigation(page, width);
+  }
+
   await login(page);
   const header = await rest<any>(
     page,
@@ -536,6 +593,27 @@ test('keeps saved navigation and copyright public on every route after lifecycle
     expect(entity.status).toBe('publish');
     expect(entity.has_theme_file).toBe(true);
   }
+  const storedNavigationJson = (header.content.raw as string).match(
+    /<!-- wp:navigation (\{[^\n]+\}) \/-->/,
+  )?.[1];
+  expect(storedNavigationJson).toBeDefined();
+  const storedNavigationAttributes = JSON.parse(storedNavigationJson!) as {
+    ariaLabel?: string;
+    className?: string;
+    overlayMenu?: string;
+  };
+  const navigationBlockType = await rest<any>(
+    page,
+    '/wp/v2/block-types/core/navigation?context=edit',
+  );
+  expect(
+    storedNavigationAttributes.overlayMenu ??
+      navigationBlockType.attributes.overlayMenu.default,
+  ).toBe('mobile');
+  expect(storedNavigationAttributes.ariaLabel).toBe('Główna nawigacja');
+  expect(storedNavigationAttributes.className).toBe(
+    'gama-primary-navigation',
+  );
   let navigationContent = header.content.raw as string;
   const navigationRef = navigationContent.match(/"ref":(\d+)/)?.[1];
   if (navigationRef !== undefined) {

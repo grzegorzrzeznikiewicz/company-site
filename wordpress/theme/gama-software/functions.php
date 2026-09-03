@@ -82,6 +82,15 @@ function gama_software_add_navigation_toggle_state( string $block_content, array
 		return $block_content;
 	}
 
+	$document = new WP_HTML_Tag_Processor( $block_content );
+	while ( $document->next_token() ) {
+		// Traverse the entire fragment before scheduling any lexical update.
+		continue;
+	}
+	if ( $document->paused_at_incomplete_token() ) {
+		return $block_content;
+	}
+
 	$container = new WP_HTML_Tag_Processor( $block_content );
 	if ( ! $container->next_tag(
 		array(

@@ -111,6 +111,14 @@ foreach ( $unchanged_cases as list( $label, $html, $attributes ) ) {
 }
 
 $targeted = '<nav><button class="arbitrary">Other</button><button class="wp-block-navigation__responsive-container-open">Open</button><div id="modal-target" class="wp-block-navigation__responsive-container"></div></nav>';
+$complete_processor = new WP_HTML_Tag_Processor( $targeted );
+while ( $complete_processor->next_token() ) {
+	// Exhaust the complete fixture so the public parser state can be asserted.
+	continue;
+}
+if ( $complete_processor->paused_at_incomplete_token() ) {
+	$fail( 'complete target fixture unexpectedly paused at an incomplete token' );
+}
 $targeted_result = gama_software_add_navigation_toggle_state( $targeted, array( 'attrs' => array( 'overlayMenu' => 'mobile' ) ), $block_instance );
 if ( ! str_contains( $targeted_result, '<button class="arbitrary">Other</button>' ) ) {
 	$fail( 'bridge changed an arbitrary button' );
@@ -120,6 +128,19 @@ if ( ! $targeted_processor->next_tag( array( 'tag_name' => 'BUTTON', 'class_name
 	|| 'modal-target' !== $targeted_processor->get_attribute( 'aria-controls' )
 	|| 'context.overlayOpenedBy.click' !== $targeted_processor->get_attribute( 'data-wp-bind--aria-expanded' ) ) {
 	$fail( 'bridge did not update only the exact open control' );
+}
+
+$incomplete_target = $targeted . '<span';
+$incomplete_processor = new WP_HTML_Tag_Processor( $incomplete_target );
+while ( $incomplete_processor->next_token() ) {
+	// Exhaust the malformed fixture so the public parser state can be asserted.
+	continue;
+}
+if ( ! $incomplete_processor->paused_at_incomplete_token() ) {
+	$fail( 'incomplete target fixture did not pause at an incomplete token' );
+}
+if ( $incomplete_target !== gama_software_add_navigation_toggle_state( $incomplete_target, array( 'attrs' => array( 'overlayMenu' => 'mobile' ) ), $block_instance ) ) {
+	$fail( 'incomplete target markup changed' );
 }
 
 global $wp_filter;

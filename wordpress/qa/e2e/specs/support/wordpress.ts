@@ -105,9 +105,7 @@ export function watchWordPressDiagnostics(
     const expectedMissingRoute =
       message.type() === 'error' &&
       message.text().includes('404 (Not Found)') &&
-      (options.expectedMissingPaths ?? []).includes(
-        new URL(page.url()).pathname,
-      );
+      (options.expectedMissingPaths ?? []).includes(locationPath);
     if (
       message.type() === 'error' &&
       !expectedRestrictedSettingsResponse &&

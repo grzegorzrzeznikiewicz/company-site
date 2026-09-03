@@ -27,7 +27,6 @@ test.afterEach(() => {
 
 for (const slug of templateSlugs) {
   test(`opens the ${slug} template in the Site Editor @open`, async ({ page }) => {
-    test.slow();
     const entity = await rest<any>(page, `/wp/v2/templates/gama-software//${slug}?context=edit`);
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
@@ -41,7 +40,6 @@ for (const slug of templateSlugs) {
 
 for (const slug of partSlugs) {
   test(`opens the ${slug} template part in the Site Editor @open`, async ({ page }) => {
-    test.slow();
     const entity = await rest<any>(page, `/wp/v2/template-parts/gama-software//${slug}?context=edit`);
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
