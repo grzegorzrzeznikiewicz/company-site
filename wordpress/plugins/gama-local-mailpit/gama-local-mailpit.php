@@ -8,6 +8,11 @@
 
 declare(strict_types=1);
 
+add_filter(
+    'wp_mail_from',
+    static fn (): string => 'wordpress@gama-software.test'
+);
+
 add_action(
     'phpmailer_init',
     static function (PHPMailer\PHPMailer\PHPMailer $mailer): void {
