@@ -6,7 +6,9 @@ set -euo pipefail
 # including cleanup after a failing lifecycle.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_PACKAGE="$ROOT_DIR/bin/test-package"
-ARTIFACT="$ROOT_DIR/dist/gama-software-0.1.0.zip"
+theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$ROOT_DIR/theme/gama-software/style.css")"
+[[ "$theme_version" == '0.2.0' ]]
+ARTIFACT="$ROOT_DIR/dist/gama-software-$theme_version.zip"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-test-package-isolation.XXXXXX")"
 fake_bin="$fixture_dir/bin"
 log_path="$fixture_dir/docker.log"

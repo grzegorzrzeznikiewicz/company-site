@@ -35,10 +35,26 @@ DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker bui
 generate_pot "$fixture_dir/first"
 generate_pot "$fixture_dir/second"
 cmp "$fixture_dir/first/gama-software.pot" "$fixture_dir/second/gama-software.pot"
-cmp "$fixture_dir/first/gama-software.pot" "$THEME_DIR/languages/gama-software.pot"
-grep -B1 -F 'msgid "Header"' "$THEME_DIR/languages/gama-software.pot" | grep -Fq 'msgctxt "Template part name"'
-grep -B1 -F 'msgid "Footer"' "$THEME_DIR/languages/gama-software.pot" | grep -Fq 'msgctxt "Template part name"'
-grep -Fq 'msgid "Page not found"' "$THEME_DIR/languages/gama-software.pot"
-grep -Fq '"POT-Creation-Date: \n"' "$THEME_DIR/languages/gama-software.pot"
+generated_pot="$fixture_dir/first/gama-software.pot"
+for context_message in \
+  'Template part name|Header' \
+  'Template part name|Footer' \
+  'Color name|Base' \
+  'Color name|Muted card text' \
+  'Color name|Accent' \
+  'Font family name|System sans' \
+  'Font size name|Body' \
+  'Font size name|Display large' \
+  'Space size name|Medium' \
+  'Space size name|Section' \
+  'Shadow name|Elevation 1' \
+  'Shadow name|Elevation 3'; do
+  context="${context_message%%|*}"
+  message="${context_message#*|}"
+  grep -B1 -F "msgid \"$message\"" "$generated_pot" | grep -Fq "msgctxt \"$context\""
+done
+grep -Fq 'msgid "Page not found"' "$generated_pot"
+grep -Fq '"POT-Creation-Date: \n"' "$generated_pot"
+cmp "$generated_pot" "$THEME_DIR/languages/gama-software.pot"
 
 echo 'Deterministic WP-CLI POT contract passed.'

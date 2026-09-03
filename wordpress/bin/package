@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPOSITORY_DIR="$(cd "$ROOT_DIR/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
-VERSION="0.1.0"
 
 if [[ "$#" -ne 2 ]]; then
   echo "Usage: wordpress/bin/package <plugin gama-contact|theme gama-software>" >&2
@@ -16,10 +15,16 @@ case "$package_type:$package_slug" in
   plugin:gama-contact)
     SOURCE_DIR="$ROOT_DIR/plugins/gama-contact"
     source_git_path="wordpress/plugins/gama-contact"
+    VERSION="0.1.0"
     ;;
   theme:gama-software)
     SOURCE_DIR="$ROOT_DIR/theme/gama-software"
     source_git_path="wordpress/theme/gama-software"
+    VERSION="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$SOURCE_DIR/style.css")"
+    if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+      echo "Theme style.css must declare exactly one strict SemVer Version header." >&2
+      exit 1
+    fi
     ;;
   *)
     echo "Usage: wordpress/bin/package <plugin gama-contact|theme gama-software>" >&2
@@ -142,7 +147,7 @@ fi
 if [[ "$package_type" == plugin ]]; then
 for metadata in \
   'Plugin Name: Gama Contact' \
-  'Version: 0.1.0' \
+  "Version: $VERSION" \
   'Requires at least: 7.1' \
   'Requires PHP: 8.4' \
   'License: GPL-2.0-or-later' \
@@ -165,7 +170,7 @@ for metadata in \
     exit 1
   }
 done
-grep -Fq '## 0.1.0 ' "$SOURCE_DIR/CHANGELOG.md" || {
+grep -Fq "## $VERSION " "$SOURCE_DIR/CHANGELOG.md" || {
   echo "CHANGELOG.md version does not match the package." >&2
   exit 1
 }
@@ -177,7 +182,7 @@ else
 for metadata in \
   'Theme Name: Gama Software' \
   'Author: Gama Software' \
-  'Version: 0.1.0' \
+  "Version: $VERSION" \
   'Requires at least: 7.1' \
   'Requires PHP: 8.4' \
   'License: GPL v2 or later' \
@@ -189,7 +194,7 @@ for metadata in \
     exit 1
   }
 done
-grep -Fq '## 0.1.0 ' "$SOURCE_DIR/CHANGELOG.md" || {
+grep -Fq "## $VERSION " "$SOURCE_DIR/CHANGELOG.md" || {
   echo "CHANGELOG.md version does not match the package." >&2
   exit 1
 }

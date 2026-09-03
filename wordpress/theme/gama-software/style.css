@@ -7,9 +7,80 @@ Description: Production block-theme foundation for the Gama Software website.
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.4
-Version: 0.1.0
+Version: 0.2.0
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: gama-software
 Domain Path: /languages
 */
+
+.wp-site-blocks :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible,
+.editor-styles-wrapper :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+	outline: 3px solid var(--wp--preset--color--accent);
+	outline-offset: 3px;
+	box-shadow: 0 0 0 2px var(--wp--preset--color--base);
+}
+
+.wp-site-blocks :where(img, video),
+.editor-styles-wrapper :where(img, video) {
+	max-width: 100%;
+	height: auto;
+}
+
+.wp-site-blocks :where(iframe, embed, object, .wp-block-embed),
+.editor-styles-wrapper :where(iframe, embed, object, .wp-block-embed) {
+	max-width: 100%;
+}
+
+.wp-site-blocks :where(p, a, li, figcaption, pre, code, .wp-block-embed),
+.editor-styles-wrapper :where(p, a, li, figcaption, pre, code, .wp-block-embed) {
+	overflow-wrap: anywhere;
+}
+
+.has-small-font-size {
+	line-height: 1.25rem;
+}
+
+.has-body-font-size {
+	line-height: 1.5rem;
+}
+
+.has-button-font-size,
+.has-lead-font-size {
+	line-height: 1.75rem;
+}
+
+.has-heading-3-font-size {
+	line-height: 2rem;
+}
+
+.has-heading-2-font-size {
+	line-height: 2.5rem;
+}
+
+.has-display-font-size,
+.has-display-large-font-size {
+	line-height: 1;
+}
+
+@media (min-width: 768px) {
+	body,
+	.editor-styles-wrapper {
+		--wp--preset--font-size--display: 3.75rem;
+		--wp--preset--font-size--lead: 1.5rem;
+		--wp--style--root--padding-right: 1.5rem;
+		--wp--style--root--padding-left: 1.5rem;
+	}
+
+	.has-lead-font-size {
+		line-height: 2rem;
+	}
+}
+
+@media (min-width: 1024px) {
+	body,
+	.editor-styles-wrapper {
+		--wp--style--root--padding-right: 2rem;
+		--wp--style--root--padding-left: 2rem;
+	}
+}

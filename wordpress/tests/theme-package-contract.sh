@@ -2,11 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ZIP_PATH="$ROOT_DIR/dist/gama-software-0.1.0.zip"
-MANIFEST_PATH="$ROOT_DIR/dist/gama-software-0.1.0.manifest.txt"
-SHA_PATH="$ROOT_DIR/dist/gama-software-0.1.0.zip.sha256"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-package.XXXXXX")"
 theme_source="$ROOT_DIR/theme/gama-software"
+theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$theme_source/style.css")"
+[[ "$theme_version" == '0.2.0' ]]
+ZIP_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip"
+MANIFEST_PATH="$ROOT_DIR/dist/gama-software-$theme_version.manifest.txt"
+SHA_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip.sha256"
 owned_source_paths=()
 
 cleanup() {
@@ -66,8 +68,13 @@ if zipinfo -l "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $1 }' | grep -
 if unzip -Z1 "$ZIP_PATH" | grep -Eq '(^/|(^|/)\.\.(/|$)|(^|/)(vendor|node_modules|tests|qa|uploads|cache|logs)(/|$)|(^|/)\.env|\.log$)'; then exit 1; fi
 LC_ALL=C sort -c "$MANIFEST_PATH"
 [[ "$(cut -d' ' -f1 "$SHA_PATH")" == "$(shasum -a 256 "$ZIP_PATH" | cut -d' ' -f1)" ]]
-unzip -p "$ZIP_PATH" gama-software/style.css | grep -Fq 'Version: 0.1.0'
+unzip -p "$ZIP_PATH" gama-software/style.css | grep -Fq "Version: $theme_version"
 unzip -p "$ZIP_PATH" gama-software/LICENSE | grep -Fq 'GNU GENERAL PUBLIC LICENSE'
+
+if grep -Eq 'gama-software-0\.[0-9]+\.[0-9]+' "$ROOT_DIR/bin/package" "$ROOT_DIR/bin/test-package"; then
+  echo 'Shared package consumers hard-code a concrete theme version.' >&2
+  exit 1
+fi
 
 for kind in symlink extra; do
   candidate="$theme_source/.gama-theme-package-$$-$RANDOM-$kind"

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Gama Software
 msgid ""
 msgstr ""
-"Project-Id-Version: Gama Software 0.1.0\n"
+"Project-Id-Version: Gama Software 0.2.0\n"
 "Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12,6 +12,151 @@ msgstr ""
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: gama-software\n"
+
+#: theme.json
+msgctxt "Color name"
+msgid "Accent"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Base"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Inverse surface"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted card text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted text on dark"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Soft accent"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Strong text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Subtle border"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Subtle surface"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Text"
+msgstr ""
+
+#: theme.json
+msgctxt "Font family name"
+msgid "System sans"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Body"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Button"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Display"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Display large"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Heading 2"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Heading 3"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Lead"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Small"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 1"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 2"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 3"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "2X large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Extra large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Medium"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Section"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Small"
+msgstr ""
 
 #: theme.json
 msgctxt "Template part name"

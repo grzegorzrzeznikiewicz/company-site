@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "$#" -ne 1 ]]; then
-  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip|gama-software-0.1.0.zip>" >&2
+  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip|gama-software-X.Y.Z.zip>" >&2
   exit 64
 fi
 
@@ -20,14 +20,20 @@ artifact_name="$(basename "$zip_path")"
 case "$artifact_name" in
   gama-contact-0.1.0.zip)
     package_kind=plugin
+    package_version=0.1.0
     project_prefix=gama-package
     COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
     site_url=http://gama-package.test
     admin_user=package-admin
     admin_password=package-test-password-only
     ;;
-  gama-software-0.1.0.zip)
+  gama-software-*.zip)
+    if [[ ! "$artifact_name" =~ ^gama-software-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))\.zip$ ]]; then
+      echo "Unsupported package artifact: $artifact_name" >&2
+      exit 64
+    fi
     package_kind=theme
+    package_version="${BASH_REMATCH[1]}"
     project_prefix=gama-theme-package
     COMPOSE_FILE="$ROOT_DIR/tests/theme-package-compose.yaml"
     site_url=http://wordpress
@@ -44,6 +50,23 @@ if [[ "$zip_dir" != "$dist_dir" \
   || ! -f "$zip_path" ]]; then
   echo "Expected a supported regular, non-symlink package ZIP directly in $dist_dir." >&2
   exit 64
+fi
+if [[ "$package_kind" == theme ]]; then
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "The unzip command is required to verify a theme artifact." >&2
+    exit 69
+  fi
+  if [[ "$(unzip -Z1 "$zip_path" | grep -Fxc 'gama-software/style.css')" -ne 1 ]]; then
+    echo "Theme artifact must contain exactly one gama-software/style.css." >&2
+    exit 64
+  fi
+  theme_header="$(unzip -p "$zip_path" gama-software/style.css)"
+  archive_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' <<<"$theme_header")"
+  if [[ ! "$archive_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ \
+    || "$archive_version" != "$package_version" ]]; then
+    echo "Theme artifact filename and its single strict SemVer header must match." >&2
+    exit 64
+  fi
 fi
 
 project_name="${project_prefix}-$(date +%s)-$$-${RANDOM}"
@@ -248,7 +271,7 @@ if [[ "$package_kind" == theme ]]; then
   wp_cmd theme install /package/gama-software.zip --force
   remove_offline_translation_guard
   wp_cmd theme activate gama-software
-  wp_cmd theme get gama-software --field=version | grep -Fx '0.1.0'
+  wp_cmd theme get gama-software --field=version | grep -Fx "$package_version"
 
   installed_contract='require_once ABSPATH . "wp-admin/includes/theme.php";
 $fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
@@ -312,6 +335,53 @@ echo "editor-policy-ok";'
   [[ "$policy_status" -eq 0 ]] || exit "$policy_status"
   grep -Fx 'editor-policy-ok' <<<"$policy_output"
 
+  global_styles_contract='require_once ABSPATH . "wp-admin/includes/user.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$theme_data = WP_Theme_JSON_Resolver::get_theme_data();
+$theme_settings = $theme_data->get_settings();
+$merged_settings = WP_Theme_JSON_Resolver::get_merged_data()->get_settings();
+$expected_palette = ["base"=>"#ffffff","surface-subtle"=>"#f9fafb","border-subtle"=>"#e5e7eb","text-strong"=>"#101828","text"=>"#364153","text-muted"=>"#4a5565","text-card-muted"=>"#717182","text-on-dark-muted"=>"#99a1af","surface-inverse"=>"#101828","accent-soft"=>"#dbeafe","accent"=>"#155dfc"];
+$expected_fonts = ["small"=>".875rem","body"=>"1rem","button"=>"1.125rem","lead"=>"1.25rem","heading-3"=>"1.5rem","heading-2"=>"2.25rem","display"=>"3rem","display-large"=>"3.75rem"];
+$expected_spacing = ["sm"=>".5rem","md"=>"1rem","lg"=>"1.5rem","xl"=>"2rem","xxl"=>"3rem","section"=>"5rem"];
+$expected_shadows = ["elevation-1","elevation-2","elevation-3"];
+$map = static function (array $items, string $value): array { $mapped=[]; foreach ($items as $item) { $mapped[$item["slug"] ?? ""]=$item[$value] ?? null; } return $mapped; };
+if ($map($theme_settings["color"]["palette"]["theme"] ?? [], "color") !== $expected_palette) { $fail("Theme-origin palette differs"); }
+if ($map($theme_settings["typography"]["fontSizes"]["theme"] ?? [], "size") !== $expected_fonts) { $fail("Theme-origin font sizes differ"); }
+if ($map($theme_settings["spacing"]["spacingSizes"]["theme"] ?? [], "size") !== $expected_spacing) { $fail("Theme-origin spacing differs"); }
+if (array_column($theme_settings["shadow"]["presets"]["theme"] ?? [], "slug") !== $expected_shadows) { $fail("Theme-origin shadows differ"); }
+if (($theme_settings["typography"]["fontFamilies"]["theme"][0]["slug"] ?? null) !== "system-sans" || count($theme_settings["typography"]["fontFamilies"]["theme"] ?? []) !== 1) { $fail("Theme-origin font family differs"); }
+foreach ([["color","custom"],["color","defaultPalette"],["color","customGradient"],["color","defaultGradients"],["color","customDuotone"],["color","defaultDuotone"],["typography","customFontSize"],["typography","defaultFontSizes"],["typography","fontStyle"],["typography","fontWeight"],["typography","letterSpacing"],["typography","lineHeight"],["spacing","customSpacingSize"],["spacing","defaultSpacingSizes"],["shadow","defaultPresets"]] as [$group,$key]) { if (($merged_settings[$group][$key] ?? null) !== false) { $fail("Merged setting is not disabled: $group.$key"); } }
+if (($merged_settings["layout"]["contentSize"] ?? null) !== "70rem" || ($merged_settings["layout"]["wideSize"] ?? null) !== "80rem" || ($merged_settings["layout"]["allowCustomContentAndWideSize"] ?? null) !== false) { $fail("Merged layout differs"); }
+if (($merged_settings["custom"]["color"]["accentHover"] ?? null) !== "#1447e6" || ($merged_settings["custom"]["radius"]["card"] ?? null) !== ".875rem") { $fail("Merged custom tokens differ"); }
+$css = wp_get_global_stylesheet();
+foreach (["--wp--preset--color--accent: #155dfc","--wp--preset--font-size--body: 1rem","--wp--preset--spacing--section: 5rem","--wp--preset--shadow--elevation-1:","--wp--custom--color--accent-hover: #1447e6","--wp--custom--radius--card: .875rem"] as $needle) { if (!str_contains($css, $needle)) { $fail("Runtime CSS misses $needle"); } }
+if (preg_match("#https?://|@font-face#i", $css)) { $fail("Runtime Global Styles contains a remote request or font face"); }
+wp_styles(); wp_scripts();
+$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
+WP_Block_Type_Registry::get_instance()->register(new WP_Block_Type("gama-test/extra"));
+$context = new WP_Block_Editor_Context(["name"=>"core/edit-post"]);
+$assert_editor_settings = static function (array $settings, bool $is_admin) use ($fail,$expected_palette,$expected_fonts,$expected_spacing,$expected_shadows,$map): void {
+    if ($map($settings["colors"] ?? [], "color") !== $expected_palette || ($settings["gradients"] ?? null) !== [] || $map($settings["fontSizes"] ?? [], "size") !== $expected_fonts || $map($settings["spacingSizes"] ?? [], "size") !== $expected_spacing) { $fail("Editor-facing preset choices differ"); }
+    if (($settings["disableCustomColors"] ?? null) !== true || ($settings["disableCustomGradients"] ?? null) !== true || ($settings["disableCustomFontSizes"] ?? null) !== true || ($settings["enableCustomLineHeight"] ?? null) !== false || ($settings["disableCustomSpacingSizes"] ?? null) !== true || ($settings["enableCustomUnits"] ?? null) !== ["px","rem","%"] || ($settings["enableCustomSpacing"] ?? null) !== true) { $fail("Editor-facing arbitrary controls differ"); }
+    $features=$settings["__experimentalFeatures"] ?? [];
+    if (($features["shadow"]["defaultPresets"] ?? null) !== false || array_column($features["shadow"]["presets"]["theme"] ?? [], "slug") !== $expected_shadows) { $fail("Editor-facing shadows differ"); }
+    if (($features["typography"]["fontFamilies"]["theme"][0]["slug"] ?? null) !== "system-sans" || count($features["typography"]["fontFamilies"]["theme"] ?? []) !== 1) { $fail("Editor-facing font family differs"); }
+    $allowed=$settings["allowedBlockTypes"] ?? null;
+    if ($is_admin && $allowed !== true) { $fail("Administrator block policy changed"); }
+    if (!$is_admin && (!is_array($allowed) || in_array("core/html",$allowed,true) || !in_array("gama-test/extra",$allowed,true))) { $fail("Editor block policy removed an allowed extra block or kept Custom HTML"); }
+};
+$assert_editor_settings(get_block_editor_settings([], $context), true);
+$editor_id=wp_create_user("style-editor","test-only-password","style-editor@example.test"); $editor=get_user_by("id",$editor_id); $editor->set_role("editor"); wp_set_current_user($editor_id);
+$assert_editor_settings(get_block_editor_settings([], $context), false);
+wp_delete_user($editor_id);
+if ((string) wp_get_theme("gama-software")->get("Version") !== GAMA_EXPECTED_THEME_VERSION) { $fail("Installed theme version differs from its artifact"); }
+echo "global-styles-runtime-ok";'
+  runtime_status=0
+  runtime_output="$(wp_cmd eval "define('GAMA_EXPECTED_THEME_VERSION', '$package_version');$global_styles_contract")" || runtime_status=$?
+  printf '%s\n' "$runtime_output"
+  [[ "$runtime_status" -eq 0 ]] || exit "$runtime_status"
+  grep -Fx 'global-styles-runtime-ok' <<<"$runtime_output"
+
   wp_cmd eval 'update_option("permalink_structure", "/%postname%/"); flush_rewrite_rules(false); echo "permalinks-ok";' | grep -Fx 'permalinks-ok'
   wp_cmd post update 1 --post_date='2026-09-01 12:00:00' --post_name=hello-world --post_status=publish
   wp_cmd post update 2 --post_name=sample-page --post_status=publish
@@ -320,6 +390,116 @@ echo "editor-policy-ok";'
   wp_cmd option update show_on_front page
   wp_cmd option update page_on_front "$home_id"
   wp_cmd option update page_for_posts "$blog_id"
+  wp_cmd option update posts_per_page 1
+  wp_cmd option update blogname 'Gama styles fixture'
+  wp_cmd post create --post_type=post --post_title='Focus neighbour' --post_name=focus-neighbour --post_status=publish --post_date='2026-09-02 12:00:00'
+  logo_id="$(wp_cmd eval 'require_once ABSPATH . "wp-admin/includes/file.php"; require_once ABSPATH . "wp-admin/includes/media.php"; require_once ABSPATH . "wp-admin/includes/image.php"; $bytes=file_get_contents(ABSPATH . "wp-admin/images/w-logo-blue.png"); if ($bytes === false) { exit(1); } $upload=wp_upload_bits("gama-gsweb13-logo.png", null, $bytes); if (!empty($upload["error"])) { fwrite(STDERR,$upload["error"] . PHP_EOL); exit(1); } $id=wp_insert_attachment(["post_mime_type"=>"image/png","post_title"=>"Gama test logo","post_status"=>"inherit"],$upload["file"]); if (is_wp_error($id)) { fwrite(STDERR,$id->get_error_message() . PHP_EOL); exit(1); } $metadata=wp_generate_attachment_metadata($id,$upload["file"]); if (is_array($metadata)) { wp_update_attachment_metadata($id,$metadata); } update_post_meta($id,"_wp_attachment_image_alt","Gama test logo"); set_theme_mod("custom_logo",$id); echo $id;' | tail -n 1)"
+  [[ "$logo_id" =~ ^[0-9]+$ ]]
+  fixture_content=''
+  IFS= read -r -d '' fixture_content <<'HTML' || true
+<!-- wp:group {"className":"gama-global-styles-fixture","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-global-styles-fixture"><!-- wp:heading {"level":1} -->
+<h1 class="wp-block-heading">Global Styles fixture</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 class="wp-block-heading">Semantic heading two</h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">Semantic heading three</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Body primitive with a <a class="gama-fixture-link" href="#fixture-target">visible text link</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#fixture-target">Primary action</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons -->
+
+<!-- wp:paragraph {"fontSize":"small"} -->
+<p class="has-small-font-size">Small preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"body"} -->
+<p class="has-body-font-size">Body preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"button","className":"gama-fixture-button-preset"} -->
+<p class="gama-fixture-button-preset has-button-font-size">Button preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"lead"} -->
+<p class="has-lead-font-size">Lead preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"heading-3","className":"gama-fixture-heading-3-preset"} -->
+<p class="gama-fixture-heading-3-preset has-heading-3-font-size">Heading three preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"heading-2","className":"gama-fixture-heading-2-preset"} -->
+<p class="gama-fixture-heading-2-preset has-heading-2-font-size">Heading two preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"display"} -->
+<p class="has-display-font-size">Display preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"display-large"} -->
+<p class="has-display-large-font-size">Display large preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:group {"backgroundColor":"surface-subtle","className":"gama-fixture-subtle","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-subtle has-surface-subtle-background-color has-background"><!-- wp:paragraph -->
+<p>Subtle surface</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"base","textColor":"text-card-muted","className":"gama-fixture-card","style":{"border":{"radius":"var:custom|radius|card"},"shadow":"var:preset|shadow|elevation-1","spacing":{"padding":{"top":"var:preset|spacing|lg","right":"var:preset|spacing|lg","bottom":"var:preset|spacing|lg","left":"var:preset|spacing|lg"}}},"layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-card has-text-card-muted-color has-base-background-color has-text-color has-background" style="border-radius:var(--wp--custom--radius--card);box-shadow:var(--wp--preset--shadow--elevation-1);padding-top:var(--wp--preset--spacing--lg);padding-right:var(--wp--preset--spacing--lg);padding-bottom:var(--wp--preset--spacing--lg);padding-left:var(--wp--preset--spacing--lg)"><!-- wp:paragraph -->
+<p>Muted card primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"accent-soft","className":"gama-fixture-soft","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-soft has-accent-soft-background-color has-background"><!-- wp:paragraph -->
+<p>Soft accent primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"surface-inverse","textColor":"text-on-dark-muted","className":"gama-fixture-inverse","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-inverse has-text-on-dark-muted-color has-surface-inverse-background-color has-text-color has-background"><!-- wp:paragraph -->
+<p>Inverse surface primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:image {"align":"wide","sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image alignwide size-full"><img src="/wp-admin/images/w-logo-blue.png" alt="Responsive fixture media"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:html -->
+<iframe title="Responsive fixture embed" src="about:blank" width="900" height="120"></iframe>
+<!-- /wp:html -->
+
+<!-- wp:paragraph -->
+<p>averylongunbrokentokenthatmustwrapwithoutcreatinghorizontaloverflowatthesmallestrequiredviewportwidthofthreehundredandtwentypixels</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:search {"showLabel":true} /-->
+
+<!-- wp:paragraph {"anchor":"fixture-target"} -->
+<p id="fixture-target">Fixture target</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+HTML
+  wp_cmd post update "$home_id" --post_content="$fixture_content"
+  style_editor_id="$(wp_cmd user create style-editor style-editor@example.test --role=editor --user_pass=style-editor-test-only --porcelain | tail -n 1)"
+  [[ "$style_editor_id" =~ ^[0-9]+$ ]]
+  editor_fixture_id="$(wp_cmd post create --post_type=page --post_title='Editor preset fixture' --post_name=editor-preset-fixture --post_status=publish --post_author="$style_editor_id" --post_content='<!-- wp:paragraph --><p>Editor preset fixture</p><!-- /wp:paragraph -->' --porcelain | tail -n 1)"
+  [[ "$editor_fixture_id" =~ ^[0-9]+$ ]]
   wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
 
   "${COMPOSE[@]}" build browser
@@ -378,6 +558,7 @@ echo $page_id . "," . $single_id;')"
   wp_cmd eval "$helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
 
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=public browser npx playwright test --grep @public
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles browser npx playwright test --grep @global-styles
 
   original_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'
@@ -389,7 +570,7 @@ echo $page_id . "," . $single_id;')"
   restored_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   [[ "$original_hashes" == "$restored_hashes" ]]
 
-  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
   debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
   runtime_output="$("${COMPOSE[@]}" logs --no-color)"
   if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi

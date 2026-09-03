@@ -19,7 +19,7 @@ docker run --rm --network none \
   gama-theme-qa:gsweb12 php /qa/validate-theme-json.php /theme/theme.json /schema/wp-7.1-theme.json
 
 cp "$THEME_JSON" "$fixture_dir/invalid.json"
-sed 's/"version": 3/"version": 999/' "$fixture_dir/invalid.json" >"$fixture_dir/mutated.json"
+sed 's/"slug": "accent",/"invalidSlug": "accent",/' "$fixture_dir/invalid.json" >"$fixture_dir/mutated.json"
 chmod 0755 "$fixture_dir"
 chmod 0644 "$fixture_dir/invalid.json" "$fixture_dir/mutated.json"
 file_mode() {
@@ -41,7 +41,7 @@ mutation_output="$(docker run --rm --network none \
 mutation_status=$?
 set -e
 if [[ "$mutation_status" -eq 0 ]]; then
-  echo 'Schema validator accepted the deliberate invalid version mutation.' >&2
+  echo 'Schema validator accepted the deliberate invalid palette-preset mutation.' >&2
   exit 1
 fi
 if ! grep -Fq 'theme.json failed WordPress 7.1 schema validation:' <<<"$mutation_output"; then
