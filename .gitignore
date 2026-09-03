@@ -14,6 +14,7 @@ build/dist/
 !backend/.env
 backend/.env.local
 backend/.env.*.local
+wordpress/.env
 
 # Symfony backend build artifacts
 backend/var/

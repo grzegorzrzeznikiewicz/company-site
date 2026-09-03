@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+"$SCRIPT_DIR/_compose" up -d --force-recreate db mailpit wordpress
+"$SCRIPT_DIR/_compose" run --rm wp

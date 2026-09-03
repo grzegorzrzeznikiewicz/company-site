@@ -56,6 +56,41 @@ bin/frontend-check
 bin/e2e-check
 ```
 
+## Local WordPress
+
+The WordPress runtime is separate from the existing React/Symfony Compose
+project. It uses only the fixed `gama-wordpress` Compose project name, a MariaDB
+volume, an uploads volume, and localhost-only WordPress/Mailpit ports.
+
+```bash
+cp wordpress/.env.example wordpress/.env
+wordpress/bin/start
+```
+
+- Site: `http://localhost:8090`
+- WordPress admin: `http://localhost:8090/wp-admin/`
+- Test email inbox: `http://localhost:8027`
+- SMTP sink: `127.0.0.1:1027` (Mailpit only; never a real recipient)
+
+The example local administrator is `admin / ChangeMe-WordPress-Only`. Change
+these values in your untracked `wordpress/.env` when needed.
+
+```bash
+wordpress/bin/start       # start and idempotently bootstrap WordPress
+wordpress/bin/stop        # stop only gama-wordpress containers
+wordpress/bin/restart     # recreate containers without deleting data
+wordpress/bin/logs        # follow WordPress-project logs
+wordpress/bin/wp core version
+wordpress/bin/test-mail   # prove outbound local mail reaches Mailpit
+wordpress/tests/runtime-smoke.sh           # non-destructive runtime smoke check
+wordpress/tests/runtime-smoke.sh --clean   # explicit clean-volume bootstrap check
+wordpress/bin/reset --list-targets         # inspect targets before a reset
+```
+
+`wordpress/bin/reset` refuses to run without `--confirm`; with that explicit
+flag it removes only the `gama-wordpress` Compose project's local database,
+uploads, and WordPress volumes. It never targets the React/Symfony project.
+
 ## Frontend
 
 The `frontend` service runs the Vite development server inside Docker.
