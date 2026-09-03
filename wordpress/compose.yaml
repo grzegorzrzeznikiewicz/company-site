@@ -31,6 +31,15 @@ services:
       retries: 20
       start_period: 5s
 
+  uploads-init:
+    image: wordpress:7.1.0-php8.4-apache
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - "mkdir -p /uploads && chown 33:33 /uploads && chmod 0775 /uploads"
+    volumes:
+      - gama-wordpress-uploads:/uploads
+
   wordpress:
     image: wordpress:7.1.0-php8.4-apache
     restart: unless-stopped
@@ -52,6 +61,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "php -r '$$body = @file_get_contents(\"http://127.0.0.1/wp-login.php\"); $$status = $$http_response_header[0] ?? \"\"; exit(str_starts_with($$status, \"HTTP/\") && !str_contains($$status, \" 4\") && !str_contains($$status, \" 5\") ? 0 : 1);'"]
       interval: 5s
@@ -61,7 +72,9 @@ services:
 
   wp:
     image: wordpress:cli-2.12.0-php8.4
+    user: "33:33"
     environment:
+      HOME: /tmp
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_NAME: ${WP_DB_NAME}
       WORDPRESS_DB_USER: ${WP_DB_USER}

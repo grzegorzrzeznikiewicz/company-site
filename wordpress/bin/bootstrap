@@ -3,9 +3,12 @@ set -eu
 
 cd /var/www/html
 
-if ! wp core is-installed --allow-root; then
-  wp core install --allow-root \
-    --url="$WP_HOME" \
+wp_cli() {
+  wp --allow-root --url="$WP_HOME" "$@"
+}
+
+if ! wp_cli core is-installed; then
+  wp_cli core install \
     --title="$WP_SITE_TITLE" \
     --admin_user="$WP_ADMIN_USER" \
     --admin_password="$WP_ADMIN_PASSWORD" \
@@ -13,5 +16,5 @@ if ! wp core is-installed --allow-root; then
     --skip-email
 fi
 
-wp theme activate gama-software --allow-root
-wp plugin activate gama-local-mailpit --allow-root
+wp_cli theme activate gama-software
+wp_cli plugin activate gama-local-mailpit
