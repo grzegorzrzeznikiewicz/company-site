@@ -9,6 +9,10 @@ marker="GSWEB26-persistent-$(date +%s)-$$"
 upload_name="$marker.txt"
 base_image=''
 candidate_image=''
+base_ref="${GAMA_ROLLBACK_BASE_REF:-HEAD^}"
+base_commit="$(git -C "$ROOT_DIR/.." rev-parse "$base_ref^{commit}")"
+candidate_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+[[ "$base_commit" != "$candidate_commit" ]]
 
 COMPOSE=(docker compose --project-name "$project" --env-file "$env_file" --file "$ROOT_DIR/deploy/compose.yaml" --file "$ROOT_DIR/deploy/staging.override.yaml")
 cleanup() {
@@ -46,9 +50,19 @@ write_env() {
   chmod 0600 "$env_file"
 }
 
-base_output="$("$ROOT_DIR/bin/build-release" --test-dirty rollback-base)"
-base_image="$(sed -n 's/^Image ID: //p' <<<"$base_output")"
+base_source="$fixture/base-source"
+mkdir "$base_source"
+git -C "$ROOT_DIR/.." archive "$base_commit" | tar -x -C "$base_source"
+base_tag="gama-wordpress:rollback-base-$base_commit"
+DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+  --file "$base_source/wordpress/runtime/Dockerfile" \
+  --build-arg "GAMA_GIT_SHA=$base_commit" \
+  --build-arg 'GAMA_RELEASE_MARKER=rollback-base' \
+  --tag "$base_tag" \
+  "$base_source"
+base_image="$(docker image inspect --format '{{.Id}}' "$base_tag")"
 [[ "$base_image" =~ ^sha256:[a-f0-9]{64}$ ]]
+[[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$base_tag")" == "$base_commit" ]]
 write_env "$base_image"
 "$ROOT_DIR/bin/deploy-staging" --project "$project" --env-file "$env_file" --confirm
 
@@ -58,6 +72,7 @@ source_upload_sha="$("${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstra
 candidate_output="$("$ROOT_DIR/bin/build-release" --test-dirty candidate)"
 candidate_image="$(sed -n 's/^Image ID: //p' <<<"$candidate_output")"
 [[ "$candidate_image" =~ ^sha256:[a-f0-9]{64}$ && "$candidate_image" != "$base_image" ]]
+[[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$candidate_image")" == "$candidate_commit" ]]
 write_env "$candidate_image"
 "$ROOT_DIR/bin/deploy-staging" --project "$project" --env-file "$env_file" --confirm
 

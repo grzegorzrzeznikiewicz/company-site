@@ -13,8 +13,8 @@ The candidate must pass all of the following before Gate C:
 
 - public desktop/mobile navigation, logo, contact form, URL, WCAG 2.1 AA and
   performance budgets;
-- Editor changes to Hero/CTA, menu, footer, services, modules, posts and media
-  without code access;
+- Editor changes to Hero/CTA, menu, footer, contact, services, modules, posts and
+  media without code access in the same immutable-candidate rehearsal;
 - Editor denial for plugins, users, settings, Core updates and administrator
   promotion;
 - Administrator access to users, installed plugins and Site Health, plus a
@@ -62,7 +62,8 @@ the repository.
 2. Require green `WordPress Quality Gates` for the selected commit. Promote the
    exact staging-tested `ghcr.io/...@sha256:<digest>`; never rebuild or promote a
    moving tag.
-3. Create a new off-host backup with `wordpress/bin/backup`, verify its
+3. Create a new off-host backup with
+   `wordpress/bin/backup --project gama-wp-production`, verify its
    `SHA256SUMS`, and confirm a recent full restore drill. A stale or local-only
    backup is NO-GO.
 4. Confirm production secrets exist only in the protected deployment environment

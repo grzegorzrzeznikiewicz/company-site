@@ -39,6 +39,47 @@ test('@release-acceptance-editor edits content and stays inside the Editor bound
   );
   await expect(frame.locator('main.gama-template--front-page')).toBeVisible();
 
+  const frontPageRecordId = 'gama-software//front-page';
+  const savedContact = await page.evaluate(async (recordId) => {
+    const wordpress = (window as typeof window & { wp: any }).wp;
+    const record = await wordpress.data
+      .resolveSelect('core')
+      .getEntityRecord('postType', 'wp_template', recordId);
+    const original = record.content.raw as string;
+    const changed = original.replace(
+      '>Kontakt</h2>',
+      '>Kontakt próby stagingu</h2>',
+    );
+    if (changed === original) {
+      throw new Error('The contact section did not expose its editable heading.');
+    }
+    wordpress.data
+      .dispatch('core')
+      .editEntityRecord('postType', 'wp_template', recordId, {
+        content: changed,
+      });
+    const saved = await wordpress.data
+      .dispatch('core')
+      .saveEditedEntityRecord('postType', 'wp_template', recordId);
+    return { original, saved: saved.content.raw as string };
+  }, frontPageRecordId);
+  expect(savedContact.saved).toContain('Kontakt próby stagingu');
+  await page.goto('/#contact', { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('heading', {
+      level: 2,
+      name: 'Kontakt próby stagingu',
+      exact: true,
+    }),
+  ).toBeVisible();
+  const restoredFrontPage = await rest<any>(
+    page,
+    '/wp/v2/templates/gama-software//front-page',
+    'POST',
+    { content: savedContact.original },
+  );
+  expect(restoredFrontPage.content.raw).toContain('>Kontakt</h2>');
+
   const headerRecordId = 'gama-software//header';
   const headerFrame = await openEditorCanvas(
     page,
@@ -81,6 +122,56 @@ test('@release-acceptance-editor edits content and stays inside the Editor bound
     { content: savedHeader.original },
   );
   expect(restoredHeader.content.raw).toContain('"label":"Start"');
+
+  const footerRecordId = 'gama-software//footer';
+  const footerFrame = await openEditorCanvas(
+    page,
+    `/wp-admin/site-editor.php?postId=${encodeURIComponent(footerRecordId)}&postType=wp_template_part&canvas=edit`,
+  );
+  await expect(
+    footerFrame.getByText('© 2026 Gama Software. Wszystkie prawa zastrzeżone.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const savedFooter = await page.evaluate(async (recordId) => {
+    const wordpress = (window as typeof window & { wp: any }).wp;
+    const record = await wordpress.data
+      .resolveSelect('core')
+      .getEntityRecord('postType', 'wp_template_part', recordId);
+    const original = record.content.raw as string;
+    const changed = original.replace(
+      '© 2026 Gama Software. Wszystkie prawa zastrzeżone.',
+      '© 2026 Gama Software. Stopka próby stagingu.',
+    );
+    if (changed === original) {
+      throw new Error('The footer did not expose its editable copyright copy.');
+    }
+    wordpress.data
+      .dispatch('core')
+      .editEntityRecord('postType', 'wp_template_part', recordId, {
+        content: changed,
+      });
+    const saved = await wordpress.data
+      .dispatch('core')
+      .saveEditedEntityRecord('postType', 'wp_template_part', recordId);
+    return { original, saved: saved.content.raw as string };
+  }, footerRecordId);
+  expect(savedFooter.saved).toContain('Stopka próby stagingu');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByText('© 2026 Gama Software. Stopka próby stagingu.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const restoredFooter = await rest<any>(
+    page,
+    '/wp/v2/template-parts/gama-software//footer',
+    'POST',
+    { content: savedFooter.original },
+  );
+  expect(restoredFooter.content.raw).toContain(
+    '© 2026 Gama Software. Wszystkie prawa zastrzeżone.',
+  );
 
   await page.goto('/wp-admin/post-new.php', { waitUntil: 'domcontentloaded' });
   await waitForEditorCanvas(page);

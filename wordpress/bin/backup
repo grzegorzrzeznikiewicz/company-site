@@ -2,14 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE=("$ROOT_DIR/bin/_compose")
+project='gama-wordpress'
 
-if [[ "$#" -ne 1 ]]; then
-  echo 'Usage: wordpress/bin/backup <new-destination-directory>' >&2
+if [[ "$#" -eq 3 && "$1" == '--project' ]]; then
+  project="$2"
+  destination="$3"
+elif [[ "$#" -eq 1 ]]; then
+  destination="$1"
+else
+  echo 'Usage: wordpress/bin/backup [--project <compose-project>] <new-destination-directory>' >&2
   exit 64
 fi
-
-destination="$1"
+if [[ ! "$project" =~ ^gama-wordpress$|^gama-wp-(staging|production)(-[a-z0-9][a-z0-9-]{2,40})?$ ]]; then
+  echo 'Backup project must be the local, staging or production Gama WordPress namespace.' >&2
+  exit 64
+fi
 if [[ "$destination" != /* || -e "$destination" || -L "$destination" ]]; then
   echo 'Backup destination must be a new absolute path.' >&2
   exit 64
@@ -29,22 +36,27 @@ cleanup_on_error() {
 }
 trap cleanup_on_error EXIT
 
-for service in db wordpress; do
-  container="$("${COMPOSE[@]}" ps -q "$service")"
-  [[ -n "$container" ]]
+service_container() {
+  docker ps \
+    --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=$1" \
+    --format '{{.ID}}'
+}
+
+database_container="$(service_container db)"
+wordpress_container="$(service_container wordpress)"
+for container in "$database_container" "$wordpress_container"; do
+  [[ -n "$container" && "$container" != *$'\n'* ]]
   [[ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" == healthy ]]
 done
 
-uploads_volume="$(docker volume ls \
-  --filter label=com.docker.compose.project=gama-wordpress \
-  --filter label=com.docker.compose.volume=gama-wordpress-uploads \
-  --quiet)"
+uploads_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/html/wp-content/uploads"}}{{.Name}}{{"\n"}}{{end}}{{end}}' "$wordpress_container" | sed '/^$/d')"
 if [[ -z "$uploads_volume" || "$uploads_volume" == *$'\n'* ]]; then
   echo 'Expected exactly one labelled Gama WordPress uploads volume.' >&2
   exit 1
 fi
 
-"${COMPOSE[@]}" exec -T db sh -ec \
+docker exec "$database_container" sh -ec \
   'exec mariadb-dump --host=127.0.0.1 --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 "$MARIADB_DATABASE"' \
   >"$destination/database.sql"
 
@@ -55,18 +67,23 @@ docker run --rm \
   wordpress:7.1.0-php8.4-apache \
   -C /source -cf - . >"$destination/uploads.tar"
 
-wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
 wordpress_version="$(docker exec "$wordpress_container" php -r 'include "/var/www/html/wp-includes/version.php"; echo $wp_version;')"
-database_container="$("${COMPOSE[@]}" ps -q db)"
 database_image="$(docker inspect --format '{{.Config.Image}}' "$database_container")"
+source_wordpress_image="$(docker inspect --format '{{.Image}}' "$wordpress_container")"
+source_wordpress_image_ref="$(docker inspect --format '{{.Config.Image}}' "$wordpress_container")"
+source_wordpress_image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wordpress_container")"
+if [[ "$source_wordpress_image_revision" == '<no value>' ]]; then source_wordpress_image_revision=''; fi
 git_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
 created_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 printf '%s\n' \
   'format_version=1' \
   "created_utc=$created_utc" \
-  'source_project=gama-wordpress' \
+  "source_project=$project" \
   "git_commit=$git_commit" \
+  "source_wordpress_image=$source_wordpress_image" \
+  "source_wordpress_image_ref=$source_wordpress_image_ref" \
+  "source_wordpress_image_revision=$source_wordpress_image_revision" \
   "wordpress_version=$wordpress_version" \
   "database_image=$database_image" \
   'database_file=database.sql' \

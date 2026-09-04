@@ -1,6 +1,3 @@
 services:
   wordpress:
     ports: !reset []
-
-  mailpit:
-    ports: !reset []
