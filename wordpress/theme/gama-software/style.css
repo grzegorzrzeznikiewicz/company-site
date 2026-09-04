@@ -7,7 +7,7 @@ Description: Production block-theme foundation for the Gama Software website.
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.4
-Version: 0.3.0
+Version: 0.4.0
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: gama-software
@@ -72,9 +72,14 @@ html {
 .gama-site-header__surface .wp-block-site-logo img,
 .gama-site-footer__surface .wp-block-site-logo img {
 	display: block;
-	width: auto;
-	max-height: 3rem;
+	width: 5rem;
+	height: 5rem;
 	object-fit: contain;
+}
+
+.gama-site-footer__surface .wp-block-site-logo img {
+	width: 4rem;
+	height: 4rem;
 }
 
 .gama-hero {

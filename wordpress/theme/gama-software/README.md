@@ -1,7 +1,7 @@
 # Gama Software theme
 
 `gama-software` is the production block-theme foundation for the Gama Software
-website. Version 0.3.0 targets WordPress 7.1 and PHP 8.4. Its controlled Global
+website. Version 0.4.0 targets WordPress 7.1 and PHP 8.4. Its controlled Global
 Styles palette, system typography, spacing, radii and shadows reproduce the
 approved visual foundation without Tailwind, React or remote fonts.
 

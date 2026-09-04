@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-package.XXXXXX")"
 theme_source="$ROOT_DIR/theme/gama-software"
 theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$theme_source/style.css")"
-[[ "$theme_version" == '0.3.0' ]]
+[[ "$theme_version" == '0.4.0' ]]
 ZIP_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip"
 MANIFEST_PATH="$ROOT_DIR/dist/gama-software-$theme_version.manifest.txt"
 SHA_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip.sha256"
@@ -41,6 +41,7 @@ cat >"$fixture_dir/expected-files.txt" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/images/gama-software-logo.png
 assets/icons/module-package.svg
 assets/icons/service-ai.svg
 assets/icons/service-consulting.svg
@@ -67,11 +68,11 @@ templates/single.html
 theme.json
 EOF
 while IFS= read -r file; do printf 'gama-software/%s\n' "$file"; done <"$fixture_dir/expected-files.txt" >"$fixture_dir/expected-entries.txt"
-printf '%s\n' 'gama-software/' 'gama-software/assets/' 'gama-software/assets/icons/' 'gama-software/languages/' 'gama-software/parts/' 'gama-software/patterns/' 'gama-software/templates/' >>"$fixture_dir/expected-entries.txt"
+printf '%s\n' 'gama-software/' 'gama-software/assets/' 'gama-software/assets/images/' 'gama-software/assets/icons/' 'gama-software/languages/' 'gama-software/parts/' 'gama-software/patterns/' 'gama-software/templates/' >>"$fixture_dir/expected-entries.txt"
 LC_ALL=C sort -o "$fixture_dir/expected-entries.txt" "$fixture_dir/expected-entries.txt"
 unzip -Z1 "$ZIP_PATH" | LC_ALL=C sort >"$fixture_dir/actual-entries.txt"
 diff -u "$fixture_dir/expected-entries.txt" "$fixture_dir/actual-entries.txt"
-[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 34 ]]
+[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 36 ]]
 [[ "$(zipinfo -T "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $(NF - 1) }' | LC_ALL=C sort -u)" == '20260101.000000' ]]
 if zipinfo -l "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $1 }' | grep -Ev '^(drwxr-xr-x|-rw-r--r--)$'; then exit 1; fi
 if unzip -Z1 "$ZIP_PATH" | grep -Eq '(^/|(^|/)\.\.(/|$)|(^|/)(vendor|node_modules|tests|qa|uploads|cache|logs)(/|$)|(^|/)\.env|\.log$)'; then exit 1; fi

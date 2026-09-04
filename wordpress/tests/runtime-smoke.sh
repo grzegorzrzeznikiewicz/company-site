@@ -69,6 +69,11 @@ blog_page_id="$("$ROOT_DIR/bin/wp" option get page_for_posts)"
 "$ROOT_DIR/bin/wp" post get "$home_page_id" --field=post_status | grep -Fx publish
 "$ROOT_DIR/bin/wp" post get "$blog_page_id" --field=post_status | grep -Fx publish
 "$ROOT_DIR/bin/wp" post get "$blog_page_id" --field=post_name | grep -Fx blog
+for legal_slug in polityka-prywatnosci regulamin; do
+  legal_id="$("$ROOT_DIR/bin/wp" post list --post_type=page --name="$legal_slug" --post_status=draft --posts_per_page=1 --field=ID | tail -n 1)"
+  [[ "$legal_id" =~ ^[1-9][0-9]*$ ]]
+done
+"$ROOT_DIR/bin/wp" eval '$id=(int)get_theme_mod("custom_logo"); if ($id < 1 || get_post_meta($id,"_gama_asset_key",true)!=="gama-software-logo" || get_post_meta($id,"_wp_attachment_image_alt",true)!=="Gama Software") { exit(1); }'
 if "$ROOT_DIR/bin/wp" post list --post_type=post --post_status=publish --format=csv --fields=post_title,post_content | grep -Fq 'Welcome to WordPress. This is your first post. Edit or delete it, then start writing!'; then
   echo 'Exact default WordPress demonstration post remains published.' >&2
   exit 1
@@ -88,9 +93,10 @@ assert_upload_persisted
 "$ROOT_DIR/bin/restart"
 assert_upload_persisted
 runtime_url="http://localhost:${wp_port}"
-curl --fail --silent --show-error "$runtime_url/" >/dev/null
-curl --fail --silent --show-error "$runtime_url/" | grep -Fq 'gama-contact-form'
-curl --fail --silent --show-error "$runtime_url/blog/" | grep -Fq 'gama-template--home'
+home_html="$(curl --fail --silent --show-error "$runtime_url/")"
+blog_html="$(curl --fail --silent --show-error "$runtime_url/blog/")"
+grep -Fq 'gama-contact-form' <<<"$home_html"
+grep -Fq 'gama-template--home' <<<"$blog_html"
 curl --fail --silent --show-error "$runtime_url/wp-admin/" >/dev/null
 
 "$ROOT_DIR/bin/test-mail"

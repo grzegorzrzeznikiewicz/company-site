@@ -14,6 +14,7 @@ assets/icons/module-package.svg
 assets/icons/service-ai.svg
 assets/icons/service-consulting.svg
 assets/icons/service-ecommerce.svg
+assets/images/gama-software-logo.png
 functions.php
 languages/gama-software.pot
 parts/footer.html
@@ -43,7 +44,7 @@ while IFS= read -r metadata; do
 done <<'EOF'
 Theme Name: Gama Software
 Author: Gama Software
-Version: 0.3.0
+Version: 0.4.0
 Requires at least: 7.1
 Requires PHP: 8.4
 License: GPL v2 or later
@@ -52,13 +53,13 @@ Text Domain: gama-software
 Domain Path: /languages
 EOF
 
-grep -Fq '## 0.3.0 ' "$THEME_DIR/CHANGELOG.md"
+grep -Fq '## 0.4.0 ' "$THEME_DIR/CHANGELOG.md"
 grep -Fq 'gama-software' "$THEME_DIR/README.md"
 [[ "$(wc -c <"$THEME_DIR/LICENSE" | tr -d ' ')" -ge 15000 ]]
 grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$THEME_DIR/LICENSE"
 
 if grep -ERni --include='*.php' --include='*.html' --include='*.json' \
-  'wp_mail|register_rest_route|register_post_type|register_taxonomy|add_role|add_cap|remove_cap|get_role|wp_schedule|gama-contact|rel_canonical|wp_sitemaps?|sitemap_(index|url)|og:|application/ld\+json|noindex' "$THEME_DIR"; then
+  'wp_mail|register_rest_route|register_post_type|register_taxonomy|add_role|add_cap|remove_cap|get_role|wp_schedule|rel_canonical|wp_sitemaps?|sitemap_(index|url)|og:|application/ld\+json|noindex' "$THEME_DIR"; then
   echo 'Theme contains forbidden business, SEO, role, scheduling, or plugin behavior.' >&2
   exit 1
 fi

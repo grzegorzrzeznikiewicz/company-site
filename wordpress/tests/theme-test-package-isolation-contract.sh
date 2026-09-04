@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_PACKAGE="$ROOT_DIR/bin/test-package"
 theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$ROOT_DIR/theme/gama-software/style.css")"
-[[ "$theme_version" == '0.3.0' ]]
+[[ "$theme_version" == '0.4.0' ]]
 ARTIFACT="$ROOT_DIR/dist/gama-software-$theme_version.zip"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-test-package-isolation.XXXXXX")"
 fake_bin="$fixture_dir/bin"
