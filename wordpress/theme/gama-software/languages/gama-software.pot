@@ -226,3 +226,41 @@ msgstr ""
 msgctxt "search form button"
 msgid "Search"
 msgstr ""
+
+#: patterns/services.php
+msgctxt "Pattern title"
+msgid "Gama Software Services"
+msgstr ""
+
+#: patterns/services.php
+msgctxt "Pattern description"
+msgid "The editable services grid for the Gama Software homepage."
+msgstr ""
+
+#: patterns/services.php:18
+msgid "Nasze Usługi"
+msgstr ""
+
+#: patterns/services.php:30
+msgid "Wdrożenia E-commerce"
+msgstr ""
+
+#: patterns/services.php:34
+msgid "Kompleksowe wdrożenia platform e-commerce, w tym Magento 2, dostosowane do potrzeb Twojego biznesu. Od analizy wymagań po uruchomienie sklepu."
+msgstr ""
+
+#: patterns/services.php:46
+msgid "Konsultacje E-commerce"
+msgstr ""
+
+#: patterns/services.php:50
+msgid "Profesjonalne doradztwo w zakresie strategii e-commerce, optymalizacji procesów sprzedażowych oraz wyboru najlepszych rozwiązań technologicznych."
+msgstr ""
+
+#: patterns/services.php:62
+msgid "Agenci AI"
+msgstr ""
+
+#: patterns/services.php:66
+msgid "Budujemy inteligentnych asystentów AI, którzy automatyzują obsługę klienta, wspierają sprzedaż i podnoszą efektywność Twojego biznesu online."
+msgstr ""

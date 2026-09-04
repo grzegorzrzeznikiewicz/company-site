@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add an editable Core-block services Grid pattern with reusable responsive cards and local decorative icons.
+
 ## 0.3.0 - 2026-09-03
 
 - Add the editable Core-block Hero pattern, starter Front Page placement and responsive baseline styling.

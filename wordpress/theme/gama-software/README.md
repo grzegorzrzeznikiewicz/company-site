@@ -46,4 +46,25 @@ Group deliberately remains unlocked, so an editor can also set an optional
 background image with the standard block controls. Do not add a second H1 to
 the page content.
 
+## Editing homepage services
+
+The three service cards in **Appearance → Editor → Templates → Front Page** are
+direct, unlocked Core blocks, so their structure can be changed immediately.
+Select a card to edit its image, H3 or description. The supplied icons are
+decorative and intentionally have empty alternative text; if an image adds
+information, provide a useful alternative text instead. To add an optional card
+link, insert a standard Button or linked paragraph inside that card.
+
+Open **List View** in the Site Editor to manage cards without code: select a
+`gama-service-card`, use **Duplicate** to add cards, drag it to reorder, or use
+the block menu to remove it. Keep cards directly inside the services Grid Group;
+that native Grid automatically reflows from up to three columns to one column
+when the available width is too narrow. Check the result at desktop and mobile
+widths, and tab through any links to confirm the visible focus outline.
+
+The separately available **Gama Software Services** pattern is a starter for a
+new page or template. If WordPress presents that inserted pattern as linked,
+choose **Detach** from its block menu before making structural changes; the
+homepage cards do not require this step.
+
 License: GPL-2.0-or-later.

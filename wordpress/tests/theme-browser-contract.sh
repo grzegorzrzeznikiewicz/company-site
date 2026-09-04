@@ -8,6 +8,7 @@ dockerfile="$ROOT_DIR/qa/browser.Dockerfile"
 global_styles_spec="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts"
 navigation_spec="$ROOT_DIR/qa/e2e/specs/header-footer-navigation.spec.ts"
 hero_spec="$ROOT_DIR/qa/e2e/specs/hero.spec.ts"
+services_spec="$ROOT_DIR/qa/e2e/specs/services.spec.ts"
 shared_helpers="$ROOT_DIR/qa/e2e/specs/support/wordpress.ts"
 snapshot_dir="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts-snapshots"
 config="$ROOT_DIR/qa/e2e/playwright.config.ts"
@@ -26,6 +27,7 @@ grep -Fq 'npm ci --ignore-scripts' "$dockerfile"
 [[ -f "$global_styles_spec" ]]
 [[ -f "$navigation_spec" ]]
 [[ -f "$hero_spec" ]]
+[[ -f "$services_spec" ]]
 [[ -f "$shared_helpers" ]]
 [[ -f "$timeout_policy" ]]
 [[ -f "$timeout_policy_contract" ]]
@@ -60,6 +62,17 @@ done
 grep -Fq '@hero' "$hero_spec"
 grep -Fq 'GAMA_PLAYWRIGHT_RUN=hero' "$test_package"
 grep -Fq -- '--grep @hero' "$test_package"
+grep -Fq '@services' "$services_spec"
+grep -Fq 'GAMA_PLAYWRIGHT_RUN=services' "$test_package"
+grep -Fq -- '--grep @services' "$test_package"
+for required_services_assertion in \
+  'main section#services.gama-services' \
+  'gama-service-card' \
+  'expectedColumns' \
+  'sectionBounds' \
+  'hasOverflow'; do
+  grep -Fq "$required_services_assertion" "$services_spec"
+done
 if [[ "$(grep -Fc 'assertDocumentScrollUnlocked(page)' "$navigation_spec")" -ne 5 ]]; then
   echo 'Navigation acceptance must prove computed scroll unlock before open and after both close paths.' >&2
   exit 1
@@ -154,8 +167,8 @@ for variable in \
   grep -Fq -- "-u $variable" "$manifest"
   grep -Fq "$variable" "$playwright_launcher"
 done
-if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 15 ]]; then
-  echo 'Every one of the fifteen browser runs must use the reviewed Playwright launcher.' >&2
+if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 16 ]]; then
+  echo 'Every one of the sixteen browser runs must use the reviewed Playwright launcher.' >&2
   exit 1
 fi
 if grep -Fq 'browser npx playwright test' "$test_package"; then

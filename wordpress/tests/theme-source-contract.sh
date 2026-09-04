@@ -10,12 +10,16 @@ cat >"$fixture_dir/expected.txt" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/icons/service-ai.svg
+assets/icons/service-consulting.svg
+assets/icons/service-ecommerce.svg
 functions.php
 languages/gama-software.pot
 parts/footer.html
 parts/header.html
 patterns/hero.php
 patterns/not-found.php
+patterns/services.php
 style.css
 templates/404.html
 templates/archive.html

@@ -56,6 +56,11 @@ done
 grep -Fq 'msgid "Page not found"' "$generated_pot"
 grep -Fq 'msgid "Gama Software Hero"' "$generated_pot"
 grep -Fq 'msgid "Poznaj nasze usługi"' "$generated_pot"
+grep -Fq 'msgid "Gama Software Services"' "$generated_pot"
+grep -Fq 'msgid "Nasze Usługi"' "$generated_pot"
+grep -Fq 'msgid "Wdrożenia E-commerce"' "$generated_pot"
+grep -Fq 'msgid "Konsultacje E-commerce"' "$generated_pot"
+grep -Fq 'msgid "Agenci AI"' "$generated_pot"
 grep -Fq '"POT-Creation-Date: \n"' "$generated_pot"
 cmp "$generated_pot" "$THEME_DIR/languages/gama-software.pot"
 

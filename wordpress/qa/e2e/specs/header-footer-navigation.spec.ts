@@ -423,8 +423,22 @@ async function openTemplatePart(
   return frame;
 }
 
-async function openNavigationItemOptions(page: Page, label: string) {
-  const row = page.getByRole('row', {
+async function openNavigationListView(page: Page): Promise<Locator> {
+  const settings = page.getByRole('region', { name: 'Editor settings' });
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const listViewTab = settings.getByRole('tab', { name: 'List View' });
+  await expect(listViewTab).toBeVisible();
+  await listViewTab.click();
+
+  const listView = settings
+    .getByRole('tabpanel', { name: 'List View' })
+    .getByRole('treegrid', { name: 'Block navigation structure' });
+  await expect(listView).toBeVisible();
+  return listView;
+}
+
+async function openNavigationItemOptions(listView: Locator, label: string) {
+  const row = listView.getByRole('row', {
     name: new RegExp(`^${label} Options$`),
   });
   await expect(row).toHaveCount(1);
@@ -516,16 +530,17 @@ test('lets the disposable Editor transform and save native header navigation thr
   await linkDialog.getByRole('button', { name: 'Apply' }).click();
   await expect(frame.getByText('Początek', { exact: true })).toBeVisible();
 
-  await openNavigationItemOptions(page, 'Usługi');
+  const navigationList = await openNavigationListView(page);
+  await openNavigationItemOptions(navigationList, 'Usługi');
   await page.getByRole('menuitem', { name: 'Add submenu link' }).click();
   await choosePageLink(page, 'Sample Page');
   await expect(
-    page.getByRole('row', {
+    navigationList.getByRole('row', {
       name: /^Sample Page Options$/,
     }),
   ).toHaveCount(1);
 
-  await openNavigationItemOptions(page, 'Blog');
+  await openNavigationItemOptions(navigationList, 'Blog');
   await page.getByRole('menuitem', { name: 'Add after' }).click();
   await choosePageLink(page, 'Sample Page');
   await page.getByRole('textbox', { name: 'Text' }).fill('Oferta');
@@ -534,16 +549,16 @@ test('lets the disposable Editor transform and save native header navigation thr
   await page
     .getByRole('button', { name: 'Select parent block: Navigation' })
     .click();
-  await expect(page.getByRole('row', { name: /^Oferta Options$/ })).toHaveCount(
-    1,
-  );
-  await openNavigationItemOptions(page, 'Kontakt');
+  await expect(
+    navigationList.getByRole('row', { name: /^Oferta Options$/ }),
+  ).toHaveCount(1);
+  await openNavigationItemOptions(navigationList, 'Kontakt');
   await page.getByRole('menuitem', { name: 'Remove Kontakt' }).click();
   await expect(
-    page.getByRole('row', { name: /^Kontakt Options$/ }),
+    navigationList.getByRole('row', { name: /^Kontakt Options$/ }),
   ).toHaveCount(0);
   for (let index = 0; index < 2; index += 1) {
-    await openNavigationItemOptions(page, 'Moduły');
+    await openNavigationItemOptions(navigationList, 'Moduły');
     await page.getByRole('menuitem', { name: 'Move up' }).click();
   }
 

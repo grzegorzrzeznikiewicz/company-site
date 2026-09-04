@@ -108,6 +108,69 @@ html {
 	padding: .75rem 2rem;
 }
 
+.gama-services {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-services__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xxl);
+}
+
+.gama-services__content > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-services__grid {
+	width: 100%;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-service-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--md);
+	align-content: start;
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-service-card > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-service-card__icon {
+	display: grid;
+	width: 3rem;
+	height: 3rem;
+	margin: 0 !important;
+	padding: .75rem;
+	place-items: center;
+	border-radius: var(--wp--custom--radius--icon);
+	background-color: var(--wp--preset--color--accent-soft);
+}
+
+.gama-service-card__icon img {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
+.gama-service-card:focus-within,
+.gama-service-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-3);
+}
+
+.gama-service-card .wp-block-button {
+	margin-top: auto;
+}
+
 .gama-site-footer__inner,
 .gama-footer-navigation,
 .gama-footer-navigation .wp-block-navigation__container {
