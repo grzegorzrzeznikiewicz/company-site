@@ -4,9 +4,9 @@ set -euo pipefail
 # This test catches non-portable, incomplete, or non-reproducible plugin ZIPs.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
-ZIP_PATH="$DIST_DIR/gama-contact-0.2.0.zip"
-MANIFEST_PATH="$DIST_DIR/gama-contact-0.2.0.manifest.txt"
-SHA_PATH="$DIST_DIR/gama-contact-0.2.0.zip.sha256"
+ZIP_PATH="$DIST_DIR/gama-contact-0.3.0.zip"
+MANIFEST_PATH="$DIST_DIR/gama-contact-0.3.0.manifest.txt"
+SHA_PATH="$DIST_DIR/gama-contact-0.3.0.zip.sha256"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-package-contract.XXXXXX")"
 plugin_source="$ROOT_DIR/plugins/gama-contact"
 owned_source_paths=()
@@ -142,11 +142,11 @@ if unzip -Z1 "$ZIP_PATH" | cut -d/ -f1 | LC_ALL=C sort -u | grep -Fvx 'gama-cont
   exit 1
 fi
 
-unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Version: 0.2.0'
+unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Version: 0.3.0'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Requires at least: 7.1'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Requires PHP: 8.4'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'License: GPL-2.0-or-later'
-unzip -p "$ZIP_PATH" gama-contact/readme.txt | grep -F 'Stable tag: 0.2.0'
+unzip -p "$ZIP_PATH" gama-contact/readme.txt | grep -F 'Stable tag: 0.3.0'
 unzip -p "$ZIP_PATH" gama-contact/LICENSE | grep -F 'GNU GENERAL PUBLIC LICENSE'
 
 LC_ALL=C sort -c "$MANIFEST_PATH"

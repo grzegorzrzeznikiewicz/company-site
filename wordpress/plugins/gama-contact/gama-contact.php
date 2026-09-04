@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Gama Contact
  * Description: Theme-independent, secure contact form for Gama Software.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires at least: 7.1
  * Requires PHP: 8.4
  * License: GPL-2.0-or-later
@@ -20,7 +20,7 @@ use GamaSoftware\Contact\Lifecycle\Deactivator;
 
 defined('ABSPATH') || exit;
 
-define('GAMA_CONTACT_VERSION', '0.2.0');
+define('GAMA_CONTACT_VERSION', '0.3.0');
 define('GAMA_CONTACT_FILE', __FILE__);
 define('GAMA_CONTACT_PATH', plugin_dir_path(__FILE__));
 define('GAMA_CONTACT_URL', plugin_dir_url(__FILE__));

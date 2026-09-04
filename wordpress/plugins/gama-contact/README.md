@@ -5,7 +5,7 @@ domain are `gama-contact`, its PHP namespace is `GamaSoftware\Contact`, global
 identifiers use `gama_contact_`, constants use `GAMA_CONTACT_`, future blocks
 use `gama-software/*`, and future REST routes use `gama-contact/v1`.
 
-Version `0.2.0` requires WordPress 7.1 and PHP 8.4 and is licensed under
+Version `0.3.0` requires WordPress 7.1 and PHP 8.4 and is licensed under
 GPL-2.0-or-later. It has no PHP or JavaScript dependencies, so it deliberately
 has no Composer/npm manifest, `vendor`, or `node_modules`. There are no bundled
 third-party assets requiring attribution.
@@ -53,7 +53,7 @@ From the repository root:
 ```sh
 wordpress/bin/validate-extensions-lock
 wordpress/bin/package plugin gama-contact
-wordpress/bin/test-package wordpress/dist/gama-contact-0.2.0.zip
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.0.zip
 ```
 
 `SOURCE_DATE_EPOCH` may be set to a non-negative Unix timestamp whose UTC date

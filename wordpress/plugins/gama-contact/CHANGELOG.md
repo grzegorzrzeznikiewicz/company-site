@@ -2,6 +2,12 @@
 
 All notable changes to `gama-software/gama-contact` are documented here.
 
+## 0.3.0 - 2026-09-04
+
+- Make IP rate limiting atomic under concurrent requests.
+- Associate field errors with their inputs and focus the first invalid field.
+- Show a localized message when browser delivery fails.
+
 ## 0.2.0 - 2026-09-04
 
 - Add the accessible, theme-independent contact form shortcode.

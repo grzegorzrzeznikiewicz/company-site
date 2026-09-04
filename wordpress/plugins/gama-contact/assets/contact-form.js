@@ -18,6 +18,7 @@
       });
       status.textContent = '';
       submit.disabled = true;
+      let failureMessage = config.genericError;
 
       try {
         const data = Object.fromEntries(new FormData(form).entries());
@@ -32,18 +33,24 @@
         });
         const payload = await response.json();
         if (!response.ok) {
+          let firstInvalidField = null;
           Object.entries(payload.field_errors ?? {}).forEach(([name, message]) => {
             const field = form.elements.namedItem(name);
             field?.setAttribute('aria-invalid', 'true');
+            if (!firstInvalidField && field instanceof HTMLElement) {
+              firstInvalidField = field;
+            }
             const error = form.querySelector(`[data-error-for="${name}"]`);
             if (error) error.textContent = String(message);
           });
-          throw new Error(payload.message || config.genericError);
+          firstInvalidField?.focus();
+          failureMessage = payload.message || config.genericError;
+          throw new Error('Contact submission rejected');
         }
         form.reset();
         status.textContent = payload.message;
-      } catch (error) {
-        status.textContent = error instanceof Error ? error.message : config.genericError;
+      } catch {
+        status.textContent = failureMessage;
       } finally {
         submit.disabled = false;
       }

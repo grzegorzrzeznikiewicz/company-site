@@ -31,24 +31,24 @@ final class FormRenderer
             <div class="gama-contact-form__grid">
                 <div class="gama-contact-form__field">
                     <label for="gama-contact-name"><?php esc_html_e('Imię i nazwisko', 'gama-contact'); ?></label>
-                    <input id="gama-contact-name" name="name" type="text" autocomplete="name" required maxlength="120">
-                    <p class="gama-contact-form__error" data-error-for="name"></p>
+                    <input id="gama-contact-name" name="name" type="text" autocomplete="name" required maxlength="120" aria-describedby="gama-contact-name-error">
+                    <p id="gama-contact-name-error" class="gama-contact-form__error" data-error-for="name"></p>
                 </div>
                 <div class="gama-contact-form__field">
                     <label for="gama-contact-email"><?php esc_html_e('E-mail', 'gama-contact'); ?></label>
-                    <input id="gama-contact-email" name="email" type="email" autocomplete="email" required maxlength="254">
-                    <p class="gama-contact-form__error" data-error-for="email"></p>
+                    <input id="gama-contact-email" name="email" type="email" autocomplete="email" required maxlength="254" aria-describedby="gama-contact-email-error">
+                    <p id="gama-contact-email-error" class="gama-contact-form__error" data-error-for="email"></p>
                 </div>
             </div>
             <div class="gama-contact-form__field">
                 <label for="gama-contact-phone"><?php esc_html_e('Telefon', 'gama-contact'); ?></label>
-                <input id="gama-contact-phone" name="phone" type="tel" autocomplete="tel" required maxlength="40">
-                <p class="gama-contact-form__error" data-error-for="phone"></p>
+                <input id="gama-contact-phone" name="phone" type="tel" autocomplete="tel" required maxlength="40" aria-describedby="gama-contact-phone-error">
+                <p id="gama-contact-phone-error" class="gama-contact-form__error" data-error-for="phone"></p>
             </div>
             <div class="gama-contact-form__field">
                 <label for="gama-contact-message"><?php esc_html_e('Wiadomość', 'gama-contact'); ?></label>
-                <textarea id="gama-contact-message" name="message" rows="5" required maxlength="5000"></textarea>
-                <p class="gama-contact-form__error" data-error-for="message"></p>
+                <textarea id="gama-contact-message" name="message" rows="5" required maxlength="5000" aria-describedby="gama-contact-message-error"></textarea>
+                <p id="gama-contact-message-error" class="gama-contact-form__error" data-error-for="message"></p>
             </div>
             <div class="gama-contact-form__trap" aria-hidden="true">
                 <label for="gama-contact-company"><?php esc_html_e('Firma', 'gama-contact'); ?></label>

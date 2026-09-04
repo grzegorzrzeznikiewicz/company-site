@@ -34,12 +34,12 @@ $renderer   = $read( 'src/Form/FormRenderer.php' );
 $validator  = $read( 'src/Form/Validator.php' );
 $script     = $read( 'assets/contact-form.js' );
 
-foreach ( array( 'Version: 0.2.0', "GAMA_CONTACT_VERSION', '0.2.0", 'SubmissionController.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
+foreach ( array( 'Version: 0.3.0', "GAMA_CONTACT_VERSION', '0.3.0", 'SubmissionController.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
 	if ( ! str_contains( $plugin, $required ) ) {
 		$fail( "plugin bootstrap misses {$required}" );
 	}
 }
-foreach ( array( 'gama-contact/v1', 'messages', 'wp_verify_nonce', 'wp_get_raw_referer', 'wp_mail', 'GAMA_CONTACT_RECIPIENT', 'set_transient', '429', 'company' ) as $required ) {
+foreach ( array( 'gama-contact/v1', 'messages', 'wp_verify_nonce', 'wp_get_raw_referer', 'wp_mail', 'GAMA_CONTACT_RECIPIENT', 'set_transient', 'add_option', 'delete_option', 'lock_token', '429', 'company' ) as $required ) {
 	if ( ! str_contains( $controller, $required ) ) {
 		$fail( "submission controller misses {$required}" );
 	}
@@ -49,12 +49,12 @@ foreach ( array( 'name', 'email', 'phone', 'message', 'sanitize_text_field', 'sa
 		$fail( "server validator misses {$required}" );
 	}
 }
-foreach ( array( '<form', '<label', 'aria-live="polite"', 'autocomplete="name"', 'autocomplete="email"', 'autocomplete="tel"', 'gama_contact_nonce', 'company' ) as $required ) {
+foreach ( array( '<form', '<label', 'aria-live="polite"', 'aria-describedby="gama-contact-name-error"', 'id="gama-contact-name-error"', 'autocomplete="name"', 'autocomplete="email"', 'autocomplete="tel"', 'gama_contact_nonce', 'company' ) as $required ) {
 	if ( ! str_contains( $renderer, $required ) ) {
 		$fail( "accessible renderer misses {$required}" );
 	}
 }
-foreach ( array( 'fetch(', 'FormData', 'aria-invalid', 'response.ok', 'reset()' ) as $required ) {
+foreach ( array( 'fetch(', 'FormData', 'aria-invalid', 'firstInvalidField', 'focus()', 'response.ok', 'reset()' ) as $required ) {
 	if ( ! str_contains( $script, $required ) ) {
 		$fail( "browser enhancement misses {$required}" );
 	}
