@@ -69,6 +69,7 @@ services:
       - gama-wordpress-uploads:/var/www/html/wp-content/uploads
       - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
+      - ./plugins/gama-mail-transport:/var/www/html/wp-content/plugins/gama-mail-transport:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
       - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro
@@ -108,6 +109,7 @@ services:
       - gama-wordpress-uploads:/var/www/html/wp-content/uploads
       - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
+      - ./plugins/gama-mail-transport:/var/www/html/wp-content/plugins/gama-mail-transport:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
       - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro

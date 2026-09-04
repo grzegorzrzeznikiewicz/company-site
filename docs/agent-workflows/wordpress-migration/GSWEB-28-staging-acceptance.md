@@ -74,6 +74,10 @@ the repository.
 
 ### Cutover (GSWEB-29 only after fresh approval)
 
+The executable repository procedure and protected-environment contract are in
+`GSWEB-29-production-pipeline.md`. Its production workflow must promote the
+staging evidence rather than rebuilding the image.
+
 1. Freeze content changes for the agreed window and note UTC start time.
 2. Deploy the approved image into the production WordPress namespace without
    changing public traffic. Run the one-shot Core installer and idempotent
@@ -88,6 +92,10 @@ the repository.
    accepted stabilization duration.
 
 ### Rollback
+
+Use the manual production rollback workflow described in
+`GSWEB-29-production-pipeline.md`; do not adapt the legacy React/Symfony
+workflow during an incident.
 
 1. For a code-only defect, run `wordpress/bin/rollback-staging`'s production
    equivalent with the recorded previous immutable digest; retain database and

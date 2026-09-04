@@ -64,7 +64,7 @@ docker run --rm \
   --network none \
   --volume "$uploads_volume:/source:ro" \
   --entrypoint tar \
-  wordpress:7.1.0-php8.4-apache \
+  wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d \
   -C /source -cf - . >"$destination/uploads.tar"
 
 wordpress_version="$(docker exec "$wordpress_container" php -r 'include "/var/www/html/wp-includes/version.php"; echo $wp_version;')"
@@ -73,7 +73,14 @@ source_wordpress_image="$(docker inspect --format '{{.Image}}' "$wordpress_conta
 source_wordpress_image_ref="$(docker inspect --format '{{.Config.Image}}' "$wordpress_container")"
 source_wordpress_image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wordpress_container")"
 if [[ "$source_wordpress_image_revision" == '<no value>' ]]; then source_wordpress_image_revision=''; fi
-git_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+git_commit="${GAMA_BACKUP_GIT_COMMIT:-$source_wordpress_image_revision}"
+if [[ -z "$git_commit" ]] && git -C "$ROOT_DIR/.." rev-parse HEAD >/dev/null 2>&1; then
+  git_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+fi
+if [[ ! "$git_commit" =~ ^[a-f0-9]{40}$ ]]; then
+  echo 'Backup requires the deployed full Git revision.' >&2
+  exit 1
+fi
 created_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 printf '%s\n' \

@@ -31,9 +31,11 @@ jobs:
           wordpress/tests/mount-contract.sh
           wordpress/tests/contact-plugin-contract.sh
           wordpress/tests/contact-form-browser-contract.sh
+          wordpress/tests/mail-transport-plugin-contract.sh
           wordpress/tests/seo-plugin-contract.sh
           wordpress/tests/security-plugin-contract.sh
           wordpress/tests/backup-restore-contract.sh
+          wordpress/tests/production-deployment-contract.sh
           wordpress/tests/theme-contract.sh
           wordpress/tests/plugin-package-contract.sh
           wordpress/tests/ci-failure-contract.sh
@@ -117,7 +119,9 @@ jobs:
       - name: Rehearse immutable staging and rollback
         env:
           GAMA_RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-release-evidence
-        run: wordpress/tests/staging-rollback-runtime.sh
+        run: |
+          wordpress/tests/staging-rollback-runtime.sh
+          wordpress/tests/production-deployment-runtime.sh
 
       - name: Upload release regression evidence
         if: ${{ always() }}

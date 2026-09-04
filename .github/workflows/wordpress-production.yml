@@ -1,0 +1,383 @@
+name: WordPress Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: Full commit SHA accepted at Gate C
+        required: true
+        type: string
+      staging_run_id:
+        description: Successful WordPress Staging Deployment run containing the accepted release evidence
+        required: true
+        type: string
+      deployment_window_utc:
+        description: Approved production deployment window in UTC (YYYY-MM-DDTHH:MMZ)
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
+concurrency:
+  group: wordpress-production
+  cancel-in-progress: false
+
+jobs:
+  resolve-release:
+    name: Resolve staging-tested release
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.release.outputs.image }}
+    steps:
+      - name: Validate approved inputs
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
+          INPUT_STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+          INPUT_DEPLOYMENT_WINDOW_UTC: ${{ inputs.deployment_window_utc }}
+        shell: bash
+        run: |
+          [[ "$INPUT_GIT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$INPUT_STAGING_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$INPUT_DEPLOYMENT_WINDOW_UTC" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z$ ]]
+
+      - name: Checkout the accepted revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.git_sha }}
+
+      - name: Require green quality gates and successful staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
+          INPUT_STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+        shell: bash
+        run: |
+          successful_quality_runs="$(gh run list --workflow 'WordPress Quality Gates' --commit "$INPUT_GIT_SHA" --status success --json conclusion --jq 'length')"
+          [[ "$successful_quality_runs" -ge 1 ]]
+          staging_result="$(gh run view "$INPUT_STAGING_RUN_ID" --json workflowName,conclusion --jq '.workflowName + "|" + .conclusion')"
+          [[ "$staging_result" == 'WordPress Staging Deployment|success' ]]
+          gh run download "$INPUT_STAGING_RUN_ID" \
+            --name "wordpress-staging-release-$INPUT_GIT_SHA" \
+            --dir staging-evidence
+
+      - name: Verify immutable staging evidence
+        id: release
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
+          INPUT_STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+        shell: bash
+        run: |
+          evidence=staging-evidence/staging-release.json
+          [[ -f "$evidence" && ! -L "$evidence" ]]
+          [[ "$(jq -r '.git_sha' "$evidence")" == "$INPUT_GIT_SHA" ]]
+          [[ "$(jq -r '.staging_run_id | tostring' "$evidence")" == "$INPUT_STAGING_RUN_ID" ]]
+          image="$(jq -r '.image' "$evidence")"
+          [[ "$image" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Login only to inspect the published image
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the exact release revision label
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
+          WORDPRESS_IMAGE: ${{ steps.release.outputs.image }}
+        shell: bash
+        run: |
+          docker pull "$WORDPRESS_IMAGE"
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WORDPRESS_IMAGE")" == "$INPUT_GIT_SHA" ]]
+
+  rehearse-candidate:
+    name: Rehearse isolated production candidate
+    needs: resolve-release
+    runs-on: ubuntu-latest
+    environment: wordpress-production
+    steps:
+      - name: Checkout reviewed deployment tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.git_sha }}
+
+      - name: Encode reviewed deployment assets
+        id: assets
+        shell: bash
+        run: |
+          echo "compose=$(base64 -w0 wordpress/deploy/compose.yaml)" >> "$GITHUB_OUTPUT"
+          echo "deploy=$(base64 -w0 wordpress/bin/deploy-production)" >> "$GITHUB_OUTPUT"
+          echo "rollback=$(base64 -w0 wordpress/bin/rollback-production)" >> "$GITHUB_OUTPUT"
+          echo "backup=$(base64 -w0 wordpress/bin/backup)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy and verify isolated candidate
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          WORDPRESS_IMAGE: ${{ needs.resolve-release.outputs.image }}
+          DEPLOYMENT_RUN_ID: ${{ github.run_id }}
+          COMPOSE_BASE: ${{ steps.assets.outputs.compose }}
+          DEPLOY_SCRIPT: ${{ steps.assets.outputs.deploy }}
+          ROLLBACK_SCRIPT: ${{ steps.assets.outputs.rollback }}
+          BACKUP_SCRIPT: ${{ steps.assets.outputs.backup }}
+          PRODUCTION_SMOKE_RECIPIENT: ${{ secrets.PRODUCTION_SMOKE_RECIPIENT }}
+          GHCR_USERNAME: ${{ secrets.PRODUCTION_GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.PRODUCTION_GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: WORDPRESS_IMAGE,DEPLOYMENT_RUN_ID,COMPOSE_BASE,DEPLOY_SCRIPT,ROLLBACK_SCRIPT,BACKUP_SCRIPT,PRODUCTION_SMOKE_RECIPIENT,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            target=/srv/gama-wordpress-production
+            candidate_project="gama-wp-production-candidate-$DEPLOYMENT_RUN_ID"
+            [[ "$candidate_project" =~ ^gama-wp-production-candidate-[1-9][0-9]*$ ]]
+            test -f "$target/.env" && test ! -L "$target/.env"
+            install -d -m 0750 "$target/bin" "$target/deploy" "$target/deployments/$DEPLOYMENT_RUN_ID"
+            printf '%s' "$COMPOSE_BASE" | base64 -d > "$target/deploy/compose.yaml.next"
+            mv "$target/deploy/compose.yaml.next" "$target/deploy/compose.yaml"
+            printf '%s' "$DEPLOY_SCRIPT" | base64 -d > "$target/bin/deploy-production.next"
+            printf '%s' "$ROLLBACK_SCRIPT" | base64 -d > "$target/bin/rollback-production.next"
+            printf '%s' "$BACKUP_SCRIPT" | base64 -d > "$target/bin/backup.next"
+            for tool in deploy-production rollback-production backup; do
+              sudo install -o root -g root -m 0750 "$target/bin/$tool.next" "$target/bin/$tool"
+              rm "$target/bin/$tool.next"
+            done
+            candidate_evidence="$target/deployments/$DEPLOYMENT_RUN_ID/candidate.env"
+            sudo rm -f "$candidate_evidence"
+            cleanup_candidate() {
+              status=$?
+              set +e
+              sudo env WORDPRESS_IMAGE="$WORDPRESS_IMAGE" WORDPRESS_HTTP_PORT='' docker compose \
+                --project-name "$candidate_project" --env-file "$target/.env" --file "$target/deploy/compose.yaml" \
+                down --volumes --remove-orphans
+              exit "$status"
+            }
+            trap cleanup_candidate EXIT
+            sudo env WORDPRESS_IMAGE="$WORDPRESS_IMAGE" WORDPRESS_HTTP_PORT='' docker compose \
+              --project-name "$candidate_project" --env-file "$target/.env" --file "$target/deploy/compose.yaml" \
+              down --volumes --remove-orphans
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            sudo "$target/bin/deploy-production" \
+              --project "$candidate_project" --env-file "$target/.env" \
+              --image "$WORDPRESS_IMAGE" --http-port 0 --confirm-image "$WORDPRESS_IMAGE"
+            candidate_container="$(sudo docker ps --filter label=com.docker.compose.project="$candidate_project" --filter label=com.docker.compose.service=wordpress --format '{{.ID}}')"
+            [[ -n "$candidate_container" && "$candidate_container" != *$'\n'* ]]
+            [[ "$(sudo docker inspect --format '{{.State.Health.Status}}' "$candidate_container")" == healthy ]]
+            [[ "$(sudo docker inspect --format '{{.Config.Image}}' "$candidate_container")" == "$WORDPRESS_IMAGE" ]]
+            candidate_endpoint="$(sudo docker port "$candidate_container" 80/tcp)"
+            [[ "$candidate_endpoint" =~ ^127\.0\.0\.1:[1-9][0-9]*$ ]]
+            curl --fail --silent --show-error --retry 10 --retry-all-errors \
+              --header 'Host: gama-software.com' --header 'X-Forwarded-Proto: https' \
+              "http://$candidate_endpoint/" > "$target/deployments/$DEPLOYMENT_RUN_ID/candidate.html"
+            grep -Fq 'Gama Software' "$target/deployments/$DEPLOYMENT_RUN_ID/candidate.html"
+            grep -Fq 'gama-contact-form' "$target/deployments/$DEPLOYMENT_RUN_ID/candidate.html"
+            sudo docker exec \
+              --env GAMA_SMOKE_RECIPIENT="$PRODUCTION_SMOKE_RECIPIENT" \
+              --env GAMA_SMOKE_TOKEN="GSWEB-29-candidate-$DEPLOYMENT_RUN_ID" \
+              "$candidate_container" wp --allow-root --url=https://gama-software.com eval '
+                $recipient = getenv("GAMA_SMOKE_RECIPIENT");
+                $token = getenv("GAMA_SMOKE_TOKEN");
+                if (!is_email($recipient) || !wp_mail($recipient, $token, "Controlled production SMTP rehearsal: " . $token)) {
+                    exit(1);
+                }
+              '
+            evidence_file="$(mktemp)"
+            printf 'status=passed\nimage=%s\nproject=%s\n' "$WORDPRESS_IMAGE" "$candidate_project" > "$evidence_file"
+            sudo install -o root -g root -m 0600 "$evidence_file" "$candidate_evidence"
+            rm -f "$evidence_file"
+
+  cleanup-candidate:
+    name: Remove isolated candidate resources
+    needs: rehearse-candidate
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    environment: wordpress-production
+    steps:
+      - name: Remove only the run-scoped candidate namespace
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          DEPLOYMENT_RUN_ID: ${{ github.run_id }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: DEPLOYMENT_RUN_ID
+          script: |
+            set -euo pipefail
+            target=/srv/gama-wordpress-production
+            candidate_project="gama-wp-production-candidate-$DEPLOYMENT_RUN_ID"
+            [[ "$candidate_project" =~ ^gama-wp-production-candidate-[1-9][0-9]*$ ]]
+            test -f "$target/.env" && test ! -L "$target/.env"
+            sudo env WORDPRESS_IMAGE=sha256:0000000000000000000000000000000000000000000000000000000000000000 WORDPRESS_HTTP_PORT='' docker compose \
+              --project-name "$candidate_project" --env-file "$target/.env" --file "$target/deploy/compose.yaml" \
+              down --volumes --remove-orphans
+
+  prepare-stable:
+    name: Back up and deploy stable namespace
+    needs: [resolve-release, rehearse-candidate]
+    runs-on: ubuntu-latest
+    environment: wordpress-production-cutover
+    steps:
+      - name: Require off-host backup target and deploy exact image
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          WORDPRESS_IMAGE: ${{ needs.resolve-release.outputs.image }}
+          GAMA_GIT_SHA: ${{ inputs.git_sha }}
+          DEPLOYMENT_RUN_ID: ${{ github.run_id }}
+          DEPLOYMENT_WINDOW_UTC: ${{ inputs.deployment_window_utc }}
+          PRODUCTION_BACKUP_ROOT: ${{ secrets.PRODUCTION_BACKUP_ROOT }}
+          PRODUCTION_BACKUP_EXPECTED_SOURCE: ${{ secrets.PRODUCTION_BACKUP_EXPECTED_SOURCE }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: WORDPRESS_IMAGE,GAMA_GIT_SHA,DEPLOYMENT_RUN_ID,DEPLOYMENT_WINDOW_UTC,PRODUCTION_BACKUP_ROOT,PRODUCTION_BACKUP_EXPECTED_SOURCE
+          script: |
+            set -euo pipefail
+            target=/srv/gama-wordpress-production
+            case "$PRODUCTION_BACKUP_ROOT" in /*) ;; *) exit 64;; esac
+            test -d "$PRODUCTION_BACKUP_ROOT"
+            mountpoint -q "$PRODUCTION_BACKUP_ROOT"
+            actual_backup_source="$(findmnt -n -o SOURCE --target "$PRODUCTION_BACKUP_ROOT")"
+            [[ -n "$PRODUCTION_BACKUP_EXPECTED_SOURCE" && "$actual_backup_source" == "$PRODUCTION_BACKUP_EXPECTED_SOURCE" ]]
+            test -f "$target/.env" && test ! -L "$target/.env"
+            for tool in backup deploy-production rollback-production; do
+              test -f "$target/bin/$tool" && test ! -L "$target/bin/$tool" && test -x "$target/bin/$tool"
+              test "$(stat -c %u "$target/bin/$tool")" -eq 0
+              test -z "$(find "$target/bin/$tool" -perm /022 -print -quit)"
+            done
+            recovery_hook=/usr/local/sbin/gama-wordpress-rollback-routing
+            test -f "$recovery_hook" && test ! -L "$recovery_hook" && test -x "$recovery_hook"
+            test "$(stat -c %u "$recovery_hook")" -eq 0
+            test -z "$(find "$recovery_hook" -perm /022 -print -quit)"
+            candidate_evidence="$target/deployments/$DEPLOYMENT_RUN_ID/candidate.env"
+            test -f "$candidate_evidence" && test ! -L "$candidate_evidence"
+            [[ "$(stat -c %u "$candidate_evidence")" -eq 0 ]]
+            grep -Fxq 'status=passed' "$candidate_evidence"
+            grep -Fxq "image=$WORDPRESS_IMAGE" "$candidate_evidence"
+            current_container="$(sudo docker ps --filter label=com.docker.compose.project=gama-wp-production --filter label=com.docker.compose.service=wordpress --format '{{.ID}}')"
+            all_stable_containers="$(sudo docker ps -a --filter label=com.docker.compose.project=gama-wp-production --format '{{.ID}}')"
+            stable_volumes="$(sudo docker volume ls --filter label=com.docker.compose.project=gama-wp-production --format '{{.Name}}')"
+            stable_networks="$(sudo docker network ls --filter label=com.docker.compose.project=gama-wp-production --format '{{.Name}}')"
+            previous_image=''
+            stable_mutation_started=false
+            recover_stable_on_error() {
+              status=$?
+              if [[ "$status" -ne 0 && "$stable_mutation_started" == true ]]; then
+                set +e
+                if [[ "$previous_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]; then
+                  sudo "$target/bin/rollback-production" \
+                    --project gama-wp-production --env-file "$target/.env" \
+                    --image "$previous_image" --http-port 8080 --confirm-image "$previous_image"
+                fi
+                sudo "$recovery_hook" --target legacy --deployment-run-id "$DEPLOYMENT_RUN_ID" --rollback-run-id "prepare-failure-$DEPLOYMENT_RUN_ID"
+                set -e
+              fi
+              exit "$status"
+            }
+            trap recover_stable_on_error EXIT
+            if [[ -z "$current_container" ]]; then
+              if [[ -n "$all_stable_containers$stable_volumes$stable_networks" ]]; then
+                echo 'No running production WordPress exists, but its namespace is not empty; refusing first deployment without recoverable state.' >&2
+                exit 1
+              fi
+            else
+              [[ "$current_container" != *$'\n'* ]]
+              [[ "$(sudo docker inspect --format '{{.State.Health.Status}}' "$current_container")" == healthy ]]
+              previous_image="$(sudo docker inspect --format '{{.Config.Image}}' "$current_container")"
+              [[ "$previous_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]
+              predeploy_backup="$PRODUCTION_BACKUP_ROOT/wordpress-predeploy-$DEPLOYMENT_RUN_ID"
+              sudo "$target/bin/backup" --project gama-wp-production "$predeploy_backup"
+              (cd "$predeploy_backup" && sha256sum -c SHA256SUMS)
+            fi
+            stable_mutation_started=true
+            sudo "$target/bin/deploy-production" \
+              --project gama-wp-production --env-file "$target/.env" \
+              --image "$WORDPRESS_IMAGE" --http-port 8080 --confirm-image "$WORDPRESS_IMAGE"
+            curl --fail --silent --show-error --retry 10 --retry-all-errors \
+              --header 'Host: gama-software.com' --header 'X-Forwarded-Proto: https' \
+              http://127.0.0.1:8080/ > "$target/deployments/$DEPLOYMENT_RUN_ID/pre-cutover.html"
+            grep -Fq 'Gama Software' "$target/deployments/$DEPLOYMENT_RUN_ID/pre-cutover.html"
+            grep -Fq 'gama-contact-form' "$target/deployments/$DEPLOYMENT_RUN_ID/pre-cutover.html"
+            precutover_backup="$PRODUCTION_BACKUP_ROOT/wordpress-precutover-$DEPLOYMENT_RUN_ID"
+            sudo "$target/bin/backup" --project gama-wp-production "$precutover_backup"
+            (cd "$precutover_backup" && sha256sum -c SHA256SUMS)
+            evidence_file="$(mktemp)"
+            {
+              printf 'git_sha=%s\n' "$GAMA_GIT_SHA"
+              printf 'image=%s\n' "$WORDPRESS_IMAGE"
+              printf 'previous_image=%s\n' "$previous_image"
+              printf 'deployment_window_utc=%s\n' "$DEPLOYMENT_WINDOW_UTC"
+              printf 'precutover_backup=%s\n' "$precutover_backup"
+              printf 'backup_source=%s\n' "$actual_backup_source"
+            } > "$evidence_file"
+            sudo install -o root -g root -m 0600 "$evidence_file" "$target/deployments/$DEPLOYMENT_RUN_ID/deployment.env"
+            rm -f "$evidence_file"
+            stable_mutation_started=false
+            trap - EXIT
+
+  cutover:
+    name: Switch and verify production traffic
+    needs: [resolve-release, prepare-stable]
+    runs-on: ubuntu-latest
+    environment: wordpress-production-cutover
+    steps:
+      - name: Switch through the infrastructure-owned hook
+        id: switch
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          WORDPRESS_IMAGE: ${{ needs.resolve-release.outputs.image }}
+          DEPLOYMENT_RUN_ID: ${{ github.run_id }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: WORDPRESS_IMAGE,DEPLOYMENT_RUN_ID
+          script: |
+            set -euo pipefail
+            hook=/usr/local/sbin/gama-wordpress-cutover
+            test -f "$hook" && test ! -L "$hook" && test -x "$hook"
+            test "$(stat -c %u "$hook")" -eq 0
+            test -z "$(find "$hook" -perm /022 -print -quit)"
+            sudo "$hook" --project gama-wp-production --port 8080 --image "$WORDPRESS_IMAGE" --deployment-run-id "$DEPLOYMENT_RUN_ID"
+
+      - name: Verify public production after cutover
+        id: verify
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 10 --retry-all-errors \
+            --dump-header production.headers https://gama-software.com/ > production.html
+          grep -Fq 'Gama Software' production.html
+          grep -Fq 'gama-contact-form' production.html
+          ! grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+noindex' production.html
+          grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+index' production.html
+          curl --fail --silent --show-error --retry 5 https://gama-software.com/blog/ >/dev/null
+          curl --fail --silent --show-error --retry 5 https://gama-software.com/wp-login.php >/dev/null
+
+      - name: Fail safe to the preserved legacy route
+        if: ${{ failure() }}
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          DEPLOYMENT_RUN_ID: ${{ github.run_id }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: DEPLOYMENT_RUN_ID
+          script: |
+            set -euo pipefail
+            hook=/usr/local/sbin/gama-wordpress-rollback-routing
+            test -f "$hook" && test ! -L "$hook" && test -x "$hook"
+            test "$(stat -c %u "$hook")" -eq 0
+            test -z "$(find "$hook" -perm /022 -print -quit)"
+            sudo "$hook" --target legacy --deployment-run-id "$DEPLOYMENT_RUN_ID" --rollback-run-id "automatic-${{ github.run_id }}"

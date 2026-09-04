@@ -27,27 +27,30 @@ jobs:
       image: ${{ steps.reference.outputs.image }}
     steps:
       - name: Validate requested revision
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
         shell: bash
-        run: '[[ "${{ inputs.git_sha }}" =~ ^[a-f0-9]{40}$ ]]'
+        run: '[[ "$INPUT_GIT_SHA" =~ ^[a-f0-9]{40}$ ]]'
 
       - name: Checkout requested revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git_sha }}
 
       - name: Require successful WordPress quality gates
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
         shell: bash
         run: |
-          successful_runs="$(gh run list --workflow 'WordPress Quality Gates' --commit '${{ inputs.git_sha }}' --status success --json conclusion --jq 'length')"
+          successful_runs="$(gh run list --workflow 'WordPress Quality Gates' --commit "$INPUT_GIT_SHA" --status success --json conclusion --jq 'length')"
           [[ "$successful_runs" -ge 1 ]]
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -55,12 +58,14 @@ jobs:
 
       - name: Prepare image tag
         id: metadata
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
         shell: bash
-        run: echo "tag=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gama-wordpress:sha-${{ inputs.git_sha }}" >> "$GITHUB_OUTPUT"
+        run: echo "tag=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gama-wordpress:sha-$INPUT_GIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build and push once
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: wordpress/runtime/Dockerfile
@@ -82,7 +87,7 @@ jobs:
     environment: wordpress-staging
     steps:
       - name: Checkout deployment definition
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git_sha }}
 
@@ -94,7 +99,7 @@ jobs:
           echo "staging=$(base64 -w0 wordpress/deploy/staging.override.yaml)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy through isolated staging namespace
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         env:
           WORDPRESS_IMAGE: ${{ needs.build.outputs.image }}
           COMPOSE_BASE: ${{ steps.compose.outputs.base }}
@@ -131,3 +136,24 @@ jobs:
         run: |
           curl --fail --silent --show-error --retry 10 --retry-all-errors https://staging.gama-software.com/ > staging.html
           grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+noindex' staging.html
+
+      - name: Record staging-tested immutable release
+        env:
+          INPUT_GIT_SHA: ${{ inputs.git_sha }}
+          WORDPRESS_IMAGE: ${{ needs.build.outputs.image }}
+        shell: bash
+        run: |
+          jq -n \
+            --arg git_sha "$INPUT_GIT_SHA" \
+            --arg image "$WORDPRESS_IMAGE" \
+            --argjson staging_run_id '${{ github.run_id }}' \
+            '{git_sha: $git_sha, image: $image, staging_run_id: $staging_run_id}' \
+            > staging-release.json
+
+      - name: Publish staging release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wordpress-staging-release-${{ inputs.git_sha }}
+          path: staging-release.json
+          if-no-files-found: error
+          retention-days: 30

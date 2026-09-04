@@ -25,6 +25,7 @@ if wp_cli plugin is-installed gama-local-mailpit; then
   fi
 fi
 wp_cli plugin activate gama-contact
+wp_cli plugin activate gama-mail-transport
 wp_cli plugin activate gama-seo
 wp_cli plugin activate gama-security
 

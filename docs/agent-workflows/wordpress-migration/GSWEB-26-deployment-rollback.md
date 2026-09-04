@@ -17,8 +17,11 @@ the selected commit has a successful WordPress Quality Gates run, and deploys
 it to the isolated `gama-wp-staging` namespace. Its protected GitHub
 environment and server `.env` own staging credentials. Staging activates the
 SMTP sink, uses only `example.test` recipients, and publishes `noindex`. The
-workflow performs no production action; production promotion belongs to
-GSWEB-29 after a fresh Gate C decision and explicit deployment-window approval.
+workflow performs no production action. After its health check it publishes a
+run-bound release-evidence artifact containing the exact SHA and digest.
+Production promotion belongs to the separately gated GSWEB-29 workflow after a
+fresh Gate C decision and explicit deployment-window approval; see
+`GSWEB-29-production-pipeline.md`.
 
 Local release and rollback rehearsal:
 

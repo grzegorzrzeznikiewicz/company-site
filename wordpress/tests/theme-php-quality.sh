@@ -15,4 +15,8 @@ docker run --rm --network none \
   --volume "$ROOT_DIR/qa/phpcs.xml.dist:/qa/phpcs.xml.dist:ro" \
   gama-theme-qa:gsweb12 /qa/vendor/bin/phpcs --standard=/qa/phpcs.xml.dist -p -s /theme/functions.php /theme/patterns
 
-echo 'Pinned WPCS/PHPCS contract passed.'
+docker run --rm --network none \
+  --volume "$ROOT_DIR/plugins/gama-mail-transport:/plugin:ro" \
+  gama-theme-qa:gsweb12 /qa/vendor/bin/phpcs --standard=WordPress -p -s /plugin
+
+echo 'Pinned WPCS/PHPCS theme and production-mail contract passed.'

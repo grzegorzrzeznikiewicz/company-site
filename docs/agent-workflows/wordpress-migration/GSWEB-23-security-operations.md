@@ -4,10 +4,18 @@
 
 The reviewed baseline is WordPress 7.1 on PHP 8.4. The only active extensions
 are the first-party `gama-contact` 0.3.1, `gama-local-mailpit` 0.1.0,
-`gama-security` 0.1.1 and `gama-seo` 0.1.0 plugins, plus the first-party
+`gama-mail-transport` 0.1.0, `gama-security` 0.1.1 and `gama-seo` 0.1.0
+plugins, plus the first-party
 `gama-software` 0.4.0 theme. All use GPL-2.0-or-later and have no paid runtime
 dependency. The Mailpit transport is active only in non-production environments
-and is explicitly deactivated by a production bootstrap. `twentytwentyfive` 1.5 remains inactive as the emergency fallback
+and is explicitly deactivated by a production bootstrap. The production SMTP
+transport reads its host, port, credentials and encryption only from runtime
+environment variables; deployment rejects Mailpit, localhost, missing
+credentials and unencrypted configuration. The runtime independently applies
+the same syntax checks and short-circuits `wp_mail()` with failure instead of
+falling back to PHP `mail()` when production SMTP is invalid.
+`twentytwentyfive` 1.5 remains
+inactive as the emergency fallback
 theme; unused default plugins and older default themes are deleted by the
 idempotent bootstrap.
 

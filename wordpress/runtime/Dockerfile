@@ -14,6 +14,7 @@ COPY wordpress/plugins/gama-contact /usr/src/wordpress/wp-content/plugins/gama-c
 COPY wordpress/plugins/gama-seo /usr/src/wordpress/wp-content/plugins/gama-seo
 COPY wordpress/plugins/gama-security /usr/src/wordpress/wp-content/plugins/gama-security
 COPY wordpress/plugins/gama-local-mailpit /usr/src/wordpress/wp-content/plugins/gama-local-mailpit
+COPY wordpress/plugins/gama-mail-transport /usr/src/wordpress/wp-content/plugins/gama-mail-transport
 COPY wordpress/bin/bootstrap /usr/local/bin/gama-wordpress-bootstrap
 COPY wordpress/runtime/install-release /usr/local/bin/gama-wordpress-install-release
 

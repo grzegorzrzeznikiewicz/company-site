@@ -68,6 +68,7 @@ done
 "$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'
 "$ROOT_DIR/bin/wp" theme list --status=active --field=name | grep -Fx 'gama-software'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-local-mailpit'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-mail-transport'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-contact'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-seo'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-security'

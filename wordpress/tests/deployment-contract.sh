@@ -12,6 +12,7 @@ workflow="$ROOT_DIR/../.github/workflows/wordpress-staging.yml"
 for file in "$dockerfile" "$compose" "$deploy" "$rollback" "$workflow" "$ROOT_DIR/deploy/staging.override.yaml" "$ROOT_DIR/deploy/nginx-wordpress.conf.example"; do
   [[ -f "$file" ]]
 done
+grep -Fq 'axllent/mailpit:v1.30.0@sha256:' "$ROOT_DIR/deploy/staging.override.yaml"
 grep -Fq 'wordpress:7.1.0-php8.4-apache@sha256:' "$dockerfile"
 grep -Fq 'wordpress:cli-2.12.0-php8.4@sha256:' "$dockerfile"
 grep -Fq 'org.opencontainers.image.revision' "$dockerfile"
