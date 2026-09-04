@@ -30,18 +30,24 @@ $read = static function ( string $relative ) use ( $root, $fail ): string {
 
 $plugin     = $read( 'gama-contact.php' );
 $controller = $read( 'src/Form/SubmissionController.php' );
+$rate_limiter = $read( 'src/Form/RateLimiter.php' );
 $renderer   = $read( 'src/Form/FormRenderer.php' );
 $validator  = $read( 'src/Form/Validator.php' );
 $script     = $read( 'assets/contact-form.js' );
 
-foreach ( array( 'Version: 0.3.0', "GAMA_CONTACT_VERSION', '0.3.0", 'SubmissionController.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
+foreach ( array( 'Version: 0.3.1', "GAMA_CONTACT_VERSION', '0.3.1", 'SubmissionController.php', 'RateLimiter.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
 	if ( ! str_contains( $plugin, $required ) ) {
 		$fail( "plugin bootstrap misses {$required}" );
 	}
 }
-foreach ( array( 'gama-contact/v1', 'messages', 'wp_verify_nonce', 'wp_get_raw_referer', 'wp_mail', 'GAMA_CONTACT_RECIPIENT', 'set_transient', 'add_option', 'delete_option', 'lock_token', '429', 'company' ) as $required ) {
+foreach ( array( 'gama-contact/v1', 'messages', 'wp_verify_nonce', 'wp_get_raw_referer', 'wp_mail', 'RateLimiter::consume', '429', 'company' ) as $required ) {
 	if ( ! str_contains( $controller, $required ) ) {
 		$fail( "submission controller misses {$required}" );
+	}
+}
+foreach ( array( 'GET_LOCK', 'RELEASE_LOCK', '$wpdb', 'get_transient', 'set_transient', 'hash_hmac' ) as $required ) {
+	if ( ! str_contains( $rate_limiter, $required ) ) {
+		$fail( "atomic rate limiter misses {$required}" );
 	}
 }
 foreach ( array( 'name', 'email', 'phone', 'message', 'sanitize_text_field', 'sanitize_email', 'sanitize_textarea_field', 'is_email' ) as $required ) {
@@ -59,7 +65,7 @@ foreach ( array( 'fetch(', 'FormData', 'aria-invalid', 'firstInvalidField', 'foc
 		$fail( "browser enhancement misses {$required}" );
 	}
 }
-if ( preg_match( '/(?:insert|update|delete)_post|\$wpdb|register_post_type/i', $controller . $renderer . $validator ) ) {
+if ( preg_match( '/(?:insert|update|delete)_post|register_post_type/i', $controller . $rate_limiter . $renderer . $validator ) ) {
 	$fail( 'plugin must not persist contact message content' );
 }
 

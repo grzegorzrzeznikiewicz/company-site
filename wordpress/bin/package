@@ -99,6 +99,7 @@ gama-contact.php
 languages/gama-contact.pot
 readme.txt
 src/Form/FormRenderer.php
+src/Form/RateLimiter.php
 src/Form/SubmissionController.php
 src/Form/Validator.php
 src/Lifecycle/Activator.php

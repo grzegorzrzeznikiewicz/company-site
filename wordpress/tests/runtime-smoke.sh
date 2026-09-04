@@ -119,4 +119,5 @@ curl --fail --silent --show-error "$runtime_url/wp-admin/" >/dev/null
 
 "$ROOT_DIR/bin/test-mail"
 GAMA_CONTACT_RUNTIME_URL="$runtime_url" GAMA_CONTACT_MAILPIT_URL="http://localhost:${MAILPIT_HTTP_PORT:-8027}" "$ROOT_DIR/tests/contact-form-runtime.sh"
+"$ROOT_DIR/tests/contact-form-browser-runtime.sh"
 GAMA_SEO_RUNTIME_URL="$runtime_url" "$ROOT_DIR/tests/seo-runtime.sh"

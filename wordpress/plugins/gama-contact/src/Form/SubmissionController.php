@@ -10,12 +10,6 @@ use WP_REST_Response;
 
 final class SubmissionController
 {
-    private const MAX_REQUESTS = 5;
-    private const WINDOW_SECONDS = HOUR_IN_SECONDS;
-    private const LOCK_ATTEMPTS = 20;
-    private const LOCK_WAIT_MICROSECONDS = 50_000;
-    private const LOCK_TTL_SECONDS = 5;
-
     public static function register(): void
     {
         register_rest_route(
@@ -39,7 +33,7 @@ final class SubmissionController
         if (sanitize_text_field((string) ($input['company'] ?? '')) !== '') {
             return new WP_REST_Response(['message' => __('Dziękujemy. Wiadomość została przyjęta.', 'gama-contact')], 200);
         }
-        if (!self::consume_rate_limit()) {
+        if (!RateLimiter::consume()) {
             return new WP_Error('gama_contact_rate_limited', __('Wysłano zbyt wiele wiadomości. Spróbuj ponownie później.', 'gama-contact'), ['status' => 429]);
         }
 
@@ -99,52 +93,4 @@ final class SubmissionController
         return strtolower($scheme) === 'https' ? 443 : 80;
     }
 
-    private static function consume_rate_limit(): bool
-    {
-        $address = sanitize_text_field((string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-        $address_hash = hash_hmac('sha256', $address, wp_salt('nonce'));
-        $key = 'gama_contact_rate_' . $address_hash;
-        $lock_key = 'gama_contact_lock_' . $address_hash;
-        $lock_token = wp_generate_uuid4();
-
-        if (!self::acquire_rate_lock($lock_key, $lock_token)) {
-            return false;
-        }
-
-        try {
-            $count = (int) get_transient($key);
-            if ($count >= self::MAX_REQUESTS) {
-                return false;
-            }
-            set_transient($key, $count + 1, self::WINDOW_SECONDS);
-
-            return true;
-        } finally {
-            $lock = get_option($lock_key);
-            if (is_array($lock) && hash_equals((string) ($lock['token'] ?? ''), $lock_token)) {
-                delete_option($lock_key);
-            }
-        }
-    }
-
-    private static function acquire_rate_lock(string $lock_key, string $lock_token): bool
-    {
-        for ($attempt = 0; $attempt < self::LOCK_ATTEMPTS; ++$attempt) {
-            $lock = [
-                'token' => $lock_token,
-                'expires' => microtime(true) + self::LOCK_TTL_SECONDS,
-            ];
-            if (add_option($lock_key, $lock, '', false)) {
-                return true;
-            }
-
-            $existing = get_option($lock_key);
-            if (is_array($existing) && (float) ($existing['expires'] ?? 0) < microtime(true)) {
-                delete_option($lock_key);
-            }
-            usleep(self::LOCK_WAIT_MICROSECONDS);
-        }
-
-        return false;
-    }
 }

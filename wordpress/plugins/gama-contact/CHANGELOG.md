@@ -2,6 +2,11 @@
 
 All notable changes to `gama-software/gama-contact` are documented here.
 
+## 0.3.1 - 2026-09-04
+
+- Serialize rate-limit updates with a MariaDB advisory lock.
+- Add a deterministic database-lock runtime contract.
+
 ## 0.3.0 - 2026-09-04
 
 - Make IP rate limiting atomic under concurrent requests.

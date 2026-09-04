@@ -6,7 +6,28 @@ runtime_url="${GAMA_CONTACT_RUNTIME_URL:-http://localhost:8090}"
 mailpit_url="${GAMA_CONTACT_MAILPIT_URL:-http://localhost:8027}"
 
 clear_contact_rate_limits() {
-  "$ROOT_DIR/bin/wp" eval 'global $wpdb; foreach (["_transient_gama_contact_rate_", "_transient_timeout_gama_contact_rate_", "gama_contact_lock_"] as $prefix) { $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like($prefix) . "%")); }'
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; foreach (["_transient_gama_contact_rate_", "_transient_timeout_gama_contact_rate_"] as $prefix) { $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like($prefix) . "%")); } delete_option("gama_contact_lock_contract_ready");'
+}
+
+assert_database_lock_exclusion() {
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $name="gama-contact-contract"; $acquired=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)",$name,0)); if ((string)$acquired!=="1") { exit(1); } update_option("gama_contact_lock_contract_ready","1",false); sleep(4); $wpdb->get_var($wpdb->prepare("SELECT RELEASE_LOCK(%s)",$name)); delete_option("gama_contact_lock_contract_ready");' &
+  local holder_pid=$!
+  local ready=false
+  for _ in $(seq 1 50); do
+    if [[ "$("$ROOT_DIR/bin/wp" option get gama_contact_lock_contract_ready 2>/dev/null || true)" == 1 ]]; then
+      ready=true
+      break
+    fi
+    sleep 0.1
+  done
+  if [[ "$ready" != true ]]; then
+    wait "$holder_pid" || true
+    echo 'Database lock holder did not become ready.' >&2
+    return 1
+  fi
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $result=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)","gama-contact-contract",1)); exit((string)$result==="0" ? 0 : 1);'
+  wait "$holder_pid"
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $name="gama-contact-contract"; $result=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)",$name,0)); if ((string)$result!=="1") { exit(1); } $wpdb->get_var($wpdb->prepare("SELECT RELEASE_LOCK(%s)",$name));'
 }
 
 submit_to() {
@@ -37,6 +58,7 @@ cleanup() {
 trap cleanup EXIT
 
 clear_contact_rate_limits
+assert_database_lock_exclusion
 nonce="$("$ROOT_DIR/bin/wp" eval 'echo wp_create_nonce("gama_contact_submit");' | tail -n 1)"
 [[ "$nonce" =~ ^[A-Za-z0-9]+$ ]]
 
@@ -78,4 +100,4 @@ find "$concurrency_dir" -type f -delete
 rmdir "$concurrency_dir"
 concurrency_dir=''
 
-echo 'Local contact form validation, honeypot, atomic concurrent rate limit and Mailpit delivery passed.'
+echo 'Local contact form validation, honeypot, database-lock exclusion, atomic concurrent rate limit and Mailpit delivery passed.'
