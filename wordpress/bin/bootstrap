@@ -58,13 +58,17 @@ ensure_legal_draft() {
 ensure_legal_draft polityka-prywatnosci 'Polityka prywatności'
 ensure_legal_draft regulamin Regulamin
 
-logo_attachment_id="$(wp_cli post list --post_type=attachment --post_status=inherit --meta_key=_gama_asset_key --meta_value=gama-software-logo --posts_per_page=1 --field=ID | head -n 1)"
-if [ -z "$logo_attachment_id" ]; then
-  logo_attachment_id="$(wp_cli media import /var/www/html/wp-content/themes/gama-software/assets/images/gama-software-logo.png --title='Gama Software — logo' --alt='Gama Software' --porcelain)"
-  wp_cli post meta update "$logo_attachment_id" _gama_asset_key gama-software-logo >/dev/null
-  wp_cli post meta update "$logo_attachment_id" _wp_attachment_image_alt 'Gama Software' >/dev/null
+custom_logo_id="$(wp_cli eval 'echo (int) get_theme_mod("custom_logo", 0);' 2>/dev/null || true)"
+if ! wp_cli eval "\$post = get_post((int) '$custom_logo_id'); exit(\$post instanceof WP_Post && 'attachment' === \$post->post_type ? 0 : 1);"; then
+  logo_attachment_id="$(wp_cli post list --post_type=attachment --post_status=inherit --meta_key=_gama_asset_key --meta_value=gama-software-logo --posts_per_page=1 --field=ID | head -n 1)"
+  if [ -z "$logo_attachment_id" ]; then
+    logo_attachment_id="$(wp_cli media import /var/www/html/wp-content/themes/gama-software/assets/images/gama-software-logo.png --title='Gama Software — logo' --alt='Gama Software' --porcelain)"
+    wp_cli post meta update "$logo_attachment_id" _gama_asset_key gama-software-logo >/dev/null
+    wp_cli post meta update "$logo_attachment_id" _wp_attachment_image_alt 'Gama Software' >/dev/null
+  fi
+  wp_cli theme mod set custom_logo "$logo_attachment_id" >/dev/null
+  custom_logo_id="$logo_attachment_id"
 fi
-wp_cli theme mod set custom_logo "$logo_attachment_id" >/dev/null
 
 wp_cli option update show_on_front page
 wp_cli option update page_on_front "$home_page_id"

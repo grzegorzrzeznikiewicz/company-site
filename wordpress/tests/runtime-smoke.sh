@@ -7,9 +7,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=("$ROOT_DIR/bin/_compose")
 clean_run=false
+original_logo_id=''
+editor_logo_id=''
 
 cleanup() {
   local test_status=$?
+
+  if [[ "$clean_run" == false && -n "$original_logo_id" && -n "$editor_logo_id" ]]; then
+    set +e
+    "$ROOT_DIR/bin/wp" eval "set_theme_mod('custom_logo', (int)'$original_logo_id');" >/dev/null
+    "$ROOT_DIR/bin/wp" post delete "$editor_logo_id" --force >/dev/null
+    set -e
+  fi
 
   if [[ "$clean_run" == true ]]; then
     set +e
@@ -73,7 +82,8 @@ for legal_slug in polityka-prywatnosci regulamin; do
   legal_id="$("$ROOT_DIR/bin/wp" post list --post_type=page --name="$legal_slug" --post_status=draft --posts_per_page=1 --field=ID | tail -n 1)"
   [[ "$legal_id" =~ ^[1-9][0-9]*$ ]]
 done
-"$ROOT_DIR/bin/wp" eval '$id=(int)get_theme_mod("custom_logo"); if ($id < 1 || get_post_meta($id,"_gama_asset_key",true)!=="gama-software-logo" || get_post_meta($id,"_wp_attachment_image_alt",true)!=="Gama Software") { exit(1); }'
+original_logo_id="$("$ROOT_DIR/bin/wp" eval '$id=(int)get_theme_mod("custom_logo"); if ($id < 1 || get_post_meta($id,"_gama_asset_key",true)!=="gama-software-logo" || get_post_meta($id,"_wp_attachment_image_alt",true)!=="Gama Software") { exit(1); } echo $id;' | tail -n 1)"
+[[ "$original_logo_id" =~ ^[1-9][0-9]*$ ]]
 if "$ROOT_DIR/bin/wp" post list --post_type=post --post_status=publish --format=csv --fields=post_title,post_content | grep -Fq 'Welcome to WordPress. This is your first post. Edit or delete it, then start writing!'; then
   echo 'Exact default WordPress demonstration post remains published.' >&2
   exit 1
@@ -90,8 +100,15 @@ assert_upload_persisted() {
 }
 assert_upload_persisted
 
+editor_logo_id="$("$ROOT_DIR/bin/wp" media import /var/www/html/wp-content/themes/gama-software/assets/images/gama-software-logo.png --title='GSWEB-21 Editor logo persistence fixture' --alt='Editor logo' --porcelain | tail -n 1)"
+[[ "$editor_logo_id" =~ ^[1-9][0-9]*$ ]]
+"$ROOT_DIR/bin/wp" eval "set_theme_mod('custom_logo', (int)'$editor_logo_id');" >/dev/null
 "$ROOT_DIR/bin/restart"
 assert_upload_persisted
+"$ROOT_DIR/bin/wp" eval "exit((int)get_theme_mod('custom_logo') === (int)'$editor_logo_id' ? 0 : 1);"
+"$ROOT_DIR/bin/wp" eval "set_theme_mod('custom_logo', (int)'$original_logo_id');" >/dev/null
+"$ROOT_DIR/bin/wp" post delete "$editor_logo_id" --force >/dev/null
+editor_logo_id=''
 runtime_url="http://localhost:${wp_port}"
 home_html="$(curl --fail --silent --show-error "$runtime_url/")"
 blog_html="$(curl --fail --silent --show-error "$runtime_url/blog/")"
