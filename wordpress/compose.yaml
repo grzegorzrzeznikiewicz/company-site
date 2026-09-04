@@ -55,7 +55,13 @@ services:
       WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:-local}
       WORDPRESS_CONFIG_EXTRA: |
         define('DISALLOW_FILE_EDIT', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        define('WP_AUTO_UPDATE_CORE', false);
         define('WP_ENVIRONMENT_TYPE', getenv('WP_ENVIRONMENT_TYPE') ?: 'local');
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && 'https' === $$_SERVER['HTTP_X_FORWARDED_PROTO']) {
+          $$_SERVER['HTTPS'] = 'on';
+        }
+        define('FORCE_SSL_ADMIN', 'production' === WP_ENVIRONMENT_TYPE);
         define('GAMA_CONTACT_RECIPIENT', getenv('GAMA_CONTACT_RECIPIENT') ?: '');
         define('GAMA_CONTACT_SENDER', getenv('GAMA_CONTACT_SENDER') ?: '');
     volumes:
@@ -65,6 +71,7 @@ services:
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
+      - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro
     depends_on:
       db:
         condition: service_healthy
@@ -103,6 +110,7 @@ services:
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
+      - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro
       - ./bin/bootstrap:/usr/local/bin/gama-wordpress-bootstrap:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/gama-wordpress-bootstrap"]
     depends_on:

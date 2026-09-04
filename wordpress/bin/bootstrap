@@ -20,6 +20,18 @@ wp_cli theme activate gama-software
 wp_cli plugin activate gama-local-mailpit
 wp_cli plugin activate gama-contact
 wp_cli plugin activate gama-seo
+wp_cli plugin activate gama-security
+
+for default_plugin in akismet hello; do
+  if wp_cli plugin is-installed "$default_plugin" && ! wp_cli plugin is-active "$default_plugin"; then
+    wp_cli plugin delete "$default_plugin"
+  fi
+done
+for retired_default_theme in twentytwentythree twentytwentyfour; do
+  if wp_cli theme is-installed "$retired_default_theme" && ! wp_cli theme is-active "$retired_default_theme"; then
+    wp_cli theme delete "$retired_default_theme"
+  fi
+done
 
 ensure_published_page() {
   slug="$1"
