@@ -20,10 +20,15 @@ editor_id="$("$ROOT_DIR/bin/wp" user create "$editor_login" "$editor_login@examp
 "$ROOT_DIR/bin/wp" eval "
 \$user = get_user_by('id', (int) '$editor_id');
 wp_set_current_user(\$user->ID);
+\$navigation_id = wp_insert_post(['post_type' => 'wp_navigation', 'post_status' => 'publish', 'post_title' => 'GSWEB-23 navigation capability', 'post_content' => '<!-- wp:navigation-link {"label":"Start","url":"/"} /-->'], true);
+if (is_wp_error(\$navigation_id)) { fwrite(STDERR, 'Could not create navigation capability fixture.'); exit(1); }
 \$required = ['edit_posts', 'publish_posts', 'edit_pages', 'upload_files', 'edit_theme_options'];
 \$forbidden = ['activate_plugins', 'install_plugins', 'update_plugins', 'edit_plugins', 'edit_files', 'edit_users', 'promote_users', 'manage_options', 'switch_themes', 'install_themes', 'update_themes', 'update_core'];
 foreach (\$required as \$capability) { if (!current_user_can(\$capability)) { fwrite(STDERR, 'Missing Editor capability: ' . \$capability); exit(1); } }
+if (!current_user_can('edit_post', \$navigation_id)) { fwrite(STDERR, 'Editor cannot save a Core Navigation record.'); exit(1); }
 foreach (\$forbidden as \$capability) { if (current_user_can(\$capability)) { fwrite(STDERR, 'Forbidden Editor capability: ' . \$capability); exit(1); } }
+wp_set_current_user(1);
+wp_delete_post(\$navigation_id, true);
 echo 'editor-capability-matrix-ok';
 " | grep -Fx 'editor-capability-matrix-ok'
 

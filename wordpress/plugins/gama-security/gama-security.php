@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Gama Security
  * Description: Role, response-header and login protections for Gama Software.
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 7.1
  * Requires PHP: 8.4
  * Author: Gama Software

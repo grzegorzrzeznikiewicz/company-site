@@ -29,12 +29,12 @@ $bootstrap = $read( 'gama-security.php' );
 $plugin    = $read( 'src/class-plugin.php' );
 $guard     = $read( 'src/class-loginguard.php' );
 
-foreach ( array( 'Plugin Name: Gama Security', 'Version: 0.1.0', 'Requires at least: 7.1', 'Requires PHP: 8.4', 'GPL-2.0-or-later', 'Text Domain: gama-security' ) as $required ) {
+foreach ( array( 'Plugin Name: Gama Security', 'Version: 0.1.1', 'Requires at least: 7.1', 'Requires PHP: 8.4', 'GPL-2.0-or-later', 'Text Domain: gama-security' ) as $required ) {
 	if ( ! str_contains( $bootstrap, $required ) ) {
 		$fail( "bootstrap misses {$required}" );
 	}
 }
-foreach ( array( 'user_has_cap', 'edit_theme_options', 'editor', 'activate_plugins', 'send_headers', 'X-Content-Type-Options', 'X-Frame-Options', 'Referrer-Policy', 'Permissions-Policy', 'Strict-Transport-Security', 'wp_get_environment_type', 'login_errors', 'the_generator' ) as $required ) {
+foreach ( array( 'user_has_cap', "in_array( 'edit_theme_options', \$caps, true )", 'editor', 'activate_plugins', 'send_headers', 'X-Content-Type-Options', 'X-Frame-Options', 'Referrer-Policy', 'Permissions-Policy', 'Strict-Transport-Security', 'wp_get_environment_type', 'login_errors', 'the_generator' ) as $required ) {
 	if ( ! str_contains( $plugin, $required ) ) {
 		$fail( "security policy misses {$required}" );
 	}

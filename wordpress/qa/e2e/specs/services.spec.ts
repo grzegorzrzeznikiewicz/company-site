@@ -151,7 +151,6 @@ test('lets a scoped Editor add, remove, reorder and edit service cards without c
   await login(page, 'theme-navigation-editor', 'navigation-editor-test-only');
   const currentUser = await rest<any>(page, '/wp/v2/users/me?context=edit');
   expect(currentUser.roles).toEqual(['editor']);
-  expect(currentUser.capabilities.edit_theme_options).toBe(true);
   expect(currentUser.capabilities.activate_plugins ?? false).toBe(false);
 
   const frame = await openFrontPageTemplate(page);

@@ -49,12 +49,11 @@ final class Plugin {
 	 * @return array<string, bool>
 	 */
 	public function filter_user_capabilities( array $allcaps, array $caps, array $args, WP_User $user ): array {
-		unset( $caps );
 		if ( ! in_array( 'editor', $user->roles, true ) ) {
 			return $allcaps;
 		}
 
-		if ( 'edit_theme_options' === ( $args[0] ?? '' ) ) {
+		if ( 'edit_theme_options' === ( $args[0] ?? '' ) || in_array( 'edit_theme_options', $caps, true ) ) {
 			$allcaps['edit_theme_options'] = true;
 		}
 		foreach ( self::EDITOR_FORBIDDEN_CAPABILITIES as $capability ) {

@@ -56,6 +56,7 @@ services:
       GAMA_MAIL_SINK_PORT: ${GAMA_MAIL_SINK_PORT:-1025}
       WORDPRESS_CONFIG_EXTRA: |
         define('DISALLOW_FILE_EDIT', true);
+        define('DISALLOW_FILE_MODS', true);
         define('AUTOMATIC_UPDATER_DISABLED', true);
         define('WP_AUTO_UPDATE_CORE', false);
         define('WP_ENVIRONMENT_TYPE', getenv('WP_ENVIRONMENT_TYPE'));

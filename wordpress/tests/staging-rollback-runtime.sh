@@ -74,6 +74,24 @@ GAMA_STAGING_PROJECT="$project" \
   GAMA_RELEASE_ARTIFACT_ROOT="${GAMA_RELEASE_ARTIFACT_ROOT:-$fixture/evidence}" \
   "$ROOT_DIR/tests/release-regression-runtime.sh"
 
+sample_page_id="$("${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post list --post_type=page --name=sample-page --field=ID --allow-root | tail -n 1)"
+if [[ ! "$sample_page_id" =~ ^[1-9][0-9]*$ ]]; then
+  sample_page_id="$("${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=page --post_title='Sample Page' --post_name=sample-page --post_status=publish --porcelain --allow-root | tail -n 1)"
+else
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post update "$sample_page_id" --post_status=publish --allow-root >/dev/null
+fi
+[[ "$sample_page_id" =~ ^[1-9][0-9]*$ ]]
+navigation_editor_id="$("${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap user create theme-navigation-editor theme-navigation-editor@example.test --role=editor --user_pass=navigation-editor-test-only --porcelain --allow-root | tail -n 1)"
+style_editor_id="$("${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap user create style-editor style-editor@example.test --role=editor --user_pass=style-editor-test-only --porcelain --allow-root | tail -n 1)"
+[[ "$navigation_editor_id" =~ ^[1-9][0-9]*$ && "$style_editor_id" =~ ^[1-9][0-9]*$ ]]
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=page --post_title='Editor preset fixture' --post_name=editor-preset-fixture --post_status=publish --post_author="$style_editor_id" --post_content='<!-- wp:paragraph --><p>Editor preset fixture</p><!-- /wp:paragraph -->' --allow-root >/dev/null
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=post --post_title='Second fixture article' --post_name=second-fixture-article --post_status=publish --post_date='2026-09-01 12:00:00' --post_content='Staging migration rehearsal article.' --allow-root >/dev/null
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=post --post_title='Focus neighbour' --post_name=focus-neighbour --post_status=publish --post_date='2026-09-02 12:00:00' --allow-root >/dev/null
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap option update posts_per_page 1 --allow-root >/dev/null
+GAMA_STAGING_PROJECT="$project" \
+  GAMA_RELEASE_ARTIFACT_ROOT="${GAMA_RELEASE_ARTIFACT_ROOT:-$fixture/evidence}" \
+  "$ROOT_DIR/tests/release-acceptance-runtime.sh"
+
 write_env "$base_image"
 "$ROOT_DIR/bin/rollback-staging" --project "$project" --env-file "$env_file" --confirm
 wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"

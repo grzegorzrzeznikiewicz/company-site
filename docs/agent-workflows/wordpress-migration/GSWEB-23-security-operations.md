@@ -4,7 +4,7 @@
 
 The reviewed baseline is WordPress 7.1 on PHP 8.4. The only active extensions
 are the first-party `gama-contact` 0.3.1, `gama-local-mailpit` 0.1.0,
-`gama-security` 0.1.0 and `gama-seo` 0.1.0 plugins, plus the first-party
+`gama-security` 0.1.1 and `gama-seo` 0.1.0 plugins, plus the first-party
 `gama-software` 0.4.0 theme. All use GPL-2.0-or-later and have no paid runtime
 dependency. The Mailpit transport is active only in non-production environments
 and is explicitly deactivated by a production bootstrap. `twentytwentyfive` 1.5 remains inactive as the emergency fallback
@@ -36,8 +36,9 @@ bounded to ten failures per 15 minutes and serialized with a MariaDB advisory
 lock. The contact form has its own same-origin nonce, honeypot, validation and
 atomic per-address limiter and does not persist message content.
 
-WordPress file editing, automatic background updates and automatic core updates
-are disabled. Production admin traffic is HTTPS-only; the reverse proxy must
+WordPress file editing and dashboard file modifications, automatic background
+updates and automatic core updates are disabled in immutable deployments.
+Production admin traffic is HTTPS-only; the reverse proxy must
 set `X-Forwarded-Proto: https`. Secrets and mail addresses are supplied by the
 environment and are never exported with content or committed.
 
