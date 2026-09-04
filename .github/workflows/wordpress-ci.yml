@@ -1,0 +1,106 @@
+name: WordPress Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-build:
+    name: WordPress Source and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v6
+
+      - name: Prepare local-only environment
+        run: cp wordpress/.env.example wordpress/.env
+
+      - name: Validate source, policy and reproducible packages
+        run: |
+          wordpress/bin/validate-extensions-lock
+          wordpress/tests/mount-contract.sh
+          wordpress/tests/contact-plugin-contract.sh
+          wordpress/tests/contact-form-browser-contract.sh
+          wordpress/tests/seo-plugin-contract.sh
+          wordpress/tests/security-plugin-contract.sh
+          wordpress/tests/backup-restore-contract.sh
+          wordpress/tests/theme-contract.sh
+          wordpress/tests/plugin-package-contract.sh
+          wordpress/tests/ci-failure-contract.sh
+
+      - name: Upload immutable package set
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordpress-packages-${{ github.sha }}
+          path: |
+            wordpress/dist/*.zip
+            wordpress/dist/*.manifest.txt
+            wordpress/dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  package-lifecycle:
+    name: WordPress Package Lifecycle
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v6
+
+      - name: Download exact package set
+        uses: actions/download-artifact@v5
+        with:
+          name: wordpress-packages-${{ github.sha }}
+          path: wordpress/dist
+
+      - name: Test exact contact plugin package
+        run: wordpress/bin/test-package wordpress/dist/gama-contact-0.3.1.zip
+
+      - name: Test exact theme package
+        env:
+          GAMA_THEME_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-browser-artifacts
+        run: wordpress/bin/test-package wordpress/dist/gama-software-0.4.0.zip
+
+      - name: Upload browser evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordpress-browser-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/wordpress-browser-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+  runtime-and-restore:
+    name: WordPress Runtime and Restore
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v6
+
+      - name: Prepare local-only environment
+        run: cp wordpress/.env.example wordpress/.env
+
+      - name: Verify clean runtime
+        run: wordpress/tests/runtime-smoke.sh --clean
+
+      - name: Verify full isolated restore
+        run: |
+          wordpress/bin/start
+          wordpress/tests/backup-restore-runtime.sh
+
+      - name: Remove only CI runtime volumes
+        if: ${{ always() }}
+        run: wordpress/bin/reset --confirm
