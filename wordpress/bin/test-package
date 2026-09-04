@@ -369,7 +369,7 @@ add_filter(
 $fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 $root = realpath(get_theme_root("gama-software") . "/gama-software");
 if ($root !== WP_CONTENT_DIR . "/themes/gama-software") { $fail("Theme is not at the exact installed ZIP path"); }
-foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "parts/header.html", "patterns/hero.php", "patterns/not-found.php", "patterns/services.php", "assets/icons/service-ai.svg", "assets/icons/service-consulting.svg", "assets/icons/service-ecommerce.svg"] as $file) {
+foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "parts/header.html", "patterns/hero.php", "patterns/not-found.php", "patterns/services.php", "patterns/modules.php", "assets/icons/service-ai.svg", "assets/icons/service-consulting.svg", "assets/icons/service-ecommerce.svg", "assets/icons/module-package.svg"] as $file) {
     $path = realpath($root . "/" . $file);
     if ($path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR)) { $fail("Runtime file escaped installed theme: " . $file); }
 }
@@ -424,7 +424,18 @@ $front_page_blocks = parse_blocks($front_page_content);
 $walk($front_page_blocks, "front-page");
 $contains_services_pattern = static function (array $blocks) use (&$contains_services_pattern): bool { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/pattern" && (($block["attrs"]["slug"] ?? null) === "gama-software/services")) { return true; } if ($contains_services_pattern($block["innerBlocks"] ?? [])) { return true; } } return false; };
 $front_page_services = $find_by_class($front_page_blocks, "gama-services");
-if ($contains_services_pattern($front_page_blocks) || !is_array($front_page_services) || (($front_page_services["attrs"]["anchor"] ?? null) !== "services") || $count_by_class($front_page_blocks, "gama-service-card") !== 3 || substr_count($front_page_content, "alt=\"\"") !== 3 || str_contains($front_page_content, "templateLock") || str_contains($front_page_content, "\"lock\"")) { $fail("Installed front-page Services blocks are not directly editable"); }
+if ($contains_services_pattern($front_page_blocks) || !is_array($front_page_services) || (($front_page_services["attrs"]["anchor"] ?? null) !== "services") || $count_by_class($front_page_blocks, "gama-service-card") !== 3 || substr_count($front_page_content, "\"className\":\"gama-service-card__icon\"") !== 3 || str_contains($front_page_content, "templateLock") || str_contains($front_page_content, "\"lock\"")) { $fail("Installed front-page Services blocks are not directly editable"); }
+$modules = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/modules");
+if (!is_array($modules) || !is_string($modules["content"] ?? null) || $modules["content"] === "" || ($modules["inserter"] ?? null) !== true) { $fail("Editable Modules pattern was not registered in the inserter"); }
+$modules_blocks = parse_blocks($modules["content"]);
+$walk($modules_blocks, "registered Modules pattern");
+$modules_section = $find_by_class($modules_blocks, "gama-modules");
+$modules_grid = $find_by_class($modules_blocks, "gama-modules__grid");
+if (!is_array($modules_section) || (($modules_section["attrs"]["anchor"] ?? null) !== "modules") || !is_array($modules_grid) || (($modules_grid["attrs"]["layout"]["type"] ?? null) !== "grid") || (($modules_grid["attrs"]["layout"]["minimumColumnWidth"] ?? null) !== "20rem") || $count_by_class($modules_blocks, "gama-module-card") !== 6 || $count_by_class($modules_blocks, "gama-module-card__features") !== 6) { $fail("Editable Modules pattern structure differs"); }
+foreach (["Moduły Magento 2", "Advanced SEO Suite", "Performance Optimizer", "Zapisz się na listę oczekujących"] as $required) { if (!str_contains($modules["content"], $required)) { $fail("Editable Modules pattern misses " . $required); } }
+$contains_modules_pattern = static function (array $blocks) use (&$contains_modules_pattern): bool { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/pattern" && (($block["attrs"]["slug"] ?? null) === "gama-software/modules")) { return true; } if ($contains_modules_pattern($block["innerBlocks"] ?? [])) { return true; } } return false; };
+$front_page_modules = $find_by_class($front_page_blocks, "gama-modules");
+if ($contains_modules_pattern($front_page_blocks) || !is_array($front_page_modules) || (($front_page_modules["attrs"]["anchor"] ?? null) !== "modules") || $count_by_class($front_page_blocks, "gama-module-card") !== 6 || $count_by_class($front_page_blocks, "gama-module-card__features") !== 6 || !str_contains($front_page_content, "href=\"/#contact\"")) { $fail("Installed front-page Modules blocks are not directly editable"); }
 echo "installed-theme-parse-and-provenance-ok";'
   wp_cmd eval "$installed_contract" | grep -Fx 'installed-theme-parse-and-provenance-ok'
 
@@ -715,6 +726,7 @@ echo $page_id . "," . $single_id;')"
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-admin-persistence browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-admin-persistence
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-dpr2 browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-dpr2
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=services browser "${PLAYWRIGHT_TEST[@]}" --grep @services
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=modules browser "${PLAYWRIGHT_TEST[@]}" --grep @modules
 
   installed_theme_hashes_before="$(theme_file_hashes)"
   [[ "$installed_theme_hashes_before" == "$archive_theme_hashes" ]]

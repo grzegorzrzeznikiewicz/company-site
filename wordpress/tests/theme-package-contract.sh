@@ -41,6 +41,7 @@ cat >"$fixture_dir/expected-files.txt" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/icons/module-package.svg
 assets/icons/service-ai.svg
 assets/icons/service-consulting.svg
 assets/icons/service-ecommerce.svg
@@ -49,6 +50,7 @@ languages/gama-software.pot
 parts/footer.html
 parts/header.html
 patterns/hero.php
+patterns/modules.php
 patterns/not-found.php
 patterns/services.php
 style.css
@@ -67,7 +69,7 @@ printf '%s\n' 'gama-software/' 'gama-software/assets/' 'gama-software/assets/ico
 LC_ALL=C sort -o "$fixture_dir/expected-entries.txt" "$fixture_dir/expected-entries.txt"
 unzip -Z1 "$ZIP_PATH" | LC_ALL=C sort >"$fixture_dir/actual-entries.txt"
 diff -u "$fixture_dir/expected-entries.txt" "$fixture_dir/actual-entries.txt"
-[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 30 ]]
+[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 32 ]]
 [[ "$(zipinfo -T "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $(NF - 1) }' | LC_ALL=C sort -u)" == '20260101.000000' ]]
 if zipinfo -l "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $1 }' | grep -Ev '^(drwxr-xr-x|-rw-r--r--)$'; then exit 1; fi
 if unzip -Z1 "$ZIP_PATH" | grep -Eq '(^/|(^|/)\.\.(/|$)|(^|/)(vendor|node_modules|tests|qa|uploads|cache|logs)(/|$)|(^|/)\.env|\.log$)'; then exit 1; fi

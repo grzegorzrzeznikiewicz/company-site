@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add an editable Core-block services Grid pattern with reusable responsive cards and local decorative icons.
+- Add the complete editable Magento modules offer with semantic feature lists, optional card links and a removable contact CTA.
 
 ## 0.3.0 - 2026-09-03
 

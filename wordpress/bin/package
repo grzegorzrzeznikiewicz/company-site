@@ -104,6 +104,7 @@ cat >"$expected_files" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/icons/module-package.svg
 assets/icons/service-ai.svg
 assets/icons/service-consulting.svg
 assets/icons/service-ecommerce.svg
@@ -112,6 +113,7 @@ languages/gama-software.pot
 parts/footer.html
 parts/header.html
 patterns/hero.php
+patterns/modules.php
 patterns/not-found.php
 patterns/services.php
 style.css

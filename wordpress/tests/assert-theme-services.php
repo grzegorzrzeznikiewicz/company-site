@@ -161,7 +161,9 @@ foreach (
 		$fail( "front-page misses editable Services content {$required_template_content}" );
 	}
 }
-if ( 3 !== substr_count( $front_page, '"className":"gama-service-card"' ) || 3 !== substr_count( $front_page, 'alt=""' ) ) {
+$services_end = strpos( $front_page, '<section id="modules"' );
+$services_front_page = false === $services_end ? $front_page : substr( $front_page, 0, $services_end );
+if ( 3 !== substr_count( $services_front_page, '"className":"gama-service-card"' ) || 3 !== substr_count( $services_front_page, 'alt=""' ) ) {
 	$fail( 'front-page must contain three directly editable decorative service cards' );
 }
 foreach ( array( 'service-ecommerce.svg', 'service-consulting.svg', 'service-ai.svg' ) as $asset ) {

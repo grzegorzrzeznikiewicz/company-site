@@ -171,6 +171,93 @@ html {
 	margin-top: auto;
 }
 
+.gama-modules {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-modules__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xxl);
+}
+
+.gama-modules__content > *,
+.gama-modules__intro > *,
+.gama-modules__action > *,
+.gama-module-card > *,
+.gama-module-card__header > *,
+.gama-module-card__header > .wp-block-group > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-modules__intro,
+.gama-modules__action {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--md);
+}
+
+.gama-modules__grid {
+	width: 100%;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-module-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--lg);
+	align-content: start;
+	border: 1px solid var(--wp--preset--color--border-subtle);
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.gama-module-card__header,
+.gama-module-card__header > .wp-block-group {
+	min-width: 0;
+}
+
+.gama-module-card__header > .wp-block-group {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xs);
+}
+
+.gama-module-card__icon {
+	display: grid;
+	flex: 0 0 2.5rem;
+	width: 2.5rem;
+	height: 2.5rem;
+	margin: 0 !important;
+	padding: .5rem;
+	place-items: center;
+	border-radius: var(--wp--custom--radius--icon);
+	background-color: var(--wp--preset--color--accent-soft);
+}
+
+.gama-module-card__icon img {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
+.gama-module-card__features {
+	display: flex;
+	flex-direction: column;
+	padding-left: 1.25rem;
+	gap: var(--wp--preset--spacing--xs);
+}
+
+.gama-module-card:focus-within,
+.gama-module-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
 .gama-site-footer__inner,
 .gama-footer-navigation,
 .gama-footer-navigation .wp-block-navigation__container {

@@ -67,4 +67,26 @@ new page or template. If WordPress presents that inserted pattern as linked,
 choose **Detach** from its block menu before making structural changes; the
 homepage cards do not require this step.
 
+## Editing homepage modules
+
+The **Moduły Magento 2** section follows Services in the Front Page template.
+Its six starter cards are direct, unlocked Core Group, Heading, Image, List and
+List Item blocks. In List View, duplicate, remove or drag a
+`gama-module-card` inside the `gama-modules__grid` Group. Card titles,
+descriptions, icons and every feature remain editable without a deployment.
+Insert a Core Button inside a card when that module needs its own link.
+
+The final availability note and **Zapisz się na listę oczekujących** button are
+kept in the removable `gama-modules__action` Group. Its accepted initial target
+is `/#contact`. Editors may change the text or destination, or remove the whole
+Group. The separately available **Gama Software Modules** pattern provides the
+same starter content for another template; it is not a runtime data store or a
+fixed React/PHP card array on the homepage.
+
+Keep the Core-block model while modules only need a flexible marketing grid.
+Introduce a plugin-owned custom post type only after the product requires
+filtering, module detail pages or reuse across multiple independently queried
+views. That change needs its own Jira task and migration test so content remains
+available after switching themes.
+
 License: GPL-2.0-or-later.

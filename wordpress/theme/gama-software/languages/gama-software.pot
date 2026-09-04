@@ -204,6 +204,32 @@ msgstr ""
 msgid "Poznaj nasze usługi"
 msgstr ""
 
+#: patterns/modules.php
+msgctxt "Pattern title"
+msgid "Gama Software Modules"
+msgstr ""
+
+#: patterns/modules.php
+msgctxt "Pattern description"
+msgid "The editable Magento modules offer for the Gama Software homepage."
+msgstr ""
+
+#: patterns/modules.php:21
+msgid "Moduły Magento 2"
+msgstr ""
+
+#: patterns/modules.php:24
+msgid "Profesjonalne rozszerzenia dostępne w modelu subskrypcji"
+msgstr ""
+
+#: patterns/modules.php:77
+msgid "Wkrótce dostępne w formie subskrypcji"
+msgstr ""
+
+#: patterns/modules.php:81
+msgid "Zapisz się na listę oczekujących"
+msgstr ""
+
 #: patterns/not-found.php
 msgctxt "Pattern title"
 msgid "Page not found"

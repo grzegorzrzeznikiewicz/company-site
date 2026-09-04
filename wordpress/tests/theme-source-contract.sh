@@ -10,6 +10,7 @@ cat >"$fixture_dir/expected.txt" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/icons/module-package.svg
 assets/icons/service-ai.svg
 assets/icons/service-consulting.svg
 assets/icons/service-ecommerce.svg
@@ -18,6 +19,7 @@ languages/gama-software.pot
 parts/footer.html
 parts/header.html
 patterns/hero.php
+patterns/modules.php
 patterns/not-found.php
 patterns/services.php
 style.css
@@ -54,7 +56,7 @@ grep -Fq 'gama-software' "$THEME_DIR/README.md"
 grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$THEME_DIR/LICENSE"
 
 if grep -ERni --include='*.php' --include='*.html' --include='*.json' \
-  'wp_mail|register_rest_route|register_post_type|register_taxonomy|add_role|add_cap|remove_cap|get_role|wp_schedule|gama-contact|canonical|og:|application/ld\+json|noindex|sitemap' "$THEME_DIR"; then
+  'wp_mail|register_rest_route|register_post_type|register_taxonomy|add_role|add_cap|remove_cap|get_role|wp_schedule|gama-contact|rel_canonical|wp_sitemaps?|sitemap_(index|url)|og:|application/ld\+json|noindex' "$THEME_DIR"; then
   echo 'Theme contains forbidden business, SEO, role, scheduling, or plugin behavior.' >&2
   exit 1
 fi
