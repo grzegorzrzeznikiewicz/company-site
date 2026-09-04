@@ -4,7 +4,8 @@
 
 Zastąpić obecną aplikację React/Symfony stroną opartą na WordPressie, którą
 właściciel może szybko edytować z panelu administracyjnego, zachowując wygląd,
-treści, formularz, jakość techniczną i możliwość tworzenia własnych rozszerzeń.
+układ, menu, treści, zachowania, formularz, jakość techniczną i możliwość
+tworzenia własnych rozszerzeń. Migracja nie jest redesignem.
 
 ## Źródła prawdy
 
@@ -15,6 +16,23 @@ treści, formularz, jakość techniczną i możliwość tworzenia własnych rozs
 
 W razie sprzeczności agent nie zgaduje. Dokumentuje sprzeczność i prosi
 właściciela o decyzję przed wykonaniem zmiany trudnej do cofnięcia.
+
+## Wierność obecnej strony
+
+- Zatwierdzony inwentarz GSWEB-9, działający kod React/Symfony i przekazane przez
+  właściciela zrzuty ekranu są materiałem porównawczym, a nie opcjonalną
+  inspiracją do nowego projektu.
+- WordPress musi zachować strukturę i kolejność publicznej strony: logo oraz
+  menu Start/Usługi/Moduły/Blog/Kontakt, Hero z CTA, karty usług, sekcję
+  modułów, blog, kontakt i stopkę. Treść, linki, media i komunikaty muszą
+  odpowiadać baseline'owi, chyba że właściciel zaakceptuje konkretną zmianę.
+- Zachowania muszą obejmować działającą nawigację desktopową i mobilną, kotwice
+  oraz CTA, użyteczną responsywność, publikację bloga i pełny przepływ formularza
+  kontaktowego. WordPress może użyć własnych mechanizmów, ale nie może tracić
+  funkcjonalności obecnej strony.
+- Odbiór obejmuje porównanie renderowanej strony WordPress z baseline'em na
+  desktopie i telefonie. Każde istotne odchylenie wizualne, treściowe lub
+  funkcjonalne wymaga udokumentowania i akceptacji właściciela.
 
 ## Architektura docelowa
 
@@ -61,6 +79,11 @@ ani wykonywać operacji infrastrukturalnych.
   metadanych SEO, cache lub zabezpieczenia logowania.
 - Funkcja istotna dla projektu, która ma być dystrybuowana innym użytkownikom,
   musi mieć granicę API, testy, wersjonowanie semantyczne i instrukcję budowania.
+- Jeżeli odtworzenie funkcji wymaga rozszerzenia poza WordPress Core, motyw i
+  istniejące własne wtyczki, powstaje osobne zgłoszenie Jira w epiku GSWEB-8.
+  Opisuje ono lukę funkcjonalną, uzasadnienie wyboru, alternatywy, licencję,
+  bezpieczeństwo, kompatybilność, sposób aktualizacji i test odbiorczy. Nie
+  instalujemy takiej wtyczki poza tym śladem pracy.
 
 ## Bezpieczeństwo i prywatność
 

@@ -24,6 +24,12 @@ MariaDB/MySQL, GitHub Actions, Playwright oraz narzędzia jakości WordPress/PHP
 - Jedno zadanie wykonawcze realizuje dokładnie jedno zgłoszenie Jira.
 - Funkcje epika działają bez płatnych licencji.
 - Nie używamy headless React ani page buildera zastępującego Gutenberg.
+- GSWEB-14–GSWEB-21 muszą odtworzyć zatwierdzony baseline: układ, menu, treści,
+  zachowania i responsywność obecnej strony, a nie wyłącznie jej techniczny
+  szkielet.
+- Każda luka wymagająca nowej wtyczki jest osobnym zgłoszeniem Jira w epiku
+  GSWEB-8; nie instalujemy rozszerzenia bez udokumentowanego zakresu, oceny i
+  kryteriów odbioru.
 - Nie usuwamy starego stosu przed GSWEB-30 i jawną zgodą właściciela.
 - Nie modyfikujemy niezwiązanych zmian użytkownika ani zasobów innych projektów.
 - Każda gałąź zaczyna się z zatwierdzonego, aktualnego punktu bazowego.
@@ -170,6 +176,8 @@ odbiornika testowego, walidację i ochronę antyspamową.
 
 - [ ] Zrealizuj i zrecenzuj GSWEB-21.
 - [ ] Porównaj każdy tekst, obraz, link, kotwicę i nagłówek z inwentarzem.
+- [ ] Porównaj układ i zachowanie desktopu oraz telefonu z zatwierdzonym
+      baseline'em; zapisz i uzyskaj akceptację każdego istotnego odchylenia.
 - [ ] Przeprowadź ręczne scenariusze edycji właściciela.
 
 **Gate B:** Właściciel akceptuje wygląd, kompletność treści i wygodę edycji.
