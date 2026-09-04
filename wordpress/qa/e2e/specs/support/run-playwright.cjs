@@ -6,6 +6,7 @@ const ALLOWED_FLAG_ARGUMENTS = new Set([
   '--last-failed',
   '--list',
   '--only-changed',
+  '--update-snapshots',
 ]);
 const ALLOWED_VALUE_ARGUMENTS = new Set([
   '--grep',

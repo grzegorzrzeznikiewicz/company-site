@@ -368,7 +368,7 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
     `/wp/v2/pages/${fixture.id}?context=edit`,
   );
   expect(updated.content.raw).toContain('"fontSize":"lead"');
-  await page.goto('/editor-preset-fixture/');
+  await page.goto('/editor-preset-fixture/', { waitUntil: 'domcontentloaded' });
   const paragraph = page
     .locator('p.has-lead-font-size')
     .filter({ hasText: 'Editor preset fixture' });

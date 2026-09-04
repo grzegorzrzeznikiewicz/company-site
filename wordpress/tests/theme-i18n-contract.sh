@@ -54,6 +54,8 @@ for context_message in \
   grep -B1 -F "msgid \"$message\"" "$generated_pot" | grep -Fq "msgctxt \"$context\""
 done
 grep -Fq 'msgid "Page not found"' "$generated_pot"
+grep -Fq 'msgid "Gama Software Hero"' "$generated_pot"
+grep -Fq 'msgid "Poznaj nasze usługi"' "$generated_pot"
 grep -Fq '"POT-Creation-Date: \n"' "$generated_pot"
 cmp "$generated_pot" "$THEME_DIR/languages/gama-software.pot"
 

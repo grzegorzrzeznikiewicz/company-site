@@ -36,4 +36,14 @@ Contact link. Do not add Privacy Policy or Terms links until their legal text
 has been approved and the corresponding pages have been published with real
 public URLs in GSWEB-21.
 
+## Editing the homepage Hero
+
+The **Gama Software Hero** pattern is included at the start of the Front Page
+template. In **Appearance → Editor → Templates → Front Page**, select the Hero
+section to change its H1, lead text, button label or button destination; use a
+global homepage anchor such as `/#services` or a complete URL. The outer Core
+Group deliberately remains unlocked, so an editor can also set an optional
+background image with the standard block controls. Do not add a second H1 to
+the page content.
+
 License: GPL-2.0-or-later.

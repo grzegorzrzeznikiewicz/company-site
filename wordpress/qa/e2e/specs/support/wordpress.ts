@@ -103,7 +103,12 @@ export async function waitForEditorCanvas(page: Page): Promise<FrameLocator> {
     const dismiss = welcome.getByRole('button', {
       name: /^(?:Get started|Close)$/,
     });
-    await dismiss.click();
+    await expect(dismiss).toBeVisible();
+    // The Gutenberg welcome guide is test-environment setup, not the subject
+    // of the interaction being verified. Native activation avoids Chromium's
+    // intermittent, very slow scroll-into-view for this fixed dialog while
+    // still exercising the guide's real click handler.
+    await dismiss.evaluate((element) => (element as HTMLButtonElement).click());
     await expect(welcome).toBeHidden();
   }
   if (loggedInUser !== undefined) {

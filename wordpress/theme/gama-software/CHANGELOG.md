@@ -2,6 +2,7 @@
 
 ## 0.3.0 - 2026-09-03
 
+- Add the editable Core-block Hero pattern, starter Front Page placement and responsive baseline styling.
 - Add editable Core block header, primary Navigation, mobile overlay and footer template parts.
 - Add semantic landmarks, sticky header behavior and cross-route homepage navigation URLs.
 

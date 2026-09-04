@@ -171,6 +171,7 @@ msgstr ""
 #. Theme Name of the theme
 #. Author of the theme
 #: style.css
+#: patterns/hero.php:18
 msgid "Gama Software"
 msgstr ""
 
@@ -183,6 +184,24 @@ msgstr ""
 #. Description of the theme
 #: style.css
 msgid "Production block-theme foundation for the Gama Software website."
+msgstr ""
+
+#: patterns/hero.php
+msgctxt "Pattern title"
+msgid "Gama Software Hero"
+msgstr ""
+
+#: patterns/hero.php
+msgctxt "Pattern description"
+msgid "The editable introductory section for the Gama Software homepage."
+msgstr ""
+
+#: patterns/hero.php:22
+msgid "Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu agentów AI dla Twojego biznesu"
+msgstr ""
+
+#: patterns/hero.php:28
+msgid "Poznaj nasze usługi"
 msgstr ""
 
 #: patterns/not-found.php

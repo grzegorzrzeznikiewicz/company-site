@@ -129,6 +129,7 @@ assert.deepEqual(
     '--shard=1/2',
     '--last-failed',
     '--only-changed',
+    '--update-snapshots',
   ]),
   [
     '--list',
@@ -137,6 +138,7 @@ assert.deepEqual(
     '--shard=1/2',
     '--last-failed',
     '--only-changed',
+    '--update-snapshots',
   ],
 );
 for (const unsafeArgument of [

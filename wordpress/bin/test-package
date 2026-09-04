@@ -305,16 +305,53 @@ wp_cmd eval 'if (version_compare(PHP_VERSION, "8.4", "<") || version_compare(PHP
 
 if [[ "$package_kind" == theme ]]; then
   offline_update_eval='$now = time(); $core = (object) ["last_checked" => $now, "version_checked" => get_bloginfo("version"), "updates" => []]; $extensions = (object) ["last_checked" => $now, "checked" => [], "response" => [], "no_update" => [], "translations" => []]; set_site_transient("update_core", $core, DAY_IN_SECONDS); set_site_transient("update_plugins", $extensions, DAY_IN_SECONDS); set_site_transient("update_themes", $extensions, DAY_IN_SECONDS); echo "offline-update-transients-ok";'
-  install_offline_translation_guard() {
-    wp_cmd eval '$directory = WP_CONTENT_DIR . "/mu-plugins"; if (!is_dir($directory) && !mkdir($directory, 0755, true)) { exit(1); } $code = "<?php\nadd_filter( \"translations_api\", static fn () => array( \"translations\" => array() ) );\n"; if (file_put_contents($directory . "/gama-offline-translation-harness.php", $code) === false) { exit(1); } echo "offline-translation-guard-installed";' | grep -Fx 'offline-translation-guard-installed'
+  install_offline_request_guard() {
+    local guard_source guard_encoded
+    guard_source='<?php
+add_filter( "translations_api", static fn () => array( "translations" => array() ) );
+add_filter(
+	"pre_http_request",
+	static function( $preempt, $args, $url ) {
+		if (
+			! is_string( $url )
+			|| "api.wordpress.org" !== wp_parse_url( $url, PHP_URL_HOST )
+			|| ( ! str_contains( $url, "/plugins/update-check/1.1/" ) && ! str_contains( $url, "/themes/update-check/1.1/" ) )
+		) {
+			return $preempt;
+		}
+
+		return array(
+			"headers"  => array(),
+			"body"     => "{\"plugins\":[],\"themes\":[],\"no_update\":[],\"translations\":[]}",
+			"response" => array(
+				"code"    => 200,
+				"message" => "OK",
+			),
+			"cookies"  => array(),
+			"filename" => null,
+		);
+	},
+	10,
+	3
+);
+'
+    guard_encoded="$(printf '%s' "$guard_source" | base64 | tr -d '\n')"
+    [[ -n "$guard_encoded" ]]
+    wp_cmd eval '$directory = WP_CONTENT_DIR . "/mu-plugins"; if (!is_dir($directory) && !mkdir($directory, 0755, true)) { exit(1); } $code = base64_decode("'"$guard_encoded"'", true); if (!is_string($code) || !str_starts_with($code, "<?php") || file_put_contents($directory . "/gama-offline-request-harness.php", $code) === false) { exit(1); } echo "offline-request-guard-installed";' | grep -Fx 'offline-request-guard-installed'
+    wp_cmd eval '$urls = ["https://api.wordpress.org/plugins/update-check/1.1/", "https://api.wordpress.org/themes/update-check/1.1/"]; foreach ($urls as $url) { $response = wp_remote_post($url); $body = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response), true); if (200 !== wp_remote_retrieve_response_code($response) || !is_array($body) || [] !== ($body["plugins"] ?? null) || [] !== ($body["themes"] ?? null) || [] !== ($body["no_update"] ?? null) || [] !== ($body["translations"] ?? null)) { exit(1); } } echo "offline-request-guard-ok";' | grep -Fx 'offline-request-guard-ok'
   }
-  remove_offline_translation_guard() {
-    wp_cmd eval '$file = WP_CONTENT_DIR . "/mu-plugins/gama-offline-translation-harness.php"; if (is_file($file) && !unlink($file)) { exit(1); } echo "offline-translation-guard-removed";' | grep -Fx 'offline-translation-guard-removed'
+  remove_offline_request_guard() {
+    wp_cmd eval '$file = WP_CONTENT_DIR . "/mu-plugins/gama-offline-request-harness.php"; if (is_file($file) && !unlink($file)) { exit(1); } echo "offline-request-guard-removed";' | grep -Fx 'offline-request-guard-removed'
+  }
+  prime_offline_theme_update_cache() {
+    # A local WP-CLI ZIP install clears this cache but does not rebuild its checked-theme map.
+    wp_cmd eval 'require_once ABSPATH . "wp-admin/includes/update.php"; wp_update_themes(); $current = get_site_transient("update_themes"); if (!is_object($current) || !isset($current->last_checked) || !is_array($current->checked ?? null) || !array_key_exists("gama-software", $current->checked)) { exit(1); } echo "offline-theme-update-cache-primed";' | grep -Fx 'offline-theme-update-cache-primed'
   }
   wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
-  install_offline_translation_guard
+  install_offline_request_guard
   wp_cmd theme install /package/gama-software.zip --force
-  remove_offline_translation_guard
+  prime_offline_theme_update_cache
+  remove_offline_request_guard
   wp_cmd theme activate gama-software
   wp_cmd theme get gama-software --field=version | grep -Fx "$package_version"
 
@@ -322,7 +359,7 @@ if [[ "$package_kind" == theme ]]; then
 $fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 $root = realpath(get_theme_root("gama-software") . "/gama-software");
 if ($root !== WP_CONTENT_DIR . "/themes/gama-software") { $fail("Theme is not at the exact installed ZIP path"); }
-foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "parts/header.html", "patterns/not-found.php"] as $file) {
+foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "parts/header.html", "patterns/hero.php", "patterns/not-found.php"] as $file) {
     $path = realpath($root . "/" . $file);
     if ($path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR)) { $fail("Runtime file escaped installed theme: " . $file); }
 }
@@ -330,6 +367,11 @@ $walk = static function (array $blocks, string $source) use (&$walk, $fail): voi
     foreach ($blocks as $block) {
         if (($block["blockName"] ?? null) === null) {
             if (trim((string) ($block["innerHTML"] ?? "")) !== "") { $fail("Non-block fragment in " . $source); }
+        } elseif (($block["blockName"] ?? null) === "core/pattern") {
+            $slug = $block["attrs"]["slug"] ?? null;
+            $pattern = is_string($slug) ? WP_Block_Patterns_Registry::get_instance()->get_registered($slug) : null;
+            if (!is_array($pattern) || empty($pattern["content"])) { $fail("Unresolved pattern reference in " . $source); }
+            $walk(parse_blocks($pattern["content"]), "expanded pattern " . $slug);
         } else {
             if (!WP_Block_Type_Registry::get_instance()->is_registered($block["blockName"])) { $fail("Unregistered block " . $block["blockName"] . " in " . $source); }
             $walk($block["innerBlocks"] ?? [], $source);
@@ -349,6 +391,12 @@ if (!str_contains($rendered_search, "GSWEB12 localized search")) { $fail("Core-l
 $pattern = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/not-found");
 if (!is_array($pattern) || empty($pattern["content"])) { $fail("Theme pattern was not registered"); }
 $walk(parse_blocks($pattern["content"]), "registered pattern");
+$hero = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/hero");
+if (!is_array($hero) || empty($hero["content"]) || ($hero["inserter"] ?? null) !== true) { $fail("Editable Hero pattern was not registered in the inserter"); }
+$hero_blocks = parse_blocks($hero["content"]);
+$walk($hero_blocks, "registered Hero pattern");
+$count_h1 = static function (array $blocks) use (&$count_h1): int { $count = 0; foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/heading" && (($block["attrs"]["level"] ?? 2) === 1)) { ++$count; } $count += $count_h1($block["innerBlocks"] ?? []); } return $count; };
+if ($count_h1($hero_blocks) !== 1 || !str_contains($hero["content"], "\"url\":\"/#services\"")) { $fail("Editable Hero pattern semantics differ"); }
 echo "installed-theme-parse-and-provenance-ok";'
   wp_cmd eval "$installed_contract" | grep -Fx 'installed-theme-parse-and-provenance-ok'
 
@@ -688,13 +736,23 @@ echo "navigation-persistence-db-ok";'
   "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'
   wp_cmd eval '$response = wp_remote_get("http://wordpress/"); if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200 || !str_contains(wp_remote_retrieve_body($response), "gama-template--index")) { exit(1); } echo "index-fallback-ok";' | grep -Fx 'index-fallback-ok'
   wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
-  install_offline_translation_guard
+  install_offline_request_guard
   wp_cmd theme install /package/gama-software.zip --force
-  remove_offline_translation_guard
+  prime_offline_theme_update_cache
+  remove_offline_request_guard
   restored_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   [[ "$original_hashes" == "$restored_hashes" ]]
 
-  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles-editor-choices global-styles-front-snapshots global-styles-editor-snapshots global-styles-focus global-styles-admin-persistence global-styles-dpr2 navigation-initial navigation-save navigation-persisted; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=hero browser "${PLAYWRIGHT_TEST[@]}" --grep @hero
+  hero_persistence_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$template = get_block_template("gama-software//front-page", "wp_template");
+if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true) { $fail("Saved Hero front-page template binding differs"); }
+$content = (string) $template->content;
+foreach (["Gama Software dla redaktora", "Edytowalny opis Hero bez wdrożenia kodu.", "Przejdź do oferty", "href=\"/#services-editor\""] as $required) { if (!str_contains($content, $required)) { $fail("Saved Hero template misses " . $required); } }
+echo "hero-persistence-db-ok";'
+  wp_cmd eval "$hero_persistence_contract" | grep -Fx 'hero-persistence-db-ok'
+
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles-editor-choices global-styles-front-snapshots global-styles-editor-snapshots global-styles-focus global-styles-admin-persistence global-styles-dpr2 navigation-initial navigation-save navigation-persisted hero; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
   debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
   runtime_output="$("${COMPOSE[@]}" logs --no-color)"
   if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi

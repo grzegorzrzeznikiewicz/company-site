@@ -7,6 +7,7 @@ lock="$ROOT_DIR/qa/e2e/package-lock.json"
 dockerfile="$ROOT_DIR/qa/browser.Dockerfile"
 global_styles_spec="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts"
 navigation_spec="$ROOT_DIR/qa/e2e/specs/header-footer-navigation.spec.ts"
+hero_spec="$ROOT_DIR/qa/e2e/specs/hero.spec.ts"
 shared_helpers="$ROOT_DIR/qa/e2e/specs/support/wordpress.ts"
 snapshot_dir="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts-snapshots"
 config="$ROOT_DIR/qa/e2e/playwright.config.ts"
@@ -24,6 +25,7 @@ grep -Fq 'mcr.microsoft.com/playwright:v1.54.2-noble@sha256:18b4bcff4f8ba0ac8c44
 grep -Fq 'npm ci --ignore-scripts' "$dockerfile"
 [[ -f "$global_styles_spec" ]]
 [[ -f "$navigation_spec" ]]
+[[ -f "$hero_spec" ]]
 [[ -f "$shared_helpers" ]]
 [[ -f "$timeout_policy" ]]
 [[ -f "$timeout_policy_contract" ]]
@@ -55,6 +57,9 @@ done
 for tag in '@navigation-initial' '@navigation-save' '@navigation-persisted'; do
   grep -Fq "$tag" "$navigation_spec"
 done
+grep -Fq '@hero' "$hero_spec"
+grep -Fq 'GAMA_PLAYWRIGHT_RUN=hero' "$test_package"
+grep -Fq -- '--grep @hero' "$test_package"
 if [[ "$(grep -Fc 'assertDocumentScrollUnlocked(page)' "$navigation_spec")" -ne 5 ]]; then
   echo 'Navigation acceptance must prove computed scroll unlock before open and after both close paths.' >&2
   exit 1
@@ -137,6 +142,8 @@ grep -Fq 'node ./specs/support/run-playwright.cjs' "$test_package"
 grep -Fq 'node ./specs/support/run-playwright.cjs' "$manifest"
 grep -Fq -- '--tsconfig' "$playwright_launcher"
 grep -Fq './timeout-policy.tsconfig.json' "$playwright_launcher"
+grep -Fq "'--update-snapshots'" "$playwright_launcher"
+grep -Fq "'--update-snapshots'" "$timeout_policy_contract"
 grep -Fq 'GAMA_PLAYWRIGHT_RUN=timeout-policy browser "${PLAYWRIGHT_TEST[@]}" --list' "$test_package"
 for variable in \
   PW_TEST_SOURCE_TRANSFORM \
@@ -147,8 +154,8 @@ for variable in \
   grep -Fq -- "-u $variable" "$manifest"
   grep -Fq "$variable" "$playwright_launcher"
 done
-if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 14 ]]; then
-  echo 'Every one of the fourteen browser runs must use the reviewed Playwright launcher.' >&2
+if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 15 ]]; then
+  echo 'Every one of the fifteen browser runs must use the reviewed Playwright launcher.' >&2
   exit 1
 fi
 if grep -Fq 'browser npx playwright test' "$test_package"; then

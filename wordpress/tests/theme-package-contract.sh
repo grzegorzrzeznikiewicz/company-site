@@ -45,6 +45,7 @@ functions.php
 languages/gama-software.pot
 parts/footer.html
 parts/header.html
+patterns/hero.php
 patterns/not-found.php
 style.css
 templates/404.html
@@ -62,7 +63,7 @@ printf '%s\n' 'gama-software/' 'gama-software/languages/' 'gama-software/parts/'
 LC_ALL=C sort -o "$fixture_dir/expected-entries.txt" "$fixture_dir/expected-entries.txt"
 unzip -Z1 "$ZIP_PATH" | LC_ALL=C sort >"$fixture_dir/actual-entries.txt"
 diff -u "$fixture_dir/expected-entries.txt" "$fixture_dir/actual-entries.txt"
-[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 23 ]]
+[[ "$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')" -eq 24 ]]
 [[ "$(zipinfo -T "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $(NF - 1) }' | LC_ALL=C sort -u)" == '20260101.000000' ]]
 if zipinfo -l "$ZIP_PATH" | awk '$NF ~ /^gama-software\// { print $1 }' | grep -Ev '^(drwxr-xr-x|-rw-r--r--)$'; then exit 1; fi
 if unzip -Z1 "$ZIP_PATH" | grep -Eq '(^/|(^|/)\.\.(/|$)|(^|/)(vendor|node_modules|tests|qa|uploads|cache|logs)(/|$)|(^|/)\.env|\.log$)'; then exit 1; fi
