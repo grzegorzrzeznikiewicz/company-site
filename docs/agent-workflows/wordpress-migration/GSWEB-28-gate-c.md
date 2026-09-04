@@ -4,7 +4,7 @@
 
 - **VERDICT: NO-GO**
 - Technical verdict for repository commit
-  `e197dc731ceb0b9fd4a992db1e917abc0bdef4fc`: **APPROVE**
+  `6f0d11f3020afd4ad332afb90487d016e6353de6`: **APPROVE**
 - Review date: 2026-09-04
 - Reviewed environment: isolated local deployment-model rehearsals plus a
   read-only probe of `staging.gama-software.com`
@@ -38,11 +38,27 @@ to run GSWEB-29 or change production traffic.
   refuses a mismatching image ID or revision.
 - The staging and backup/restore runtimes passed concurrently with dynamic
   loopback ports and separate test image/manifest names.
+- The production-model runtime passed an isolated candidate deployment, first
+  stable deployment, authenticated STARTTLS mail delivery, fail-closed invalid
+  SMTP handling, database/upload persistence and an exact-image code rollback.
+- Production promotion is manual, consumes the run-bound staging artifact and
+  immutable digest without rebuilding, and gates the stable namespace behind
+  the protected `wordpress-production-cutover` environment. A failed public
+  smoke test has an independent fail-safe route back to the legacy target.
+- Production rollback can route to the legacy target without depending on
+  WordPress, its database or backup availability. Code-only rollback preserves
+  database/uploads and requires the exact recorded previous immutable image.
+- Deployment never copies its secrets file into a release directory. Production
+  SMTP is environment-only, encrypted, rejects local/Mailpit hosts consistently
+  in both deployment validation and the first-party mail transport, and fails
+  closed instead of falling back to local PHP mail.
 - Theme, deployment, backup/restore, acceptance, CI failure-injection and
   tracked-secret contracts pass. The E2E dependency audit reports zero known
   vulnerabilities.
-- Two independent Gate C reviews found no P0. The second review closed all
-  earlier technical P1 findings and approved the implementation.
+- Three independent Gate C reviews found no P0. The final review closed all
+  technical P1 findings and approved the implementation with high confidence.
+  Its sole P2 observation (SMTP hostname-rule consistency) was fixed before
+  commit and the mail/deployment contracts plus WPCS were repeated successfully.
 
 ## Gate C blockers
 
