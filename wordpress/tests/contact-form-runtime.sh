@@ -6,11 +6,11 @@ runtime_url="${GAMA_CONTACT_RUNTIME_URL:-http://localhost:8090}"
 mailpit_url="${GAMA_CONTACT_MAILPIT_URL:-http://localhost:8027}"
 
 clear_contact_rate_limits() {
-  "$ROOT_DIR/bin/wp" eval 'global $wpdb; foreach (["_transient_gama_contact_rate_", "_transient_timeout_gama_contact_rate_"] as $prefix) { $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like($prefix) . "%")); } delete_option("gama_contact_lock_contract_ready");'
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; foreach (["_transient_gama_contact_rate_", "_transient_timeout_gama_contact_rate_"] as $prefix) { $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like($prefix) . "%")); } delete_option("gama_contact_lock_contract_ready"); delete_option("gama_contact_lock_contract_release");'
 }
 
 assert_database_lock_exclusion() {
-  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $name="gama-contact-contract"; $acquired=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)",$name,0)); if ((string)$acquired!=="1") { exit(1); } update_option("gama_contact_lock_contract_ready","1",false); sleep(4); $wpdb->get_var($wpdb->prepare("SELECT RELEASE_LOCK(%s)",$name)); delete_option("gama_contact_lock_contract_ready");' &
+  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $name="gama-contact-contract"; $release_option="gama_contact_lock_contract_release"; $acquired=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)",$name,0)); if ((string)$acquired!=="1") { exit(1); } update_option("gama_contact_lock_contract_ready","1",false); $released=false; for ($attempt=0; $attempt<300; ++$attempt) { $released=(string)$wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name=%s",$release_option))==="1"; if ($released) { break; } usleep(100000); } $wpdb->get_var($wpdb->prepare("SELECT RELEASE_LOCK(%s)",$name)); delete_option("gama_contact_lock_contract_ready"); delete_option($release_option); exit($released ? 0 : 2);' &
   local holder_pid=$!
   local ready=false
   for _ in $(seq 1 50); do
@@ -25,7 +25,12 @@ assert_database_lock_exclusion() {
     echo 'Database lock holder did not become ready.' >&2
     return 1
   fi
-  "$ROOT_DIR/bin/wp" eval 'global $wpdb; $result=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)","gama-contact-contract",1)); exit((string)$result==="0" ? 0 : 1);'
+  if ! "$ROOT_DIR/bin/wp" eval 'global $wpdb; $result=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)","gama-contact-contract",1)); exit((string)$result==="0" ? 0 : 1);'; then
+    "$ROOT_DIR/bin/wp" option update gama_contact_lock_contract_release 1 >/dev/null || true
+    wait "$holder_pid" || true
+    return 1
+  fi
+  "$ROOT_DIR/bin/wp" option update gama_contact_lock_contract_release 1 >/dev/null
   wait "$holder_pid"
   "$ROOT_DIR/bin/wp" eval 'global $wpdb; $name="gama-contact-contract"; $result=$wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, %d)",$name,0)); if ((string)$result!=="1") { exit(1); } $wpdb->get_var($wpdb->prepare("SELECT RELEASE_LOCK(%s)",$name));'
 }
