@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE=("$ROOT_DIR/bin/_compose")
+
+if [[ "$#" -ne 1 ]]; then
+  echo 'Usage: wordpress/bin/backup <new-destination-directory>' >&2
+  exit 64
+fi
+
+destination="$1"
+if [[ "$destination" != /* || -e "$destination" || -L "$destination" ]]; then
+  echo 'Backup destination must be a new absolute path.' >&2
+  exit 64
+fi
+
+parent="$(dirname "$destination")"
+[[ -d "$parent" && ! -L "$parent" ]]
+mkdir -m 0700 "$destination"
+
+cleanup_on_error() {
+  local status=$?
+  if [[ "$status" -ne 0 && -d "$destination" && ! -L "$destination" ]]; then
+    find "$destination" -type f -delete 2>/dev/null || true
+    rmdir "$destination" 2>/dev/null || true
+  fi
+  exit "$status"
+}
+trap cleanup_on_error EXIT
+
+for service in db wordpress; do
+  container="$("${COMPOSE[@]}" ps -q "$service")"
+  [[ -n "$container" ]]
+  [[ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" == healthy ]]
+done
+
+uploads_volume="$(docker volume ls \
+  --filter label=com.docker.compose.project=gama-wordpress \
+  --filter label=com.docker.compose.volume=gama-wordpress-uploads \
+  --quiet)"
+if [[ -z "$uploads_volume" || "$uploads_volume" == *$'\n'* ]]; then
+  echo 'Expected exactly one labelled Gama WordPress uploads volume.' >&2
+  exit 1
+fi
+
+"${COMPOSE[@]}" exec -T db sh -ec \
+  'exec mariadb-dump --host=127.0.0.1 --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 "$MARIADB_DATABASE"' \
+  >"$destination/database.sql"
+
+docker run --rm \
+  --network none \
+  --volume "$uploads_volume:/source:ro" \
+  --entrypoint tar \
+  wordpress:7.1.0-php8.4-apache \
+  -C /source -cf - . >"$destination/uploads.tar"
+
+wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
+wordpress_version="$(docker exec "$wordpress_container" php -r 'include "/var/www/html/wp-includes/version.php"; echo $wp_version;')"
+database_container="$("${COMPOSE[@]}" ps -q db)"
+database_image="$(docker inspect --format '{{.Config.Image}}' "$database_container")"
+git_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+created_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+printf '%s\n' \
+  'format_version=1' \
+  "created_utc=$created_utc" \
+  'source_project=gama-wordpress' \
+  "git_commit=$git_commit" \
+  "wordpress_version=$wordpress_version" \
+  "database_image=$database_image" \
+  'database_file=database.sql' \
+  'uploads_file=uploads.tar' \
+  >"$destination/manifest.txt"
+
+if command -v shasum >/dev/null 2>&1; then
+  (cd "$destination" && shasum -a 256 database.sql manifest.txt uploads.tar >SHA256SUMS)
+else
+  (cd "$destination" && sha256sum database.sql manifest.txt uploads.tar >SHA256SUMS)
+fi
+chmod 0600 "$destination"/*
+
+trap - EXIT
+echo "Backup created: $destination"
+echo "Created UTC: $created_utc"
+echo "Git commit: $git_commit"
