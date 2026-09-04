@@ -30,7 +30,7 @@ source_image="$(sed -n 's/^Image ID: //p' <<<"$build_output")"
 [[ "$source_image" =~ ^sha256:[a-f0-9]{64}$ ]]
 printf '%s\n' \
   "WORDPRESS_IMAGE=$source_image" \
-  'WORDPRESS_HTTP_PORT=18091' \
+  'WORDPRESS_HTTP_PORT=' \
   'WP_DB_NAME=gama_backup_source' \
   'WP_DB_USER=gama_backup_source' \
   'WP_DB_PASSWORD=backup-database-test-only' \

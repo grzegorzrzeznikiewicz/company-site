@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="$ROOT_DIR/runtime/Dockerfile"
 compose="$ROOT_DIR/deploy/compose.yaml"
+build_release="$ROOT_DIR/bin/build-release"
 deploy="$ROOT_DIR/bin/deploy-staging"
 rollback="$ROOT_DIR/bin/rollback-staging"
 workflow="$ROOT_DIR/../.github/workflows/wordpress-staging.yml"
@@ -14,8 +15,11 @@ done
 grep -Fq 'wordpress:7.1.0-php8.4-apache@sha256:' "$dockerfile"
 grep -Fq 'wordpress:cli-2.12.0-php8.4@sha256:' "$dockerfile"
 grep -Fq 'org.opencontainers.image.revision' "$dockerfile"
+grep -Fq 'test-$marker-sha-$git_sha' "$build_release"
+grep -Fq 'gama-wordpress-test-$marker-sha-$git_sha.manifest.txt' "$build_release"
 grep -Fq 'mariadb:10.11.18-jammy@sha256:' "$compose"
 grep -Fq '${WORDPRESS_IMAGE:?immutable image digest required}' "$compose"
+grep -Fq '${WORDPRESS_HTTP_PORT-8080}' "$compose"
 grep -Fq 'database:/var/lib/mysql' "$compose"
 grep -Fq 'uploads:/var/www/html/wp-content/uploads' "$compose"
 grep -Fq 'uploads:/uploads' "$compose"
@@ -27,6 +31,12 @@ grep -Fq 'gama-wp-staging-' "$rollback"
 grep -Fq 'GAMA_ROLLBACK_BASE_REF' "$ROOT_DIR/tests/staging-rollback-runtime.sh"
 grep -Fq 'archive "$base_commit"' "$ROOT_DIR/tests/staging-rollback-runtime.sh"
 grep -Fq 'org.opencontainers.image.revision' "$ROOT_DIR/tests/staging-rollback-runtime.sh"
+grep -Fq 'WORDPRESS_HTTP_PORT=' "$ROOT_DIR/tests/staging-rollback-runtime.sh"
+grep -Fq 'WORDPRESS_HTTP_PORT=' "$ROOT_DIR/tests/backup-restore-runtime.sh"
+if grep -Eq 'WORDPRESS_HTTP_PORT=1809[01]' "$ROOT_DIR/tests/staging-rollback-runtime.sh" "$ROOT_DIR/tests/backup-restore-runtime.sh"; then
+  echo 'Parallel runtime tests must not reserve fixed host ports.' >&2
+  exit 1
+fi
 grep -Fq "gh run list --workflow 'WordPress Quality Gates'" "$workflow"
 grep -Fq 'STAGING_GHCR_TOKEN' "$workflow"
 grep -Fq 'environment: wordpress-staging' "$workflow"

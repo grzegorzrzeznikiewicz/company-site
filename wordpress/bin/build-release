@@ -12,6 +12,10 @@ elif [[ "$#" -ne 0 ]]; then
   echo 'Usage: wordpress/bin/build-release [--test-dirty <marker>]' >&2
   exit 64
 fi
+if [[ ! "$marker" =~ ^[a-z0-9][a-z0-9._-]{0,40}$ ]]; then
+  echo 'Release marker must be a safe lowercase image-tag component.' >&2
+  exit 64
+fi
 
 if [[ "$allow_dirty" == false && -n "$(git -C "$REPOSITORY_ROOT" status --porcelain)" ]]; then
   echo 'Release image requires a clean Git worktree.' >&2
@@ -19,7 +23,13 @@ if [[ "$allow_dirty" == false && -n "$(git -C "$REPOSITORY_ROOT" status --porcel
 fi
 
 git_sha="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD)"
-tag="gama-wordpress:sha-$git_sha"
+if [[ "$allow_dirty" == true ]]; then
+  tag="gama-wordpress:test-$marker-sha-$git_sha"
+  manifest="$ROOT_DIR/dist/gama-wordpress-test-$marker-sha-$git_sha.manifest.txt"
+else
+  tag="gama-wordpress:sha-$git_sha"
+  manifest="$ROOT_DIR/dist/gama-wordpress-sha-$git_sha.manifest.txt"
+fi
 DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
   --file "$ROOT_DIR/runtime/Dockerfile" \
   --build-arg "GAMA_GIT_SHA=$git_sha" \
@@ -28,7 +38,6 @@ DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker bui
   "$REPOSITORY_ROOT"
 
 image_id="$(docker image inspect --format '{{.Id}}' "$tag")"
-manifest="$ROOT_DIR/dist/gama-wordpress-sha-$git_sha.manifest.txt"
 mkdir -p "$ROOT_DIR/dist"
 printf '%s\n' \
   'format_version=1' \

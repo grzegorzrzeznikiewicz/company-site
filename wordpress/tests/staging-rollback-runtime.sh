@@ -31,7 +31,7 @@ write_env() {
   local image="$1"
   printf '%s\n' \
     "WORDPRESS_IMAGE=$image" \
-    'WORDPRESS_HTTP_PORT=18090' \
+    'WORDPRESS_HTTP_PORT=' \
     'WP_DB_NAME=gama_staging' \
     'WP_DB_USER=gama_staging' \
     'WP_DB_PASSWORD=staging-database-test-only' \
