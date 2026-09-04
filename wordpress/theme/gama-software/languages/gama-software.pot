@@ -212,6 +212,40 @@ msgstr ""
 msgid "Opcjonalny cytat lub najważniejszy wniosek."
 msgstr ""
 
+#: patterns/contact.php
+msgctxt "Pattern title"
+msgid "Gama Software Contact"
+msgstr ""
+
+#: patterns/contact.php
+msgctxt "Pattern description"
+msgid "Editable contact details and a replaceable form slot."
+msgstr ""
+
+#: patterns/contact.php:17
+msgid "Kontakt"
+msgstr ""
+
+#: patterns/contact.php:24
+msgid "Porozmawiajmy o Twoim projekcie"
+msgstr ""
+
+#: patterns/contact.php:25
+msgid "Opisz krótko swoje potrzeby. Odpowiemy i zaproponujemy najlepszy następny krok."
+msgstr ""
+
+#: patterns/contact.php:26
+msgid "E-mail:"
+msgstr ""
+
+#: patterns/contact.php:27
+msgid "Napisz e-mail"
+msgstr ""
+
+#: patterns/contact.php:32
+msgid "Formularz kontaktowy zostanie wyświetlony po aktywowaniu wtyczki Gama Contact."
+msgstr ""
+
 #: patterns/hero.php
 msgctxt "Pattern title"
 msgid "Gama Software Hero"

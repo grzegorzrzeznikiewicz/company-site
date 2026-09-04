@@ -5,6 +5,7 @@
 - Add an editable Core-block services Grid pattern with reusable responsive cards and local decorative icons.
 - Add the complete editable Magento modules offer with semantic feature lists, optional card links and a removable contact CTA.
 - Launch the native WordPress blog with responsive Query Loop cards, pagination, an editable latest-post section and a semantic single-article template.
+- Add the editable Contact section, real e-mail action and a replaceable form slot with a controlled plugin-inactive state.
 
 ## 0.3.0 - 2026-09-03
 

@@ -350,6 +350,52 @@ html {
 	border-top: 1px solid var(--wp--preset--color--border-subtle);
 }
 
+.gama-contact {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-contact__content,
+.gama-contact__details,
+.gama-contact__form-slot {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--lg);
+}
+
+.gama-contact__content > *,
+.gama-contact__details > *,
+.gama-contact__form-slot > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-contact__card {
+	max-width: 64rem;
+	margin-right: auto;
+	margin-left: auto;
+	padding: clamp(1.5rem, 5vw, 3rem);
+	border: 1px solid var(--wp--preset--color--border-subtle);
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-contact__layout {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+	gap: clamp(2rem, 5vw, 4rem);
+	align-items: start;
+}
+
+.gama-contact__form-slot {
+	min-width: 0;
+	min-height: 16rem;
+	padding: var(--wp--preset--spacing--xl);
+	justify-content: center;
+	border-radius: var(--wp--custom--radius--card);
+	background-color: var(--wp--preset--color--surface-subtle);
+}
+
 .gama-site-footer__inner,
 .gama-footer-navigation,
 .gama-footer-navigation .wp-block-navigation__container {

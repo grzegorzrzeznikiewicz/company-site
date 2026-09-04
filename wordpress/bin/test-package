@@ -369,7 +369,7 @@ add_filter(
 $fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 $root = realpath(get_theme_root("gama-software") . "/gama-software");
 if ($root !== WP_CONTENT_DIR . "/themes/gama-software") { $fail("Theme is not at the exact installed ZIP path"); }
-foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "templates/home.html", "templates/single.html", "parts/header.html", "patterns/article.php", "patterns/hero.php", "patterns/not-found.php", "patterns/services.php", "patterns/modules.php", "assets/icons/service-ai.svg", "assets/icons/service-consulting.svg", "assets/icons/service-ecommerce.svg", "assets/icons/module-package.svg"] as $file) {
+foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "templates/home.html", "templates/single.html", "parts/header.html", "patterns/article.php", "patterns/contact.php", "patterns/hero.php", "patterns/not-found.php", "patterns/services.php", "patterns/modules.php", "assets/icons/service-ai.svg", "assets/icons/service-consulting.svg", "assets/icons/service-ecommerce.svg", "assets/icons/module-package.svg"] as $file) {
     $path = realpath($root . "/" . $file);
     if ($path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR)) { $fail("Runtime file escaped installed theme: " . $file); }
 }
@@ -728,6 +728,7 @@ echo $page_id . "," . $single_id;')"
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=services browser "${PLAYWRIGHT_TEST[@]}" --grep @services
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=modules browser "${PLAYWRIGHT_TEST[@]}" --grep @modules
   "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=blog browser "${PLAYWRIGHT_TEST[@]}" --grep @blog
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=contact-section browser "${PLAYWRIGHT_TEST[@]}" --grep @contact-section
 
   installed_theme_hashes_before="$(theme_file_hashes)"
   [[ "$installed_theme_hashes_before" == "$archive_theme_hashes" ]]
@@ -823,7 +824,7 @@ foreach (["Gama Software dla redaktora", "Edytowalny opis Hero bez wdrożenia ko
 echo "hero-persistence-db-ok";'
   wp_cmd eval "$hero_persistence_contract" | grep -Fx 'hero-persistence-db-ok'
 
-  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles-editor-choices global-styles-front-snapshots global-styles-editor-snapshots global-styles-focus global-styles-admin-persistence global-styles-dpr2 services modules blog navigation-initial navigation-save navigation-persisted hero; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles-editor-choices global-styles-front-snapshots global-styles-editor-snapshots global-styles-focus global-styles-admin-persistence global-styles-dpr2 services modules blog contact-section navigation-initial navigation-save navigation-persisted hero; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
   debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
   runtime_output="$("${COMPOSE[@]}" logs --no-color)"
   if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi

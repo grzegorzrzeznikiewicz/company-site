@@ -103,4 +103,16 @@ starter without locking the post. When no article is published, both query
 locations display the intentional **W budowie** state instead of an empty or
 broken grid. Draft, private and future-scheduled posts are never public.
 
+## Editing the Contact section
+
+The Contact section is made from direct, unlocked Core blocks in the Front Page
+template. Editors can change the heading, helper text, e-mail link, add an
+optional telephone link or CTA, and move or replace the entire form slot. The
+separate **Gama Software Contact** pattern provides the same starter structure.
+
+The `gama-contact__form-slot` Group is the stable presentation boundary for a
+theme-independent form block. Before the form plugin is active it displays a
+controlled explanatory message, while the real `mailto:` action remains
+usable. Form processing, validation and anti-spam never belong in the theme.
+
 License: GPL-2.0-or-later.

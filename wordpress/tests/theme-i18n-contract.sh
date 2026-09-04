@@ -68,6 +68,8 @@ grep -Fq 'msgid "Advanced SEO Suite"' "$generated_pot"
 grep -Fq 'msgid "Monitoring wydajności"' "$generated_pot"
 grep -Fq 'msgid "Gama Software Article Starter"' "$generated_pot"
 grep -Fq 'msgid "Pierwsza część artykułu"' "$generated_pot"
+grep -Fq 'msgid "Gama Software Contact"' "$generated_pot"
+grep -Fq 'msgid "Porozmawiajmy o Twoim projekcie"' "$generated_pot"
 grep -Fq '"POT-Creation-Date: \n"' "$generated_pot"
 cmp "$generated_pot" "$THEME_DIR/languages/gama-software.pot"
 
