@@ -113,6 +113,10 @@ html {
 	padding: .75rem 2rem;
 }
 
+.wp-block-button:not(.is-style-outline) .wp-block-button__link {
+	color: var(--wp--preset--color--base) !important;
+}
+
 .gama-services {
 	padding-top: clamp(4rem, 7vw, 5rem);
 	padding-bottom: clamp(4rem, 7vw, 5rem);

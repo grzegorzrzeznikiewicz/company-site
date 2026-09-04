@@ -210,6 +210,8 @@ $required_css = array(
 	'outline: 3px solid var(--wp--preset--color--accent)',
 	'outline-offset: 3px',
 	'box-shadow: 0 0 0 2px var(--wp--preset--color--base)',
+	'.wp-block-button:not(.is-style-outline) .wp-block-button__link',
+	'color: var(--wp--preset--color--base) !important',
 	'max-width: 100%',
 	'height: auto',
 	'overflow-wrap: anywhere',

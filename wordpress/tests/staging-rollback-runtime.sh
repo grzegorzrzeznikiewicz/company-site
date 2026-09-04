@@ -70,6 +70,9 @@ docker exec "$wordpress_container" php -r '$html=file_get_contents("http://127.0
 "${COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap eval "exit(wp_mail('sink@example.test','GSWEB26 staging sink','$marker') ? 0 : 1);" --allow-root
 mailpit_container="$("${COMPOSE[@]}" ps -q mailpit)"
 docker exec "$mailpit_container" wget --quiet --output-document=- http://127.0.0.1:8025/api/v1/messages | grep -Fq "$marker"
+GAMA_STAGING_PROJECT="$project" \
+  GAMA_RELEASE_ARTIFACT_ROOT="${GAMA_RELEASE_ARTIFACT_ROOT:-$fixture/evidence}" \
+  "$ROOT_DIR/tests/release-regression-runtime.sh"
 
 write_env "$base_image"
 "$ROOT_DIR/bin/rollback-staging" --project "$project" --env-file "$env_file" --confirm

@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.54.2-noble@sha256:18b4bcff4f8ba0ac8c44b09f09def6a4f6cb8579e5f26381c21f38b50935d5d8
+FROM mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
 
 WORKDIR /tests
 COPY wordpress/qa/e2e/package.json wordpress/qa/e2e/package-lock.json ./

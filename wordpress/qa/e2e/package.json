@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "22.*"
+    "node": "24.*"
   },
   "devDependencies": {
-    "@playwright/test": "1.54.2"
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1"
   },
   "scripts": {
     "test": "env -u PW_TEST_SOURCE_TRANSFORM -u PW_TEST_SOURCE_TRANSFORM_SCOPE -u PW_TEST_REPORTER -u PWDEBUG sh -c 'node ./specs/support/timeout-policy-contract.cjs && node ./specs/support/run-playwright.cjs \"$@\"' --"

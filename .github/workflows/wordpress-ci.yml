@@ -104,3 +104,26 @@ jobs:
       - name: Remove only CI runtime volumes
         if: ${{ always() }}
         run: wordpress/bin/reset --confirm
+
+  release-regression:
+    name: WordPress Release Regression
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v6
+
+      - name: Rehearse immutable staging and rollback
+        env:
+          GAMA_RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-release-evidence
+        run: wordpress/tests/staging-rollback-runtime.sh
+
+      - name: Upload release regression evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordpress-release-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/wordpress-release-evidence
+          if-no-files-found: error
+          retention-days: 14

@@ -4,11 +4,9 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const PLAYWRIGHT_VERSION = '1.54.2';
+const PLAYWRIGHT_VERSION = '1.62.1';
 const BABEL_BUNDLE_HASH =
-  'c4db9d9a327ec8021e2e8de7c7a7d80aa0e938f6492d353f8e01e6ffe4626169';
-const BABEL_IMPLEMENTATION_HASH =
-  '9f33f7e938337c43bd73d5240c129e47a5e6d05f3043fa455859aa76779aebd5';
+  '01511e45db7646e2a12890de8d7866caa0754c8799db6407a6345236f4bed0c4';
 const DEFAULT_TIMEOUT = 60_000;
 const SCOPED_TIMEOUT = 90_000;
 const SOURCE_EXTENSIONS = Object.freeze([
@@ -194,14 +192,7 @@ function loadPinnedAstTools() {
   }
 
   const bundleFile = path.join(packageRoot, 'lib/transform/babelBundle.js');
-  const implementationFile = path.join(
-    packageRoot,
-    'lib/transform/babelBundleImpl.js',
-  );
-  if (
-    sha256(bundleFile) !== BABEL_BUNDLE_HASH ||
-    sha256(implementationFile) !== BABEL_IMPLEMENTATION_HASH
-  ) {
+  if (sha256(bundleFile) !== BABEL_BUNDLE_HASH) {
     throw new Error(
       'Pinned Playwright AST implementation hash differs; refusing an unreviewed parser.',
     );
@@ -865,7 +856,10 @@ function validateSpecSources(sourceEntries) {
       }
       return;
     }
-    if (specifier === '@playwright/test' && kind === 'import') {
+    if (
+      kind === 'import' &&
+      ['@playwright/test', '@axe-core/playwright'].includes(specifier)
+    ) {
       return;
     }
     if (POLICY_NODE_MODULES.get(file)?.has(specifier)) {
