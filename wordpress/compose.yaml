@@ -52,8 +52,10 @@ services:
       WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
       GAMA_CONTACT_RECIPIENT: ${GAMA_CONTACT_RECIPIENT:-founders@gama-software.com}
       GAMA_CONTACT_SENDER: ${GAMA_CONTACT_SENDER:-no-reply@gama-software.com}
+      WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:-local}
       WORDPRESS_CONFIG_EXTRA: |
         define('DISALLOW_FILE_EDIT', true);
+        define('WP_ENVIRONMENT_TYPE', getenv('WP_ENVIRONMENT_TYPE') ?: 'local');
         define('GAMA_CONTACT_RECIPIENT', getenv('GAMA_CONTACT_RECIPIENT') ?: '');
         define('GAMA_CONTACT_SENDER', getenv('GAMA_CONTACT_SENDER') ?: '');
     volumes:
@@ -62,6 +64,7 @@ services:
       - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
+      - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
     depends_on:
       db:
         condition: service_healthy
@@ -92,12 +95,14 @@ services:
       WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL}
       GAMA_CONTACT_RECIPIENT: ${GAMA_CONTACT_RECIPIENT:-founders@gama-software.com}
       GAMA_CONTACT_SENDER: ${GAMA_CONTACT_SENDER:-no-reply@gama-software.com}
+      WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:-local}
     volumes:
       - gama-wordpress-core:/var/www/html
       - gama-wordpress-uploads:/var/www/html/wp-content/uploads
       - ./theme/gama-software:/var/www/html/wp-content/themes/gama-software:ro
       - ./plugins/gama-local-mailpit:/var/www/html/wp-content/plugins/gama-local-mailpit:ro
       - ./plugins/gama-contact:/var/www/html/wp-content/plugins/gama-contact:ro
+      - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
       - ./bin/bootstrap:/usr/local/bin/gama-wordpress-bootstrap:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/gama-wordpress-bootstrap"]
     depends_on:

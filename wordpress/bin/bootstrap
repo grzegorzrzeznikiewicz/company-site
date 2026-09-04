@@ -19,6 +19,7 @@ fi
 wp_cli theme activate gama-software
 wp_cli plugin activate gama-local-mailpit
 wp_cli plugin activate gama-contact
+wp_cli plugin activate gama-seo
 
 ensure_published_page() {
   slug="$1"
@@ -70,10 +71,16 @@ if ! wp_cli eval "\$post = get_post((int) '$custom_logo_id'); exit(\$post instan
   custom_logo_id="$logo_attachment_id"
 fi
 
+site_icon_id="$(wp_cli option get site_icon 2>/dev/null || true)"
+if ! wp_cli eval "\$post = get_post((int) '$site_icon_id'); exit(\$post instanceof WP_Post && 'attachment' === \$post->post_type ? 0 : 1);"; then
+  wp_cli option update site_icon "$custom_logo_id" >/dev/null
+fi
+
 wp_cli option update show_on_front page
 wp_cli option update page_on_front "$home_page_id"
 wp_cli option update page_for_posts "$blog_page_id"
 wp_cli option update permalink_structure '/%postname%/'
+wp_cli option update WPLANG pl_PL
 wp_cli rewrite flush --hard
 
 wp_cli eval '

@@ -12,12 +12,14 @@ The GSWEB-12 Gate A decision and its immutable QA inputs are in
 ```sh
 wordpress/bin/start
 wordpress/bin/validate-extensions-lock
+wordpress/tests/seo-plugin-contract.sh
+wordpress/tests/seo-runtime.sh
 wordpress/bin/package plugin gama-contact
 wordpress/tests/plugin-package-contract.sh
 wordpress/tests/package-compose-contract.sh
 wordpress/tests/test-package-input-contract.sh
 wordpress/tests/test-package-isolation-contract.sh
-wordpress/bin/test-package wordpress/dist/gama-contact-0.2.0.zip
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.0.zip
 
 wordpress/bin/package theme gama-software
 wordpress/tests/theme-contract.sh
