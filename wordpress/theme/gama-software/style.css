@@ -363,6 +363,23 @@ html {
 	gap: var(--wp--preset--spacing--lg);
 }
 
+.gama-contact__form-slot > .wp-block-shortcode {
+	display: none;
+}
+
+.gama-contact__form-slot:has(.gama-contact-form) {
+	min-height: 0;
+	justify-content: flex-start;
+}
+
+.gama-contact__form-slot:has(.gama-contact-form) > .gama-contact__form-placeholder {
+	display: none;
+}
+
+.gama-contact__form-slot:has(.gama-contact-form) > .wp-block-shortcode {
+	display: block;
+}
+
 .gama-contact__content > *,
 .gama-contact__details > *,
 .gama-contact__form-slot > * {

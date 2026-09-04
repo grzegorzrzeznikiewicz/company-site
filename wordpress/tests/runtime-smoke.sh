@@ -59,6 +59,7 @@ done
 "$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'
 "$ROOT_DIR/bin/wp" theme list --status=active --field=name | grep -Fx 'gama-software'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-local-mailpit'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-contact'
 "$ROOT_DIR/bin/wp" option get show_on_front | grep -Fx page
 "$ROOT_DIR/bin/wp" option get permalink_structure | grep -Fx '/%postname%/'
 home_page_id="$("$ROOT_DIR/bin/wp" option get page_on_front)"
@@ -88,7 +89,9 @@ assert_upload_persisted
 assert_upload_persisted
 runtime_url="http://localhost:${wp_port}"
 curl --fail --silent --show-error "$runtime_url/" >/dev/null
+curl --fail --silent --show-error "$runtime_url/" | grep -Fq 'gama-contact-form'
 curl --fail --silent --show-error "$runtime_url/blog/" | grep -Fq 'gama-template--home'
 curl --fail --silent --show-error "$runtime_url/wp-admin/" >/dev/null
 
 "$ROOT_DIR/bin/test-mail"
+GAMA_CONTACT_RUNTIME_URL="$runtime_url" GAMA_CONTACT_MAILPIT_URL="http://localhost:${MAILPIT_HTTP_PORT:-8027}" "$ROOT_DIR/tests/contact-form-runtime.sh"

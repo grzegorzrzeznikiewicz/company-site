@@ -15,7 +15,11 @@ case "$package_type:$package_slug" in
   plugin:gama-contact)
     SOURCE_DIR="$ROOT_DIR/plugins/gama-contact"
     source_git_path="wordpress/plugins/gama-contact"
-    VERSION="0.1.0"
+    VERSION="$(sed -nE 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$SOURCE_DIR/gama-contact.php")"
+    if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+      echo "Plugin file must declare exactly one strict SemVer Version header." >&2
+      exit 1
+    fi
     ;;
   theme:gama-software)
     SOURCE_DIR="$ROOT_DIR/theme/gama-software"
@@ -89,9 +93,14 @@ cat >"$expected_files" <<'EOF'
 CHANGELOG.md
 LICENSE
 README.md
+assets/contact-form.css
+assets/contact-form.js
 gama-contact.php
 languages/gama-contact.pot
 readme.txt
+src/Form/FormRenderer.php
+src/Form/SubmissionController.php
+src/Form/Validator.php
 src/Lifecycle/Activator.php
 src/Lifecycle/Deactivator.php
 src/Lifecycle/Uninstaller.php
@@ -171,7 +180,7 @@ done
 for metadata in \
   'Requires at least: 7.1' \
   'Requires PHP: 8.4' \
-  'Stable tag: 0.1.0' \
+  "Stable tag: $VERSION" \
   'License: GPL-2.0-or-later' \
   'License URI: https://www.gnu.org/licenses/gpl-2.0.html'; do
   grep -Fq "$metadata" "$SOURCE_DIR/readme.txt" || {

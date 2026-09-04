@@ -18,6 +18,7 @@ fi
 
 wp_cli theme activate gama-software
 wp_cli plugin activate gama-local-mailpit
+wp_cli plugin activate gama-contact
 
 ensure_published_page() {
   slug="$1"

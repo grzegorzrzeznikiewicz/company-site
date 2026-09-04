@@ -4,9 +4,9 @@ set -euo pipefail
 # This test catches non-portable, incomplete, or non-reproducible plugin ZIPs.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
-ZIP_PATH="$DIST_DIR/gama-contact-0.1.0.zip"
-MANIFEST_PATH="$DIST_DIR/gama-contact-0.1.0.manifest.txt"
-SHA_PATH="$DIST_DIR/gama-contact-0.1.0.zip.sha256"
+ZIP_PATH="$DIST_DIR/gama-contact-0.2.0.zip"
+MANIFEST_PATH="$DIST_DIR/gama-contact-0.2.0.manifest.txt"
+SHA_PATH="$DIST_DIR/gama-contact-0.2.0.zip.sha256"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-package-contract.XXXXXX")"
 plugin_source="$ROOT_DIR/plugins/gama-contact"
 owned_source_paths=()
@@ -90,11 +90,18 @@ gama-contact/
 gama-contact/CHANGELOG.md
 gama-contact/LICENSE
 gama-contact/README.md
+gama-contact/assets/
+gama-contact/assets/contact-form.css
+gama-contact/assets/contact-form.js
 gama-contact/gama-contact.php
 gama-contact/languages/
 gama-contact/languages/gama-contact.pot
 gama-contact/readme.txt
 gama-contact/src/
+gama-contact/src/Form/
+gama-contact/src/Form/FormRenderer.php
+gama-contact/src/Form/SubmissionController.php
+gama-contact/src/Form/Validator.php
 gama-contact/src/Lifecycle/
 gama-contact/src/Lifecycle/Activator.php
 gama-contact/src/Lifecycle/Deactivator.php
@@ -110,8 +117,8 @@ LC_ALL=C sort "$expected_entries" -o "$expected_entries"
 diff -u "$expected_entries" "$fixture_dir/actual-entries.txt"
 
 entry_count="$(unzip -Z1 "$ZIP_PATH" | wc -l | tr -d ' ')"
-if [[ "$entry_count" -ne 17 ]]; then
-  echo "Expected 17 normalized archive entries; found $entry_count." >&2
+if [[ "$entry_count" -ne 24 ]]; then
+  echo "Expected 24 normalized archive entries; found $entry_count." >&2
   exit 1
 fi
 
@@ -135,11 +142,11 @@ if unzip -Z1 "$ZIP_PATH" | cut -d/ -f1 | LC_ALL=C sort -u | grep -Fvx 'gama-cont
   exit 1
 fi
 
-unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Version: 0.1.0'
+unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Version: 0.2.0'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Requires at least: 7.1'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'Requires PHP: 8.4'
 unzip -p "$ZIP_PATH" gama-contact/gama-contact.php | grep -F 'License: GPL-2.0-or-later'
-unzip -p "$ZIP_PATH" gama-contact/readme.txt | grep -F 'Stable tag: 0.1.0'
+unzip -p "$ZIP_PATH" gama-contact/readme.txt | grep -F 'Stable tag: 0.2.0'
 unzip -p "$ZIP_PATH" gama-contact/LICENSE | grep -F 'GNU GENERAL PUBLIC LICENSE'
 
 LC_ALL=C sort -c "$MANIFEST_PATH"

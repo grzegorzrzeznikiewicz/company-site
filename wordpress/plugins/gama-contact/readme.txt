@@ -3,16 +3,17 @@ Contributors: gamasoftware
 Tags: contact
 Requires at least: 7.1
 Requires PHP: 8.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Theme-independent lifecycle scaffold for future Gama Software contact functionality.
+Theme-independent and secure Gama Software contact form.
 
 == Description ==
 
-Version 0.1.0 establishes the reusable plugin boundary only. It does not add a
-form, mail delivery, REST routes, blocks, cron jobs, roles, content, or settings.
+Version 0.2.0 adds an accessible shortcode form, server validation, same-origin
+nonce checks, honeypot protection, per-IP rate limiting, and WordPress mail
+delivery without storing message content.
 
 == Installation ==
 
@@ -22,3 +23,6 @@ Install the versioned ZIP in WordPress and activate Gama Contact.
 
 = 0.1.0 =
 * Add the dependency-free lifecycle scaffold.
+
+= 0.2.0 =
+* Add the secure contact form and environment-configured mail delivery.

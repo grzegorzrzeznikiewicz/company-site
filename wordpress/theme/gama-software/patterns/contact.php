@@ -30,6 +30,7 @@
 				<!-- wp:group {"className":"gama-contact__form-slot","layout":{"type":"constrained"}} -->
 				<div class="wp-block-group gama-contact__form-slot">
 					<!-- wp:paragraph {"className":"gama-contact__form-placeholder","align":"center","textColor":"text-muted"} --><p class="has-text-align-center gama-contact__form-placeholder has-text-muted-color has-text-color"><?php esc_html_e( 'Formularz kontaktowy zostanie wyświetlony po aktywowaniu wtyczki Gama Contact.', 'gama-software' ); ?></p><!-- /wp:paragraph -->
+					<!-- wp:shortcode -->[gama_contact_form]<!-- /wp:shortcode -->
 				</div>
 				<!-- /wp:group -->
 			</div>

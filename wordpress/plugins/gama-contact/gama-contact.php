@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Gama Contact
- * Description: Theme-independent lifecycle scaffold for future Gama Software contact functionality.
- * Version: 0.1.0
+ * Description: Theme-independent, secure contact form for Gama Software.
+ * Version: 0.2.0
  * Requires at least: 7.1
  * Requires PHP: 8.4
  * License: GPL-2.0-or-later
@@ -20,7 +20,7 @@ use GamaSoftware\Contact\Lifecycle\Deactivator;
 
 defined('ABSPATH') || exit;
 
-define('GAMA_CONTACT_VERSION', '0.1.0');
+define('GAMA_CONTACT_VERSION', '0.2.0');
 define('GAMA_CONTACT_FILE', __FILE__);
 define('GAMA_CONTACT_PATH', plugin_dir_path(__FILE__));
 define('GAMA_CONTACT_URL', plugin_dir_url(__FILE__));
@@ -28,6 +28,9 @@ define('GAMA_CONTACT_URL', plugin_dir_url(__FILE__));
 require_once GAMA_CONTACT_PATH . 'src/Lifecycle/Activator.php';
 require_once GAMA_CONTACT_PATH . 'src/Lifecycle/Deactivator.php';
 require_once GAMA_CONTACT_PATH . 'src/Support/I18n.php';
+require_once GAMA_CONTACT_PATH . 'src/Form/Validator.php';
+require_once GAMA_CONTACT_PATH . 'src/Form/FormRenderer.php';
+require_once GAMA_CONTACT_PATH . 'src/Form/SubmissionController.php';
 require_once GAMA_CONTACT_PATH . 'src/Plugin.php';
 
 register_activation_hook(GAMA_CONTACT_FILE, [Activator::class, 'activate']);

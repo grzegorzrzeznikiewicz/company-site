@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "$#" -ne 1 ]]; then
-  echo "Usage: wordpress/bin/test-package <gama-contact-0.1.0.zip|gama-software-X.Y.Z.zip>" >&2
+  echo "Usage: wordpress/bin/test-package <gama-contact-X.Y.Z.zip|gama-software-X.Y.Z.zip>" >&2
   exit 64
 fi
 
@@ -18,9 +18,13 @@ fi
 zip_path="$zip_dir/$(basename "$1")"
 artifact_name="$(basename "$zip_path")"
 case "$artifact_name" in
-  gama-contact-0.1.0.zip)
+  gama-contact-*.zip)
+    if [[ ! "$artifact_name" =~ ^gama-contact-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))\.zip$ ]]; then
+      echo "Unsupported package artifact: $artifact_name" >&2
+      exit 64
+    fi
     package_kind=plugin
-    package_version=0.1.0
+    package_version="${BASH_REMATCH[1]}"
     project_prefix=gama-package
     COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
     site_url=http://gama-package.test
@@ -841,7 +845,7 @@ fi
 
 wp_cmd plugin install /package/gama-contact.zip
 wp_cmd plugin is-installed gama-contact
-wp_cmd plugin get gama-contact --field=version | grep -Fx '0.1.0'
+wp_cmd plugin get gama-contact --field=version | grep -Fx "$package_version"
 
 lifecycle_php='require_once ABSPATH . "wp-admin/includes/plugin.php";
 global $wpdb, $wp_filter;
@@ -858,15 +862,18 @@ $before = $snapshot();
 $before_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("gama_contact_") . "%"));
 if ($before_options !== []) { $fail("Unexpected pre-existing gama-contact options"); }
 $mail_calls = 0;
-add_filter("pre_wp_mail", static function ($return) use (&$mail_calls) { ++$mail_calls; return true; });
+$activation_mail_probe = static function ($return) use (&$mail_calls) { ++$mail_calls; return true; };
+add_filter("pre_wp_mail", $activation_mail_probe);
 $result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
 if (is_wp_error($result)) { $fail($result->get_error_message()); }
+remove_filter("pre_wp_mail", $activation_mail_probe);
+if ($mail_calls !== 0) { $fail("Plugin attempted to send mail during activation"); }
 if ((string) get_option("gama_contact_schema_version") !== "1") { $fail("Activation did not write schema version 1"); }
 if (!is_plugin_active("gama-contact/gama-contact.php")) { $fail("Plugin is not active"); }
 $main_file = realpath(WP_PLUGIN_DIR . "/gama-contact/gama-contact.php");
 if ($main_file !== WP_PLUGIN_DIR . "/gama-contact/gama-contact.php") { $fail("Plugin main file is not at the exact installed path"); }
 $installed = realpath(WP_PLUGIN_DIR . "/gama-contact") . DIRECTORY_SEPARATOR;
-foreach (["GamaSoftware\\Contact\\Plugin", "GamaSoftware\\Contact\\Lifecycle\\Activator", "GamaSoftware\\Contact\\Lifecycle\\Deactivator", "GamaSoftware\\Contact\\Support\\I18n"] as $class) {
+foreach (["GamaSoftware\\Contact\\Plugin", "GamaSoftware\\Contact\\Lifecycle\\Activator", "GamaSoftware\\Contact\\Lifecycle\\Deactivator", "GamaSoftware\\Contact\\Support\\I18n", "GamaSoftware\\Contact\\Form\\Validator", "GamaSoftware\\Contact\\Form\\FormRenderer", "GamaSoftware\\Contact\\Form\\SubmissionController"] as $class) {
     $file = realpath((new ReflectionClass($class))->getFileName());
     if ($file === false || !str_starts_with($file, $installed)) { $fail("Class loaded outside installed ZIP: " . $class); }
 }
@@ -887,21 +894,59 @@ foreach (($wp_filter["init"]->callbacks ?? []) as $callbacks) {
 }
 if ($init_callbacks !== 1 || $init_callbacks_after !== 1) { $fail("Plugin hooks were not registered exactly once"); }
 $blocks = array_filter(WP_Block_Type_Registry::get_instance()->get_all_registered(), static fn ($name) => str_starts_with((string) $name, "gama-software/"), ARRAY_FILTER_USE_KEY);
-if ($blocks !== []) { $fail("Scaffold registered a block"); }
-$routes = array_filter(array_keys(rest_get_server()->get_routes()), static fn ($route) => str_starts_with((string) $route, "/gama-contact/"));
-if ($routes !== []) { $fail("Scaffold registered a REST route"); }
+if ($blocks !== []) { $fail("Plugin registered an unexpected block"); }
+$routes = array_values(array_filter(array_keys(rest_get_server()->get_routes()), static fn ($route) => str_starts_with((string) $route, "/gama-contact/")));
+if ($routes !== ["/gama-contact/v1", "/gama-contact/v1/messages"]) { $fail("Contact REST routes differ"); }
+GamaSoftware\Contact\Form\FormRenderer::register();
 global $shortcode_tags;
-$shortcodes = array_filter(array_keys($shortcode_tags), static fn ($tag) => str_starts_with((string) $tag, "gama_contact_"));
-if ($shortcodes !== []) { $fail("Scaffold registered a shortcode"); }
+$shortcodes = array_values(array_filter(array_keys($shortcode_tags), static fn ($tag) => str_starts_with((string) $tag, "gama_contact_")));
+if ($shortcodes !== ["gama_contact_form"]) { $fail("Contact shortcode differs"); }
+$form = do_shortcode("[gama_contact_form]");
+foreach (["<form", "name=\"name\"", "name=\"email\"", "name=\"phone\"", "name=\"message\"", "aria-live=\"polite\""] as $required) { if (!str_contains($form, $required)) { $fail("Rendered form misses " . $required); } }
+if (!wp_style_is("gama-contact-form", "enqueued") || !wp_script_is("gama-contact-form", "enqueued")) { $fail("Form assets were not enqueued"); }
+$make_request = static function (array $params, string $address): WP_REST_Request {
+    $_SERVER["REMOTE_ADDR"] = $address;
+    $request = new WP_REST_Request("POST", "/gama-contact/v1/messages");
+    $request->set_header("Origin", home_url("/"));
+    $request->set_header("X-Gama-Contact-Nonce", wp_create_nonce("gama_contact_submit"));
+    $request->set_header("Content-Type", "application/json");
+    $request->set_body(wp_json_encode($params));
+    return $request;
+};
+$valid = ["name"=>"Jan Kowalski", "email"=>"jan@example.test", "phone"=>"+48 500 600 700", "message"=>"GSWEB20 package marker"];
+$invalid = GamaSoftware\Contact\Form\SubmissionController::submit($make_request(["name"=>"Jan", "email"=>"bad", "phone"=>"", "message"=>""], "192.0.2.20"));
+if (!$invalid instanceof WP_REST_Response || $invalid->get_status() !== 422 || array_keys($invalid->get_data()["field_errors"] ?? []) !== ["email","phone","message"]) { $fail("Field validation response differs"); }
+$mail_payload = null;
+$mail_return = true;
+$mail_probe = static function ($return, array $attributes) use (&$mail_calls, &$mail_payload, &$mail_return) { ++$mail_calls; $mail_payload = $attributes; return $mail_return; };
+add_filter("pre_wp_mail", $mail_probe, 20, 2);
+$sent = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid, "192.0.2.21"));
+if (!$sent instanceof WP_REST_Response || $sent->get_status() !== 200 || $mail_calls !== 1 || !str_contains((string) ($mail_payload["message"] ?? ""), "GSWEB20 package marker") || !str_contains(implode("\n", (array) ($mail_payload["headers"] ?? [])), "Reply-To: Jan Kowalski <jan@example.test>")) { $fail("Successful mail delivery differs"); }
+$trap = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid + ["company"=>"bot"], "192.0.2.22"));
+if (!$trap instanceof WP_REST_Response || $trap->get_status() !== 200 || $mail_calls !== 1) { $fail("Honeypot did not absorb submission"); }
+$mail_return = false;
+$transport = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid, "192.0.2.23"));
+if (!$transport instanceof WP_Error || $transport->get_error_code() !== "gama_contact_delivery" || ($transport->get_error_data()["status"] ?? null) !== 503 || $mail_calls !== 2) { $fail("Transport failure response differs"); }
+$mail_return = true;
+for ($attempt=1; $attempt<=6; ++$attempt) {
+    $limited = GamaSoftware\Contact\Form\SubmissionController::submit($make_request(["name"=>"", "email"=>"", "phone"=>"", "message"=>""], "192.0.2.24"));
+    if ($attempt <= 5 && (!$limited instanceof WP_REST_Response || $limited->get_status() !== 422)) { $fail("Rate-limit setup response differs"); }
+}
+if (!$limited instanceof WP_Error || $limited->get_error_code() !== "gama_contact_rate_limited" || ($limited->get_error_data()["status"] ?? null) !== 429) { $fail("Rate limit did not reject sixth attempt"); }
+$stored_marker = $wpdb->get_var($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_value LIKE %s LIMIT 1", "%" . $wpdb->esc_like("GSWEB20 package marker") . "%"));
+if ($stored_marker !== null) { $fail("Message content was persisted in options"); }
+remove_filter("pre_wp_mail", $mail_probe, 20);
+$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("_transient_gama_contact_rate_") . "%"));
+$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("_transient_timeout_gama_contact_rate_") . "%"));
 update_option("gama_contact_schema_version", 77, false);
 deactivate_plugins("gama-contact/gama-contact.php", true);
 if ((string) get_option("gama_contact_schema_version") !== "77") { $fail("Deactivation changed durable data"); }
 $result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
 if (is_wp_error($result) || (string) get_option("gama_contact_schema_version") !== "1") { $fail("Repeated activation was not idempotent"); }
 $after_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_name", $wpdb->esc_like("gama_contact_") . "%"));
-if ($after_options !== ["gama_contact_schema_version"]) { $fail("Scaffold created unexpected settings or options"); }
-if ($before !== $snapshot()) { $fail("Scaffold changed posts, users, roles, or cron"); }
-if ($mail_calls !== 0) { $fail("Scaffold attempted to send mail"); }
+if ($after_options !== ["gama_contact_schema_version"]) { $fail("Plugin created unexpected durable settings or options"); }
+if ($before !== $snapshot()) { $fail("Plugin changed posts, users, roles, or cron"); }
+if ($mail_calls !== 2) { $fail("Plugin mail attempt count differs"); }
 echo "lifecycle-and-side-effects-ok";'
 
 wp_cmd eval "$lifecycle_php" | grep -Fx 'lifecycle-and-side-effects-ok'
