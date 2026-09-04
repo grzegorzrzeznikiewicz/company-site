@@ -13,6 +13,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
+  globalTimeout: 0,
+  retries: 0,
+  tsconfig: './timeout-policy.tsconfig.json',
   expect: {
     timeout: 15_000,
     toHaveScreenshot: {
@@ -31,5 +34,6 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: `${artifactRoot}/report`, open: 'never' }],
+    ['./specs/support/timeout-policy-reporter.cjs'],
   ],
 });

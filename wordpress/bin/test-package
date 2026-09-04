@@ -102,6 +102,14 @@ fi
 
 export PACKAGE_ZIP="$zip_path"
 COMPOSE=(docker compose --project-name "$project_name" --file "$COMPOSE_FILE")
+PLAYWRIGHT_TEST=(
+  env
+  -u PW_TEST_SOURCE_TRANSFORM
+  -u PW_TEST_SOURCE_TRANSFORM_SCOPE
+  -u PW_TEST_REPORTER
+  -u PWDEBUG
+  node ./specs/support/run-playwright.cjs
+)
 
 query_project_resource_ids() {
   local resource_kind="$1"
@@ -560,9 +568,16 @@ echo "navigation-editor-direct-cap-ok";'
   wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
 
   "${COMPOSE[@]}" build browser
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-initial browser npx playwright test --grep @navigation-initial
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=open browser npx playwright test --grep @open
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=save browser npx playwright test --grep @save
+  "${COMPOSE[@]}" run --rm --no-deps browser node ./specs/support/timeout-policy-contract.cjs
+  timeout_policy_list_output="$("${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=timeout-policy browser "${PLAYWRIGHT_TEST[@]}" --list)"
+  printf '%s\n' "$timeout_policy_list_output"
+  if [[ "$(grep -Fc 'Semantic timeout policy passed:' <<<"$timeout_policy_list_output")" -ne 1 ]]; then
+    echo 'The configured timeout policy reporter did not pass exactly once during the preflight listing.' >&2
+    exit 1
+  fi
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-initial browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-initial
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=open browser "${PLAYWRIGHT_TEST[@]}" --grep @open
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=save browser "${PLAYWRIGHT_TEST[@]}" --grep @save
 
   pair_a_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$slug, $type]) {
@@ -580,7 +595,7 @@ foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$sl
   wp_cmd theme activate gama-software
   pair_a_reactivated_output="$(wp_cmd eval "$pair_a_contract")"
   grep -Eq 'front-page|header' <<<"$pair_a_reactivated_output"
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=reset browser npx playwright test --grep @reset
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=reset browser "${PLAYWRIGHT_TEST[@]}" --grep @reset
 
   pair_b_output="$(wp_cmd eval '$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
 $create = static function (string $route, string $content): int {
@@ -616,17 +631,17 @@ echo $page_id . "," . $single_id;')"
   if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'index','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted wrong slug.' >&2; exit 1; fi
   wp_cmd eval "$helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
 
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=public browser npx playwright test --grep @public
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-choices browser npx playwright test --grep @global-styles-editor-choices
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-front-snapshots browser npx playwright test --grep @global-styles-front-snapshots
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-snapshots browser npx playwright test --grep @global-styles-editor-snapshots
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-focus browser npx playwright test --grep @global-styles-focus
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-admin-persistence browser npx playwright test --grep @global-styles-admin-persistence
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-dpr2 browser npx playwright test --grep @global-styles-dpr2
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=public browser "${PLAYWRIGHT_TEST[@]}" --grep @public
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-choices browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-editor-choices
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-front-snapshots browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-front-snapshots
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-snapshots browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-editor-snapshots
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-focus browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-focus
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-admin-persistence browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-admin-persistence
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-dpr2 browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-dpr2
 
   installed_theme_hashes_before="$(wp_cmd eval '$root = realpath(get_theme_root("gama-software") . "/gama-software"); $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)); $hashes=[]; foreach ($iterator as $file) { if ($file->isFile()) { $relative=substr($file->getPathname(), strlen($root)+1); $hashes[$relative]=hash_file("sha256",$file->getPathname()); } } ksort($hashes,SORT_STRING); foreach ($hashes as $relative=>$hash) { echo $relative . ":" . $hash . PHP_EOL; }')"
   [[ "$installed_theme_hashes_before" == "$archive_theme_hashes" ]]
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-save browser npx playwright test --grep @navigation-save
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-save browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-save
 
   navigation_persistence_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
 foreach (["header","footer"] as $slug) {
@@ -667,7 +682,7 @@ echo "navigation-persistence-db-ok";'
   installed_theme_hashes_after="$(wp_cmd eval '$root = realpath(get_theme_root("gama-software") . "/gama-software"); $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)); $hashes=[]; foreach ($iterator as $file) { if ($file->isFile()) { $relative=substr($file->getPathname(), strlen($root)+1); $hashes[$relative]=hash_file("sha256",$file->getPathname()); } } ksort($hashes,SORT_STRING); foreach ($hashes as $relative=>$hash) { echo $relative . ":" . $hash . PHP_EOL; }')"
   [[ "$installed_theme_hashes_before" == "$installed_theme_hashes_after" ]]
   [[ "$installed_theme_hashes_after" == "$archive_theme_hashes" ]]
-  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-persisted browser npx playwright test --grep @navigation-persisted
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-persisted browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-persisted
 
   original_hashes="$(wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }')"
   "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'

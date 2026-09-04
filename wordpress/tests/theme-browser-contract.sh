@@ -8,9 +8,12 @@ dockerfile="$ROOT_DIR/qa/browser.Dockerfile"
 global_styles_spec="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts"
 navigation_spec="$ROOT_DIR/qa/e2e/specs/header-footer-navigation.spec.ts"
 shared_helpers="$ROOT_DIR/qa/e2e/specs/support/wordpress.ts"
-spec_dir="$ROOT_DIR/qa/e2e/specs"
 snapshot_dir="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts-snapshots"
 config="$ROOT_DIR/qa/e2e/playwright.config.ts"
+timeout_policy="$ROOT_DIR/qa/e2e/specs/support/timeout-policy-reporter.cjs"
+timeout_policy_contract="$ROOT_DIR/qa/e2e/specs/support/timeout-policy-contract.cjs"
+timeout_policy_tsconfig="$ROOT_DIR/qa/e2e/timeout-policy.tsconfig.json"
+playwright_launcher="$ROOT_DIR/qa/e2e/specs/support/run-playwright.cjs"
 test_package="$ROOT_DIR/bin/test-package"
 
 grep -Fq '"node": "22.*"' "$manifest"
@@ -22,9 +25,21 @@ grep -Fq 'npm ci --ignore-scripts' "$dockerfile"
 [[ -f "$global_styles_spec" ]]
 [[ -f "$navigation_spec" ]]
 [[ -f "$shared_helpers" ]]
+[[ -f "$timeout_policy" ]]
+[[ -f "$timeout_policy_contract" ]]
+[[ -f "$timeout_policy_tsconfig" ]]
+[[ -f "$playwright_launcher" ]]
+if [[ "$(<"$timeout_policy_tsconfig")" != $'{\n  "compilerOptions": {}\n}' ]]; then
+  echo 'Timeout policy TypeScript configuration is not the reviewed empty compilerOptions object.' >&2
+  exit 1
+fi
 grep -Fq "reducedMotion: 'reduce'" "$config"
 grep -Fq 'threshold: 0.2' "$config"
 grep -Fq 'maxDiffPixelRatio: 0.003' "$config"
+grep -Fq 'globalTimeout: 0' "$config"
+grep -Fq 'retries: 0' "$config"
+grep -Fq "tsconfig: './timeout-policy.tsconfig.json'" "$config"
+grep -Fq "['./specs/support/timeout-policy-reporter.cjs']" "$config"
 grep -Fq '@global-styles' "$global_styles_spec"
 for tag in \
   '@global-styles-editor-choices' \
@@ -60,36 +75,93 @@ grep -Fq 'waitForEditorCanvas' "$shared_helpers"
 grep -Fq "waitUntil: 'domcontentloaded'" "$shared_helpers"
 grep -Fq 'timeout: 45_000' "$shared_helpers"
 grep -Fq "waitForLoadState('domcontentloaded'" "$shared_helpers"
+visible_canvas_line="$(grep -nFx "  const visibleCanvas = page.locator('iframe[name=\"editor-canvas\"]:visible');" "$shared_helpers" | cut -d: -f1 || true)"
+welcome_selector_line="$(grep -nFx "  const welcome = page.getByRole('dialog', {" "$shared_helpers" | cut -d: -f1 || true)"
+welcome_name_line="$(grep -nFx '    name: /Welcome to the (?:site )?editor/i,' "$shared_helpers" | cut -d: -f1 || true)"
+welcome_cache_line="$(grep -nFx 'const knownWelcomeGuideUsers = new Set<string>();' "$shared_helpers" | cut -d: -f1 || true)"
+welcome_user_registration_line="$(grep -nFx '  loggedInUserByPage.set(page, user);' "$shared_helpers" | cut -d: -f1 || true)"
+editor_ready_union_line="$(grep -nFx '  await expect(visibleCanvas.or(welcome).first()).toBeVisible({' "$shared_helpers" | cut -d: -f1 || true)"
+welcome_probe_line="$(grep -nFx '  if (shouldCheckWelcome && (await welcome.isVisible())) {' "$shared_helpers" | cut -d: -f1 || true)"
+canvas_ready_line="$(grep -nFx '  await expect(canvas).toBeVisible({ timeout: 60_000 });' "$shared_helpers" | cut -d: -f1 || true)"
+if [[ ! "$visible_canvas_line" =~ ^[0-9]+$ \
+  || ! "$welcome_selector_line" =~ ^[0-9]+$ \
+  || ! "$welcome_name_line" =~ ^[0-9]+$ \
+  || ! "$welcome_cache_line" =~ ^[0-9]+$ \
+  || ! "$welcome_user_registration_line" =~ ^[0-9]+$ \
+  || ! "$editor_ready_union_line" =~ ^[0-9]+$ \
+  || ! "$welcome_probe_line" =~ ^[0-9]+$ \
+  || ! "$canvas_ready_line" =~ ^[0-9]+$ \
+  || "$visible_canvas_line" -ge "$editor_ready_union_line" \
+  || "$welcome_selector_line" -ge "$editor_ready_union_line" \
+  || "$welcome_selector_line" -ge "$welcome_name_line" \
+  || "$welcome_name_line" -ge "$editor_ready_union_line" \
+  || "$editor_ready_union_line" -ge "$welcome_probe_line" \
+  || "$welcome_probe_line" -ge "$canvas_ready_line" ]]; then
+  echo 'Editor readiness must resolve a visible canvas-or-welcome gate before requiring the canvas.' >&2
+  exit 1
+fi
+password_fill_line="$(grep -nFx '  await passwordField.fill(password);' "$shared_helpers" | cut -d: -f1)"
+username_fill_line="$(grep -nFx '  await usernameField.fill(user);' "$shared_helpers" | cut -d: -f1)"
+login_load_line="$(grep -nFx "  await page.waitForLoadState('load');" "$shared_helpers" | cut -d: -f1)"
+username_focus_line="$(grep -nFx '  await expect(usernameField).toBeFocused();' "$shared_helpers" | cut -d: -f1)"
+username_assertion_line="$(grep -nFx '  expect(usernameMatchesExpectedValue).toBe(true);' "$shared_helpers" | cut -d: -f1)"
+password_assertion_line="$(grep -nFx '  expect(passwordMatchesExpectedValue).toBe(true);' "$shared_helpers" | cut -d: -f1)"
+submit_line="$(grep -nF "page.locator('#wp-submit').click()" "$shared_helpers" | cut -d: -f1)"
+if [[ ! "$password_fill_line" =~ ^[0-9]+$ \
+  || ! "$username_fill_line" =~ ^[0-9]+$ \
+  || ! "$login_load_line" =~ ^[0-9]+$ \
+  || ! "$username_focus_line" =~ ^[0-9]+$ \
+  || ! "$username_assertion_line" =~ ^[0-9]+$ \
+  || ! "$password_assertion_line" =~ ^[0-9]+$ \
+  || ! "$submit_line" =~ ^[0-9]+$ \
+  || "$login_load_line" -ge "$username_focus_line" \
+  || "$username_focus_line" -ge "$password_fill_line" \
+  || "$password_fill_line" -ge "$username_fill_line" \
+  || "$username_fill_line" -ge "$username_assertion_line" \
+  || "$username_assertion_line" -ge "$password_assertion_line" \
+  || "$password_assertion_line" -ge "$submit_line" ]]; then
+  echo 'Login must fill password before username and verify both exact values before submit.' >&2
+  exit 1
+fi
 grep -Fq 'waitForExactEditorParagraph' "$global_styles_spec"
-spec_files=()
-while IFS= read -r spec_file; do
-  spec_files+=( "$spec_file" )
-done < <(find "$spec_dir" -type f -name '*.spec.ts' -print | sort)
-if grep -En 'test\.slow[[:space:]]*\(' "${spec_files[@]}"; then
-  echo 'Browser specs must not hide timeout overrides behind test.slow().' >&2
-  exit 1
-fi
-if grep -En 'testInfo\.setTimeout[[:space:]]*\(' "${spec_files[@]}"; then
-  echo 'Browser specs must not set dynamic testInfo timeouts.' >&2
-  exit 1
-fi
-timeout_calls="$(grep -EHn 'test\.setTimeout[[:space:]]*\(' "${spec_files[@]}" || true)"
-if [[ "$(grep -c . <<<"$timeout_calls")" -ne 3 ]]; then
-  echo 'Browser specs must contain exactly three allowlisted scoped timeouts.' >&2
-  exit 1
-fi
-for scoped_timeout in \
-  "$global_styles_spec|@global-styles-editor-snapshots" \
-  "$global_styles_spec|@global-styles-admin-persistence" \
-  "$navigation_spec|lets the disposable Editor transform and save native header navigation through the Site Editor UI"; do
-  scoped_file="${scoped_timeout%%|*}"
-  scoped_title="${scoped_timeout#*|}"
-  scoped_timeout_test="$(grep -F -A6 "$scoped_title" "$scoped_file")"
-  [[ "$(grep -Fc 'test.setTimeout(90_000);' <<<"$scoped_timeout_test")" -eq 1 ]]
+grep -Fq 'extractNavigationBlockAttributes' "$navigation_spec"
+grep -Fq 'self-closing Navigation fixture' "$navigation_spec"
+grep -Fq 'inline-inner-block Navigation fixture' "$navigation_spec"
+grep -Fq 'COPY wordpress/qa/e2e/specs ./specs' "$dockerfile"
+grep -Fq 'COPY wordpress/qa/e2e/timeout-policy.tsconfig.json ./' "$dockerfile"
+grep -Fq 'c4db9d9a327ec8021e2e8de7c7a7d80aa0e938f6492d353f8e01e6ffe4626169' "$timeout_policy"
+grep -Fq '9f33f7e938337c43bd73d5240c129e47a5e6d05f3043fa455859aa76779aebd5' "$timeout_policy"
+grep -Fq 'node ./specs/support/timeout-policy-contract.cjs' "$test_package"
+grep -Fq 'PLAYWRIGHT_TEST=(' "$test_package"
+grep -Fq 'node ./specs/support/run-playwright.cjs' "$test_package"
+grep -Fq 'node ./specs/support/run-playwright.cjs' "$manifest"
+grep -Fq -- '--tsconfig' "$playwright_launcher"
+grep -Fq './timeout-policy.tsconfig.json' "$playwright_launcher"
+grep -Fq 'GAMA_PLAYWRIGHT_RUN=timeout-policy browser "${PLAYWRIGHT_TEST[@]}" --list' "$test_package"
+for variable in \
+  PW_TEST_SOURCE_TRANSFORM \
+  PW_TEST_SOURCE_TRANSFORM_SCOPE \
+  PW_TEST_REPORTER \
+  PWDEBUG; do
+  grep -Fq -- "-u $variable" "$test_package"
+  grep -Fq -- "-u $variable" "$manifest"
+  grep -Fq "$variable" "$playwright_launcher"
 done
-unexpected_timeout_calls="$(grep -Ev 'test\.setTimeout\(90_000\);' <<<"$timeout_calls" || true)"
-if [[ -n "$unexpected_timeout_calls" ]]; then
-  echo 'Browser specs contain a non-allowlisted scoped timeout.' >&2
+if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 14 ]]; then
+  echo 'Every one of the fourteen browser runs must use the reviewed Playwright launcher.' >&2
+  exit 1
+fi
+if grep -Fq 'browser npx playwright test' "$test_package"; then
+  echo 'Browser runs must not bypass the reviewed Playwright launcher.' >&2
+  exit 1
+fi
+grep -Fq 'Semantic timeout policy passed:' "$test_package"
+if grep -Fq -- '--reporter=./specs/support/timeout-policy-reporter.cjs' "$test_package"; then
+  echo 'Timeout policy must be configured for every browser run, not injected only into a listing command.' >&2
+  exit 1
+fi
+if grep -Fq '"@babel/' "$manifest" "$lock"; then
+  echo 'GSWEB-14 timeout policy must not add a parser dependency.' >&2
   exit 1
 fi
 grep -Fq 'watchWordPressDiagnostics' "$shared_helpers"

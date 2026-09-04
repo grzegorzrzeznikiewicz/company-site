@@ -7,8 +7,8 @@ import {
 import {
   assertDiagnosticsClean,
   login,
+  openEditorCanvas,
   rest,
-  waitForEditorCanvas,
   watchWordPressDiagnostics,
   type BrowserDiagnostics,
 } from './support/wordpress';
@@ -290,18 +290,23 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
 }) => {
   await login(
     page,
-    process.env.WP_ADMIN_USER ?? 'theme-admin',
-    process.env.WP_ADMIN_PASSWORD ?? 'theme-test-password-only',
+    process.env.WP_EDITOR_USER ?? 'style-editor',
+    process.env.WP_EDITOR_PASSWORD ?? 'style-editor-test-only',
   );
-  const home = await rest<any[]>(page, '/wp/v2/pages?slug=home&context=edit');
-  expect(home).toHaveLength(1);
-  await page.goto(`/wp-admin/post.php?post=${home[0].id}&action=edit`);
-  const adminFrame = await waitForEditorCanvas(page);
-  await waitForExactEditorParagraph(
-    adminFrame,
-    'Body primitive with a visible text link.',
+  const currentUser = await rest<any>(page, '/wp/v2/users/me?context=edit');
+  expect(currentUser.slug).toBe('style-editor');
+  const fixtures = await rest<any[]>(
+    page,
+    '/wp/v2/pages?slug=editor-preset-fixture&context=edit',
   );
-  const adminSettings = await page.evaluate(() => {
+  expect(fixtures).toHaveLength(1);
+  const fixture = fixtures[0];
+  const frame = await openEditorCanvas(
+    page,
+    `/wp-admin/post.php?post=${fixture.id}&action=edit`,
+  );
+  await waitForExactEditorParagraph(frame, 'Editor preset fixture');
+  const editorSettings = await page.evaluate(() => {
     const settings = (window as any).wp.data
       .select('core/block-editor')
       .getSettings();
@@ -329,13 +334,13 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
       allowedBlockTypes: settings.allowedBlockTypes,
     };
   });
-  expect(adminSettings.colors).toEqual(palette);
-  expect(adminSettings.gradients).toEqual([]);
-  expect(adminSettings.fontSizes).toEqual(fontSizes);
-  expect(adminSettings.spacingSizes).toEqual(spacingSizes);
-  expect(adminSettings.shadows).toEqual(shadowSlugs);
-  expect(adminSettings.fontFamilies).toEqual(['system-sans']);
-  expect(adminSettings.flags).toEqual({
+  expect(editorSettings.colors).toEqual(palette);
+  expect(editorSettings.gradients).toEqual([]);
+  expect(editorSettings.fontSizes).toEqual(fontSizes);
+  expect(editorSettings.spacingSizes).toEqual(spacingSizes);
+  expect(editorSettings.shadows).toEqual(shadowSlugs);
+  expect(editorSettings.fontFamilies).toEqual(['system-sans']);
+  expect(editorSettings.flags).toEqual({
     disableCustomColors: true,
     disableCustomGradients: true,
     disableCustomFontSizes: true,
@@ -344,22 +349,8 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
     enableCustomSpacing: true,
     enableCustomUnits: ['px', 'rem', '%'],
   });
-  expect(adminSettings.allowedBlockTypes).toBe(true);
-
-  await login(
-    page,
-    process.env.WP_EDITOR_USER ?? 'style-editor',
-    process.env.WP_EDITOR_PASSWORD ?? 'style-editor-test-only',
-  );
-  const fixtures = await rest<any[]>(
-    page,
-    '/wp/v2/pages?slug=editor-preset-fixture&context=edit',
-  );
-  expect(fixtures).toHaveLength(1);
-  const fixture = fixtures[0];
-  await page.goto(`/wp-admin/post.php?post=${fixture.id}&action=edit`);
-  const frame = await waitForEditorCanvas(page);
-  await waitForExactEditorParagraph(frame, 'Editor preset fixture');
+  expect(editorSettings.allowedBlockTypes).toContain('core/paragraph');
+  expect(editorSettings.allowedBlockTypes).not.toContain('core/html');
   const saved = await page.evaluate(async () => {
     const wp = (window as any).wp;
     const block = wp.data.select('core/block-editor').getBlocks()[0];
@@ -372,11 +363,6 @@ test('exposes only approved editor choices and lets an Editor save a preset in t
     return wp.data.select('core/editor').getCurrentPost().status;
   });
   expect(saved).toBe('publish');
-  const editorSettings = await page.evaluate(() =>
-    (window as any).wp.data.select('core/block-editor').getSettings(),
-  );
-  expect(editorSettings.allowedBlockTypes).toContain('core/paragraph');
-  expect(editorSettings.allowedBlockTypes).not.toContain('core/html');
   const updated = await rest<any>(
     page,
     `/wp/v2/pages/${fixture.id}?context=edit`,
@@ -460,8 +446,10 @@ test('keeps the same primitive styles in the editor canvas @global-styles @globa
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     const front = await primitiveStyles(page, '.gama-global-styles-fixture');
-    await page.goto(`/wp-admin/post.php?post=${home[0].id}&action=edit`);
-    const frame = await waitForEditorCanvas(page);
+    const frame = await openEditorCanvas(
+      page,
+      `/wp-admin/post.php?post=${home[0].id}&action=edit`,
+    );
     await waitForExactEditorParagraph(
       frame,
       'Body primitive with a visible text link.',
@@ -476,9 +464,8 @@ test('keeps the same primitive styles in the editor canvas @global-styles @globa
     );
     await expect(editorFixture).toBeVisible();
     await expect(editorFixture.locator('.gama-fixture-link')).toBeVisible();
-    const editor = await editorFixture.evaluate((root) => {
-      const result: Record<string, Record<string, string>> = {};
-      for (const [name, selector] of Object.entries({
+    const editor = (await editorFixture.evaluate((root) => {
+      const selectors = {
         root: ':scope',
         h1: 'h1',
         h2: 'h2',
@@ -497,31 +484,35 @@ test('keeps the same primitive styles in the editor canvas @global-styles @globa
         card: '.gama-fixture-card',
         soft: '.gama-fixture-soft',
         inverse: '.gama-fixture-inverse',
-      })) {
-        const element =
-          selector === ':scope'
-            ? root.closest('.editor-styles-wrapper')
-            : root.querySelector(selector);
-        if (!element)
-          throw new Error(`Missing editor primitive ${name}`);
-        const style = getComputedStyle(element);
-        result[name] = {
-          fontFamily: style.fontFamily,
-          fontSize: style.fontSize,
-          fontWeight: style.fontWeight,
-          lineHeight: style.lineHeight,
-          color: style.color,
-          backgroundColor: style.backgroundColor,
-          borderRadius: style.borderRadius,
-          boxShadow: style.boxShadow,
-          paddingTop: style.paddingTop,
-        };
-      }
-      return result;
-    });
+      };
+      return Object.fromEntries(
+        Object.entries(selectors).map(([name, selector]) => {
+          const element =
+            selector === ':scope'
+              ? root.closest('.editor-styles-wrapper')
+              : root.querySelector(selector);
+          if (!element)
+            throw new Error(`Missing editor primitive ${name}`);
+          const style = getComputedStyle(element);
+          return [
+            name,
+            {
+              fontFamily: style.fontFamily,
+              fontSize: style.fontSize,
+              fontWeight: style.fontWeight,
+              lineHeight: style.lineHeight,
+              color: style.color,
+              backgroundColor: style.backgroundColor,
+              borderRadius: style.borderRadius,
+              boxShadow: style.boxShadow,
+              paddingTop: style.paddingTop,
+            },
+          ];
+        }),
+      );
+    })) as PrimitiveStyles;
     assertPrimitiveContract(editor, width >= 768);
-    for (const primitive of Object.keys(front))
-      expect(editor[primitive]).toEqual(front[primitive]);
+    expect(editor).toEqual(front);
     const editorRootPadding = await frame
       .locator('.is-root-container')
       .evaluate((element) =>
@@ -568,8 +559,7 @@ test('persists an Administrator Global Styles change and reflects it publicly @g
     process.env.WP_ADMIN_USER ?? 'theme-admin',
     process.env.WP_ADMIN_PASSWORD ?? 'theme-test-password-only',
   );
-  await page.goto('/wp-admin/site-editor.php?path=%2Fstyles');
-  await waitForEditorCanvas(page);
+  await openEditorCanvas(page, '/wp-admin/site-editor.php?path=%2Fstyles');
   const saved = await page.evaluate(async () => {
     const wp = (window as any).wp;
     const id = await wp.data

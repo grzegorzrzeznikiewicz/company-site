@@ -1,5 +1,8 @@
 import { expect, type FrameLocator, type Page } from '@playwright/test';
 
+const knownWelcomeGuideUsers = new Set<string>();
+const loggedInUserByPage = new WeakMap<Page, string>();
+
 export type BrowserDiagnostics = {
   browserErrors: string[];
   externalFontRequests: string[];
@@ -17,8 +20,22 @@ export async function login(
 ): Promise<void> {
   await page.context().clearCookies();
   await page.goto('/wp-login.php', { waitUntil: 'domcontentloaded' });
-  await page.locator('#user_login').fill(user);
-  await page.locator('#user_pass').fill(password);
+  await page.waitForLoadState('load');
+  const usernameField = page.locator('#user_login');
+  const passwordField = page.locator('#user_pass');
+  await expect(usernameField).toBeFocused();
+  await passwordField.fill(password);
+  await usernameField.fill(user);
+  const usernameMatchesExpectedValue = await usernameField.evaluate(
+    (element, expected) => (element as HTMLInputElement).value === expected,
+    user,
+  );
+  const passwordMatchesExpectedValue = await passwordField.evaluate(
+    (element, expected) => (element as HTMLInputElement).value === expected,
+    password,
+  );
+  expect(usernameMatchesExpectedValue).toBe(true);
+  expect(passwordMatchesExpectedValue).toBe(true);
   await Promise.all([
     page.waitForURL(/\/wp-admin\//, {
       waitUntil: 'domcontentloaded',
@@ -27,6 +44,7 @@ export async function login(
     page.locator('#wp-submit').click(),
   ]);
   await page.waitForLoadState('domcontentloaded', { timeout: 45_000 });
+  loggedInUserByPage.set(page, user);
 }
 
 export async function rest<T>(
@@ -61,20 +79,37 @@ export async function rest<T>(
   ) as Promise<T>;
 }
 
+export async function openEditorCanvas(
+  page: Page,
+  route: string,
+): Promise<FrameLocator> {
+  await page.goto(route, { waitUntil: 'domcontentloaded' });
+  return waitForEditorCanvas(page);
+}
+
 export async function waitForEditorCanvas(page: Page): Promise<FrameLocator> {
   const canvas = page.locator('iframe[name="editor-canvas"]');
-  await expect(canvas).toBeVisible({ timeout: 60_000 });
-
+  const visibleCanvas = page.locator('iframe[name="editor-canvas"]:visible');
   const welcome = page.getByRole('dialog', {
     name: /Welcome to the (?:site )?editor/i,
   });
-  if (await welcome.isVisible()) {
+  await expect(visibleCanvas.or(welcome).first()).toBeVisible({
+    timeout: 60_000,
+  });
+  const loggedInUser = loggedInUserByPage.get(page);
+  const shouldCheckWelcome =
+    loggedInUser === undefined || !knownWelcomeGuideUsers.has(loggedInUser);
+  if (shouldCheckWelcome && (await welcome.isVisible())) {
     const dismiss = welcome.getByRole('button', {
       name: /^(?:Get started|Close)$/,
     });
     await dismiss.click();
     await expect(welcome).toBeHidden();
   }
+  if (loggedInUser !== undefined) {
+    knownWelcomeGuideUsers.add(loggedInUser);
+  }
+  await expect(canvas).toBeVisible({ timeout: 60_000 });
 
   const frame = page.frameLocator('iframe[name="editor-canvas"]');
   await expect(frame.locator('body')).toBeVisible({ timeout: 60_000 });

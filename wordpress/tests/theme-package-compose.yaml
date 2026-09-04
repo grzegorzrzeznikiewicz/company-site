@@ -88,8 +88,8 @@ services:
       WP_BASE_URL: http://wordpress
       WP_ADMIN_USER: theme-admin
       WP_ADMIN_PASSWORD: theme-test-password-only
-      WP_EDITOR_USER: theme-navigation-editor
-      WP_EDITOR_PASSWORD: navigation-editor-test-only
+      WP_EDITOR_USER: style-editor
+      WP_EDITOR_PASSWORD: style-editor-test-only
     volumes:
       - browser-artifacts:/artifacts
     depends_on:

@@ -9,8 +9,8 @@ import {
 import {
   assertDiagnosticsClean,
   login,
+  openEditorCanvas,
   rest,
-  waitForEditorCanvas,
   watchWordPressDiagnostics,
   type BrowserDiagnostics,
 } from './support/wordpress';
@@ -33,6 +33,13 @@ const initialPrimaryLinks = [
 
 const persistedMobileWidths = [320, 390] as const;
 
+type StoredNavigationAttributes = {
+  ariaLabel?: string;
+  className?: string;
+  overlayMenu?: string;
+  style?: Record<string, unknown>;
+};
+
 let diagnostics: BrowserDiagnostics;
 
 test.beforeEach(async ({ page }) => {
@@ -52,6 +59,78 @@ function primaryNavigation(page: Page): Locator {
 
 function auxiliaryNavigation(page: Page): Locator {
   return page.getByRole('navigation', { name: 'Nawigacja pomocnicza' });
+}
+
+function extractNavigationBlockAttributes(
+  serialized: string,
+): StoredNavigationAttributes | undefined {
+  const marker = /<!--\s+wp:navigation(?=\s|\/-->|-->)/.exec(serialized);
+  if (marker === null) {
+    return undefined;
+  }
+
+  let cursor = marker.index + marker[0].length;
+  while (/\s/.test(serialized.charAt(cursor))) {
+    cursor += 1;
+  }
+  if (
+    serialized.startsWith('/-->', cursor) ||
+    serialized.startsWith('-->', cursor)
+  ) {
+    return {};
+  }
+  if (serialized.charAt(cursor) !== '{') {
+    return undefined;
+  }
+
+  const jsonStart = cursor;
+  let depth = 0;
+  let escaped = false;
+  let inString = false;
+  for (; cursor < serialized.length; cursor += 1) {
+    const character = serialized.charAt(cursor);
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        cursor += 1;
+        break;
+      }
+    }
+  }
+  if (depth !== 0 || inString) {
+    return undefined;
+  }
+
+  const json = serialized.slice(jsonStart, cursor);
+  while (/\s/.test(serialized.charAt(cursor))) {
+    cursor += 1;
+  }
+  if (
+    !serialized.startsWith('/-->', cursor) &&
+    !serialized.startsWith('-->', cursor)
+  ) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(json) as StoredNavigationAttributes;
+  } catch {
+    return undefined;
+  }
 }
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {
@@ -194,7 +273,7 @@ test('switches only the primary Core Navigation at 768px and keeps sticky surfac
 }, testInfo) => {
   for (const width of [320, 599, 600, 767, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     const header = page.locator('header.gama-site-header');
     const primary = primaryNavigation(page);
     const open = primary.locator(
@@ -242,7 +321,7 @@ test('switches only the primary Core Navigation at 768px and keeps sticky surfac
     [1440, '32px'],
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#wpadminbar')).toBeVisible();
     expect(
       await page
@@ -330,10 +409,10 @@ async function openTemplatePart(
   slug: 'header' | 'footer',
 ): Promise<FrameLocator> {
   const id = `gama-software//${slug}`;
-  await page.goto(
+  const frame = await openEditorCanvas(
+    page,
     `/wp-admin/site-editor.php?postId=${encodeURIComponent(id)}&postType=wp_template_part&canvas=edit`,
   );
-  const frame = await waitForEditorCanvas(page);
   await expect(
     frame.locator(
       slug === 'header'
@@ -420,8 +499,8 @@ test('lets the disposable Editor transform and save native header navigation thr
   test.setTimeout(90_000);
   await login(
     page,
-    process.env.WP_EDITOR_USER ?? 'theme-navigation-editor',
-    process.env.WP_EDITOR_PASSWORD ?? 'navigation-editor-test-only',
+    'theme-navigation-editor',
+    'navigation-editor-test-only',
   );
   await assertDisposableEditorBoundary(page);
   const frame = await openTemplatePart(page, 'header');
@@ -492,14 +571,16 @@ test('lets the disposable Editor transform and save native header navigation thr
   expect(navigationContent).toContain('"url":"/#welcome"');
   expect(navigationContent).toContain('wp:navigation-submenu');
   expect(navigationContent).not.toContain('"label":"Kontakt"');
-  const orderedLabels = ['Moduły', 'Początek', 'Usługi', 'Blog', 'Oferta'];
-  for (let index = 1; index < orderedLabels.length; index += 1) {
+  for (const [earlierLabel, laterLabel] of [
+    ['Moduły', 'Początek'],
+    ['Początek', 'Usługi'],
+    ['Usługi', 'Blog'],
+    ['Blog', 'Oferta'],
+  ]) {
     expect(
-      navigationContent.indexOf(
-        `"label":"${orderedLabels[index - 1]}"`,
-      ),
+      navigationContent.indexOf(`"label":"${earlierLabel}"`),
     ).toBeLessThan(
-      navigationContent.indexOf(`"label":"${orderedLabels[index]}"`),
+      navigationContent.indexOf(`"label":"${laterLabel}"`),
     );
   }
 });
@@ -509,8 +590,8 @@ test('lets the disposable Editor change and save the native footer copyright thr
 }, testInfo) => {
   await login(
     page,
-    process.env.WP_EDITOR_USER ?? 'theme-navigation-editor',
-    process.env.WP_EDITOR_PASSWORD ?? 'navigation-editor-test-only',
+    'theme-navigation-editor',
+    'navigation-editor-test-only',
   );
   await assertDisposableEditorBoundary(page);
   const frame = await openTemplatePart(page, 'footer');
@@ -593,15 +674,30 @@ test('keeps saved navigation and copyright public on every route after lifecycle
     expect(entity.status).toBe('publish');
     expect(entity.has_theme_file).toBe(true);
   }
-  const storedNavigationJson = (header.content.raw as string).match(
-    /<!-- wp:navigation (\{[^\n]+\}) \/-->/,
-  )?.[1];
-  expect(storedNavigationJson).toBeDefined();
-  const storedNavigationAttributes = JSON.parse(storedNavigationJson!) as {
-    ariaLabel?: string;
-    className?: string;
-    overlayMenu?: string;
+  const navigationFixtureAttributes = {
+    ariaLabel: 'Fixture navigation',
+    style: { spacing: { blockGap: '1rem' } },
   };
+  // The self-closing Navigation fixture covers ref-backed serialization.
+  expect(
+    extractNavigationBlockAttributes(
+      '<!-- wp:navigation {"ariaLabel":"Fixture navigation","style":{"spacing":{"blockGap":"1rem"}}} /-->',
+    ),
+  ).toEqual(navigationFixtureAttributes);
+  // The inline-inner-block Navigation fixture covers legal nested serialization.
+  expect(
+    extractNavigationBlockAttributes(
+      '<!-- wp:navigation {"ariaLabel":"Fixture navigation","style":{"spacing":{"blockGap":"1rem"}}} --><!-- wp:navigation-link {"label":"Start","url":"/"} /--><!-- /wp:navigation -->',
+    ),
+  ).toEqual(navigationFixtureAttributes);
+
+  const storedNavigationAttributes = extractNavigationBlockAttributes(
+    header.content.raw as string,
+  );
+  expect(storedNavigationAttributes).toBeDefined();
+  if (storedNavigationAttributes === undefined) {
+    throw new Error('Saved header lost serialized Core Navigation attributes.');
+  }
   const navigationBlockType = await rest<any>(
     page,
     '/wp/v2/block-types/core/navigation?context=edit',

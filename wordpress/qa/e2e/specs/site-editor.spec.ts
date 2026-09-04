@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   assertDiagnosticsClean,
   login,
+  openEditorCanvas,
   rest,
-  waitForEditorCanvas,
   watchWordPressDiagnostics,
   type BrowserDiagnostics,
 } from './support/wordpress';
@@ -31,9 +31,11 @@ for (const slug of templateSlugs) {
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
     const id = encodeURIComponent(`gama-software//${slug}`);
-    await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=wp_template&canvas=edit`);
+    const frame = await openEditorCanvas(
+      page,
+      `/wp-admin/site-editor.php?postId=${id}&postType=wp_template&canvas=edit`,
+    );
     expect(new URL(page.url()).pathname).toBe('/wp-admin/site-editor.php');
-    const frame = await waitForEditorCanvas(page);
     await expect(frame.locator(`main.gama-template--${slug}`)).toHaveCount(1);
   });
 }
@@ -44,9 +46,11 @@ for (const slug of partSlugs) {
     expect(entity.slug).toBe(slug);
     expect(entity.theme).toBe('gama-software');
     const id = encodeURIComponent(`gama-software//${slug}`);
-    await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=wp_template_part&canvas=edit`);
+    const frame = await openEditorCanvas(
+      page,
+      `/wp-admin/site-editor.php?postId=${id}&postType=wp_template_part&canvas=edit`,
+    );
     expect(new URL(page.url()).pathname).toBe('/wp-admin/site-editor.php');
-    const frame = await waitForEditorCanvas(page);
     await expect(frame.locator(`.gama-site-${slug}__surface`)).toHaveCount(1);
   });
 }
@@ -54,8 +58,10 @@ for (const slug of partSlugs) {
 async function addParagraphAndSave(page: Page, type: 'wp_template' | 'wp_template_part', slug: string, content: string): Promise<void> {
   const recordId = `gama-software//${slug}`;
   const id = encodeURIComponent(recordId);
-  await page.goto(`/wp-admin/site-editor.php?postId=${id}&postType=${type}&canvas=edit`);
-  await waitForEditorCanvas(page);
+  await openEditorCanvas(
+    page,
+    `/wp-admin/site-editor.php?postId=${id}&postType=${type}&canvas=edit`,
+  );
   const saved = await page.evaluate(async ({ type, recordId, paragraph }) => {
     const wp = (window as any).wp;
     const record = wp.data.select('core').getEntityRecord('postType', type, recordId);
@@ -89,8 +95,10 @@ test('saves one template and one part through the Site Editor core-data save act
 test('uses the Site Editor core-data revert action for overrides @reset', async ({ page }) => {
   for (const [type, slug] of [['wp_template', 'front-page'], ['wp_template_part', 'header']] as const) {
     const id = `gama-software//${slug}`;
-    await page.goto(`/wp-admin/site-editor.php?postId=${encodeURIComponent(id)}&postType=${type}&canvas=edit`);
-    await waitForEditorCanvas(page);
+    await openEditorCanvas(
+      page,
+      `/wp-admin/site-editor.php?postId=${encodeURIComponent(id)}&postType=${type}&canvas=edit`,
+    );
     const result = await page.evaluate(async ({ type, id }) => {
       return (window as any).wp.data.dispatch('core').deleteEntityRecord('postType', type, id, { force: true });
     }, { type, id });
@@ -126,7 +134,11 @@ test('public routes retain structural accessibility at 320px and a 200% page-sca
     expect(overflow).toBe(false);
     const headingLevels = await page.locator('h1,h2,h3,h4,h5,h6').evaluateAll((nodes) => nodes.map((node) => Number(node.tagName.slice(1))));
     for (let index = 1; index < headingLevels.length; index += 1) {
-      expect(headingLevels[index] - headingLevels[index - 1]).toBeLessThanOrEqual(1);
+      const currentHeadingLevel = headingLevels.at(index);
+      const previousHeadingLevel = headingLevels.at(index - 1);
+      if (currentHeadingLevel === undefined || previousHeadingLevel === undefined)
+        throw new Error('Heading hierarchy inspection lost an expected level.');
+      expect(currentHeadingLevel - previousHeadingLevel).toBeLessThanOrEqual(1);
     }
     for (const image of await page.locator('img').all()) {
       await expect(image).toHaveAttribute('alt');

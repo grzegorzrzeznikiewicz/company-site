@@ -4,5 +4,6 @@ WORKDIR /tests
 COPY wordpress/qa/e2e/package.json wordpress/qa/e2e/package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY wordpress/qa/e2e/playwright.config.ts ./
+COPY wordpress/qa/e2e/timeout-policy.tsconfig.json ./
 COPY wordpress/qa/e2e/specs ./specs
 CMD ["npm", "test"]

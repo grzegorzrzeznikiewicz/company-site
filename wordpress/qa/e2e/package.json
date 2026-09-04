@@ -9,6 +9,6 @@
     "@playwright/test": "1.54.2"
   },
   "scripts": {
-    "test": "playwright test"
+    "test": "env -u PW_TEST_SOURCE_TRANSFORM -u PW_TEST_SOURCE_TRANSFORM_SCOPE -u PW_TEST_REPORTER -u PWDEBUG sh -c 'node ./specs/support/timeout-policy-contract.cjs && node ./specs/support/run-playwright.cjs \"$@\"' --"
   }
 }
