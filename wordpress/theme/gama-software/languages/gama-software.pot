@@ -186,6 +186,32 @@ msgstr ""
 msgid "Production block-theme foundation for the Gama Software website."
 msgstr ""
 
+#: patterns/article.php
+msgctxt "Pattern title"
+msgid "Gama Software Article Starter"
+msgstr ""
+
+#: patterns/article.php
+msgctxt "Pattern description"
+msgid "A semantic starter structure for a Gama Software article."
+msgstr ""
+
+#: patterns/article.php:14
+msgid "Krótki wstęp przedstawiający najważniejszą wartość artykułu."
+msgstr ""
+
+#: patterns/article.php:17
+msgid "Pierwsza część artykułu"
+msgstr ""
+
+#: patterns/article.php:20
+msgid "Rozwiń temat, dodając konkretne przykłady oraz odsyłacze do wiarygodnych źródeł."
+msgstr ""
+
+#: patterns/article.php:24
+msgid "Opcjonalny cytat lub najważniejszy wniosek."
+msgstr ""
+
 #: patterns/hero.php
 msgctxt "Pattern title"
 msgid "Gama Software Hero"
@@ -220,6 +246,174 @@ msgstr ""
 
 #: patterns/modules.php:24
 msgid "Profesjonalne rozszerzenia dostępne w modelu subskrypcji"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Advanced SEO Suite"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Kompleksowe narzędzie do optymalizacji SEO"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Automatyczne generowanie meta tagów"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Optymalizacja URL"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Rich snippets"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Sitemap XML"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Analiza SEO on-page"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Smart Product Recommendations"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "AI-powered rekomendacje produktów"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Algorytmy uczenia maszynowego"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Personalizacja dla użytkownika"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Cross-selling i up-selling"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Analityka skuteczności"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "A/B testing"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Enhanced Checkout"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Zoptymalizowany proces zakupowy"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "One-step checkout"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Autouzupełnianie adresów"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Integracje z kurierami"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Płatności Express"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Optymalizacja konwersji"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Inventory Management Pro"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Zaawansowane zarządzanie magazynem"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Multi-warehouse support"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Automatyczne powiadomienia"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Prognozowanie zapasów"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Integracja z ERP"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Raporty i analityka"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Customer Loyalty Program"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Program lojalnościowy dla klientów"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "System punktów i nagród"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Poziomy lojalnościowe"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Spersonalizowane promocje"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Gamifikacja"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Integracja z newsletter"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Performance Optimizer"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Optymalizacja wydajności sklepu"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Lazy loading obrazów"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Optymalizacja bazy danych"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Cache management"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "CDN integration"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Monitoring wydajności"
 msgstr ""
 
 #: patterns/modules.php:77

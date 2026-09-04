@@ -18,3 +18,38 @@ fi
 
 wp_cli theme activate gama-software
 wp_cli plugin activate gama-local-mailpit
+
+ensure_published_page() {
+  slug="$1"
+  title="$2"
+  page_id="$(wp_cli post list --post_type=page --name="$slug" --post_status=publish --posts_per_page=1 --field=ID | head -n 1)"
+  if [ -z "$page_id" ]; then
+    existing_id="$(wp_cli post list --post_type=page --name="$slug" --post_status=any --posts_per_page=1 --field=ID | head -n 1)"
+    if [ -n "$existing_id" ]; then
+      page_id="$existing_id"
+    else
+      page_id="$(wp_cli post create --post_type=page --post_title="$title" --post_name="$slug" --post_status=publish --porcelain)"
+    fi
+  fi
+
+  wp_cli post update "$page_id" --post_status=publish >/dev/null
+  printf '%s\n' "$page_id"
+}
+
+home_page_id="$(ensure_published_page home Home)"
+blog_page_id="$(ensure_published_page blog Blog)"
+
+wp_cli option update show_on_front page
+wp_cli option update page_on_front "$home_page_id"
+wp_cli option update page_for_posts "$blog_page_id"
+wp_cli option update permalink_structure '/%postname%/'
+wp_cli rewrite flush --hard
+
+wp_cli eval '
+$post = get_post( 1 );
+$default_content = "<!-- wp:paragraph -->\n<p>Welcome to WordPress. This is your first post. Edit or delete it, then start writing!</p>\n<!-- /wp:paragraph -->";
+if ( $post instanceof WP_Post && "post" === $post->post_type && "Hello world!" === $post->post_title && trim( $post->post_content ) === $default_content ) {
+    wp_delete_post( $post->ID, true );
+    echo "Removed the exact WordPress demonstration post.";
+}
+'

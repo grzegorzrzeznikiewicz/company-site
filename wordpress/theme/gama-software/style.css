@@ -258,6 +258,98 @@ html {
 	box-shadow: var(--wp--preset--shadow--elevation-2);
 }
 
+.gama-blog-index,
+.gama-template--single {
+	padding-top: clamp(3rem, 6vw, 6rem);
+	padding-bottom: clamp(4rem, 7vw, 7rem);
+}
+
+.gama-blog-index,
+.gama-blog-latest__content,
+.gama-blog-query,
+.gama-article {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-blog-index > *,
+.gama-blog-latest__content > *,
+.gama-blog-query > *,
+.gama-post-card > *,
+.gama-blog-empty > *,
+.gama-article > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-blog-latest {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-post-grid {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)) !important;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-post-card {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--md);
+	border: 1px solid var(--wp--preset--color--border-subtle);
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.gama-post-card:focus-within,
+.gama-post-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-post-card .wp-block-post-featured-image {
+	overflow: hidden;
+	margin: calc(var(--wp--preset--spacing--xl) * -1) calc(var(--wp--preset--spacing--xl) * -1) 0;
+	border-radius: var(--wp--custom--radius--card) var(--wp--custom--radius--card) 0 0;
+}
+
+.gama-post-card .wp-block-post-featured-image img {
+	display: block;
+	width: 100%;
+	object-fit: cover;
+}
+
+.gama-post-card__category,
+.gama-article__meta {
+	color: var(--wp--preset--color--text-muted);
+	font-size: var(--wp--preset--font-size--small);
+}
+
+.gama-blog-empty {
+	max-width: 48rem;
+	margin-right: auto;
+	margin-left: auto;
+	padding: clamp(2rem, 5vw, 4rem);
+	border-radius: var(--wp--custom--radius--card);
+}
+
+.gama-blog-empty > p:first-child {
+	line-height: 1;
+}
+
+.gama-article {
+	max-width: 52rem;
+}
+
+.gama-article__navigation {
+	padding-top: var(--wp--preset--spacing--lg);
+	border-top: 1px solid var(--wp--preset--color--border-subtle);
+}
+
 .gama-site-footer__inner,
 .gama-footer-navigation,
 .gama-footer-navigation .wp-block-navigation__container {

@@ -171,6 +171,7 @@ test('lets an Editor vary, reorder and edit module cards and remove the final ac
   page,
 }) => {
   const movedTitle = 'Moduł przeniesiony na początek przez redaktora';
+  const editorChangedTitle = 'Tytuł zmieniony bezpośrednio w edytorze';
   const updatedDescription =
     'Opis zmieniony bez wdrożenia kodu i bez utraty elastycznego układu.';
   const longFeature =
@@ -187,6 +188,26 @@ test('lets an Editor vary, reorder and edit module cards and remove the final ac
   await expect(
     frame.locator('[data-type="core/group"].gama-module-card'),
   ).toHaveCount(6);
+
+  const titleBlock = frame
+    .locator('[data-type="core/heading"]')
+    .filter({ hasText: modules[0][0] });
+  await titleBlock.click();
+  const editableTitle = frame
+    .locator('[data-type="core/heading"][contenteditable="true"]')
+    .filter({ hasText: modules[0][0] });
+  await expect(editableTitle).toHaveCount(1);
+  await editableTitle.fill(editorChangedTitle);
+
+  const descriptionBlock = frame
+    .locator('[data-type="core/paragraph"]')
+    .filter({ hasText: modules[0][1] });
+  await descriptionBlock.click();
+  const editableDescription = frame
+    .locator('[data-type="core/paragraph"][contenteditable="true"]')
+    .filter({ hasText: modules[0][1] });
+  await expect(editableDescription).toHaveCount(1);
+  await editableDescription.fill(updatedDescription);
 
   const mutation = await page.evaluate(
     ({ description, feature, linkLabel, title }) => {
@@ -320,6 +341,7 @@ test('lets an Editor vary, reorder and edit module cards and remove the final ac
   expect(frontPage.source).toBe('custom');
   expect(frontPage.has_theme_file).toBe(true);
   expect(frontPage.content.raw).toContain(movedTitle);
+  expect(frontPage.content.raw).toContain(editorChangedTitle);
   expect(frontPage.content.raw).toContain(updatedDescription);
   expect(frontPage.content.raw).toContain(longFeature);
   expect(frontPage.content.raw).toContain(optionalLinkLabel);

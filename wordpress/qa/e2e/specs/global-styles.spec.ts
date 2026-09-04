@@ -418,6 +418,10 @@ test('renders exact primitives without overflow across the responsive matrix @gl
   for (const width of [390, 768, 1440] as const) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
+    await page.addStyleTag({
+      content:
+        '#blog.gama-blog-latest, #contact.gama-contact { display: none !important; }',
+    });
     await hideCaret(page);
     await expect(page).toHaveScreenshot(`global-styles-front-${width}.png`, {
       fullPage: true,

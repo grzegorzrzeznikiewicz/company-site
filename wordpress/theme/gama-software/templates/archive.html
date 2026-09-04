@@ -1,12 +1,30 @@
 <!-- wp:template-part {"slug":"header","theme":"gama-software","className":"gama-site-header"} /-->
 <!-- wp:group {"tagName":"main","className":"gama-template--archive","layout":{"type":"constrained"}} -->
-<main class="wp-block-group gama-template--archive"><!-- wp:query-title {"type":"archive","level":1} /-->
-<!-- wp:query {"query":{"inherit":true}} -->
-<div class="wp-block-query"><!-- wp:post-template -->
-<!-- wp:post-title {"isLink":true} /-->
-<!-- wp:post-excerpt /-->
-<!-- /wp:post-template -->
-<!-- wp:query-pagination --><!-- wp:query-pagination-previous /--><!-- wp:query-pagination-numbers /--><!-- wp:query-pagination-next /--><!-- /wp:query-pagination --></div>
-<!-- /wp:query --></main>
+<main class="wp-block-group gama-template--archive gama-blog-index">
+	<!-- wp:query-title {"type":"archive","level":1,"fontSize":"display"} /-->
+	<!-- wp:query {"query":{"inherit":true},"className":"gama-blog-query"} -->
+	<div class="wp-block-query gama-blog-query">
+		<!-- wp:post-template {"className":"gama-post-grid","layout":{"type":"grid","columnCount":3}} -->
+			<!-- wp:group {"tagName":"article","className":"gama-post-card","backgroundColor":"base","layout":{"type":"constrained"}} -->
+			<article class="wp-block-group gama-post-card has-base-background-color has-background">
+				<!-- wp:post-featured-image {"isLink":true,"aspectRatio":"16/9"} /-->
+				<!-- wp:post-terms {"term":"category","className":"gama-post-card__category"} /-->
+				<!-- wp:post-title {"isLink":true,"level":2,"fontSize":"heading-3"} /-->
+				<!-- wp:post-date /-->
+				<!-- wp:post-excerpt {"moreText":"Czytaj dalej"} /-->
+			</article>
+			<!-- /wp:group -->
+		<!-- /wp:post-template -->
+		<!-- wp:query-pagination {"layout":{"type":"flex","justifyContent":"space-between"}} -->
+			<!-- wp:query-pagination-previous /-->
+			<!-- wp:query-pagination-numbers /-->
+			<!-- wp:query-pagination-next /-->
+		<!-- /wp:query-pagination -->
+		<!-- wp:query-no-results -->
+			<!-- wp:paragraph --><p>Brak opublikowanych wpisów w tym archiwum.</p><!-- /wp:paragraph -->
+		<!-- /wp:query-no-results -->
+	</div>
+	<!-- /wp:query -->
+</main>
 <!-- /wp:group -->
 <!-- wp:template-part {"slug":"footer","theme":"gama-software","className":"gama-site-footer"} /-->

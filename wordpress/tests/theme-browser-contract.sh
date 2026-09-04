@@ -10,6 +10,7 @@ navigation_spec="$ROOT_DIR/qa/e2e/specs/header-footer-navigation.spec.ts"
 hero_spec="$ROOT_DIR/qa/e2e/specs/hero.spec.ts"
 services_spec="$ROOT_DIR/qa/e2e/specs/services.spec.ts"
 modules_spec="$ROOT_DIR/qa/e2e/specs/modules.spec.ts"
+blog_spec="$ROOT_DIR/qa/e2e/specs/blog.spec.ts"
 shared_helpers="$ROOT_DIR/qa/e2e/specs/support/wordpress.ts"
 snapshot_dir="$ROOT_DIR/qa/e2e/specs/global-styles.spec.ts-snapshots"
 config="$ROOT_DIR/qa/e2e/playwright.config.ts"
@@ -30,6 +31,7 @@ grep -Fq 'npm ci --ignore-scripts' "$dockerfile"
 [[ -f "$hero_spec" ]]
 [[ -f "$services_spec" ]]
 [[ -f "$modules_spec" ]]
+[[ -f "$blog_spec" ]]
 [[ -f "$shared_helpers" ]]
 [[ -f "$timeout_policy" ]]
 [[ -f "$timeout_policy_contract" ]]
@@ -70,6 +72,9 @@ grep -Fq -- '--grep @services' "$test_package"
 grep -Fq '@modules' "$modules_spec"
 grep -Fq 'GAMA_PLAYWRIGHT_RUN=modules' "$test_package"
 grep -Fq -- '--grep @modules' "$test_package"
+grep -Fq '@blog' "$blog_spec"
+grep -Fq 'GAMA_PLAYWRIGHT_RUN=blog' "$test_package"
+grep -Fq -- '--grep @blog' "$test_package"
 for required_services_assertion in \
   'main section#services.gama-services' \
   'gama-service-card' \
@@ -172,8 +177,8 @@ for variable in \
   grep -Fq -- "-u $variable" "$manifest"
   grep -Fq "$variable" "$playwright_launcher"
 done
-if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 17 ]]; then
-  echo 'Every one of the seventeen browser runs must use the reviewed Playwright launcher.' >&2
+if [[ "$(grep -Fc 'browser "${PLAYWRIGHT_TEST[@]}"' "$test_package")" -ne 18 ]]; then
+  echo 'Every one of the eighteen browser runs must use the reviewed Playwright launcher.' >&2
   exit 1
 fi
 if grep -Fq 'browser npx playwright test' "$test_package"; then

@@ -89,4 +89,18 @@ filtering, module detail pages or reuse across multiple independently queried
 views. That change needs its own Jira task and migration test so content remains
 available after switching themes.
 
+## Editing the blog
+
+WordPress posts are the single source of truth for the blog. Create, preview,
+schedule and publish them in **Posts**; the newest published articles appear in
+the editable Blog Query block on the homepage and all articles appear at
+`/blog/`. The archive and homepage use responsive Core Query grids, while the
+Single template owns article metadata, featured image and previous/next links.
+
+Set a featured image, excerpt and category for a useful card. The **Gama
+Software Article** pattern provides an optional lead, section heading and quote
+starter without locking the post. When no article is published, both query
+locations display the intentional **W budowie** state instead of an empty or
+broken grid. Draft, private and future-scheduled posts are never public.
+
 License: GPL-2.0-or-later.

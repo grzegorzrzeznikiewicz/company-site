@@ -18,6 +18,7 @@ functions.php
 languages/gama-software.pot
 parts/footer.html
 parts/header.html
+patterns/article.php
 patterns/hero.php
 patterns/modules.php
 patterns/not-found.php

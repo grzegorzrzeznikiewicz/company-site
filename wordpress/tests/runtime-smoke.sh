@@ -59,6 +59,19 @@ done
 "$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'
 "$ROOT_DIR/bin/wp" theme list --status=active --field=name | grep -Fx 'gama-software'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-local-mailpit'
+"$ROOT_DIR/bin/wp" option get show_on_front | grep -Fx page
+"$ROOT_DIR/bin/wp" option get permalink_structure | grep -Fx '/%postname%/'
+home_page_id="$("$ROOT_DIR/bin/wp" option get page_on_front)"
+blog_page_id="$("$ROOT_DIR/bin/wp" option get page_for_posts)"
+[[ "$home_page_id" =~ ^[1-9][0-9]*$ ]]
+[[ "$blog_page_id" =~ ^[1-9][0-9]*$ ]]
+"$ROOT_DIR/bin/wp" post get "$home_page_id" --field=post_status | grep -Fx publish
+"$ROOT_DIR/bin/wp" post get "$blog_page_id" --field=post_status | grep -Fx publish
+"$ROOT_DIR/bin/wp" post get "$blog_page_id" --field=post_name | grep -Fx blog
+if "$ROOT_DIR/bin/wp" post list --post_type=post --post_status=publish --format=csv --fields=post_title,post_content | grep -Fq 'Welcome to WordPress. This is your first post. Edit or delete it, then start writing!'; then
+  echo 'Exact default WordPress demonstration post remains published.' >&2
+  exit 1
+fi
 
 upload_permission_token="gsweb10-permission-$(date +%s)-$$"
 "$ROOT_DIR/bin/wp" eval "\$uploads = wp_upload_dir(); \$path = \$uploads['basedir'] . '/${upload_permission_token}-cli.txt'; if (file_put_contents(\$path, 'writable') === false) { exit(1); } unlink(\$path);"
@@ -73,7 +86,9 @@ assert_upload_persisted
 
 "$ROOT_DIR/bin/restart"
 assert_upload_persisted
-curl --fail --silent --show-error "http://127.0.0.1:${wp_port}/" >/dev/null
-curl --fail --silent --show-error "http://127.0.0.1:${wp_port}/wp-admin/" >/dev/null
+runtime_url="http://localhost:${wp_port}"
+curl --fail --silent --show-error "$runtime_url/" >/dev/null
+curl --fail --silent --show-error "$runtime_url/blog/" | grep -Fq 'gama-template--home'
+curl --fail --silent --show-error "$runtime_url/wp-admin/" >/dev/null
 
 "$ROOT_DIR/bin/test-mail"

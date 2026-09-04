@@ -30,12 +30,12 @@ $gama_software_module_icon = get_theme_file_uri( 'assets/icons/module-package.sv
 		<div class="wp-block-group gama-modules__grid">
 			<?php
 			$gama_software_modules = array(
-				array( 'Advanced SEO Suite', 'Kompleksowe narzędzie do optymalizacji SEO', array( 'Automatyczne generowanie meta tagów', 'Optymalizacja URL', 'Rich snippets', 'Sitemap XML', 'Analiza SEO on-page' ) ),
-				array( 'Smart Product Recommendations', 'AI-powered rekomendacje produktów', array( 'Algorytmy uczenia maszynowego', 'Personalizacja dla użytkownika', 'Cross-selling i up-selling', 'Analityka skuteczności', 'A/B testing' ) ),
-				array( 'Enhanced Checkout', 'Zoptymalizowany proces zakupowy', array( 'One-step checkout', 'Autouzupełnianie adresów', 'Integracje z kurierami', 'Płatności Express', 'Optymalizacja konwersji' ) ),
-				array( 'Inventory Management Pro', 'Zaawansowane zarządzanie magazynem', array( 'Multi-warehouse support', 'Automatyczne powiadomienia', 'Prognozowanie zapasów', 'Integracja z ERP', 'Raporty i analityka' ) ),
-				array( 'Customer Loyalty Program', 'Program lojalnościowy dla klientów', array( 'System punktów i nagród', 'Poziomy lojalnościowe', 'Spersonalizowane promocje', 'Gamifikacja', 'Integracja z newsletter' ) ),
-				array( 'Performance Optimizer', 'Optymalizacja wydajności sklepu', array( 'Lazy loading obrazów', 'Optymalizacja bazy danych', 'Cache management', 'CDN integration', 'Monitoring wydajności' ) ),
+				array( __( 'Advanced SEO Suite', 'gama-software' ), __( 'Kompleksowe narzędzie do optymalizacji SEO', 'gama-software' ), array( __( 'Automatyczne generowanie meta tagów', 'gama-software' ), __( 'Optymalizacja URL', 'gama-software' ), __( 'Rich snippets', 'gama-software' ), __( 'Sitemap XML', 'gama-software' ), __( 'Analiza SEO on-page', 'gama-software' ) ) ),
+				array( __( 'Smart Product Recommendations', 'gama-software' ), __( 'AI-powered rekomendacje produktów', 'gama-software' ), array( __( 'Algorytmy uczenia maszynowego', 'gama-software' ), __( 'Personalizacja dla użytkownika', 'gama-software' ), __( 'Cross-selling i up-selling', 'gama-software' ), __( 'Analityka skuteczności', 'gama-software' ), __( 'A/B testing', 'gama-software' ) ) ),
+				array( __( 'Enhanced Checkout', 'gama-software' ), __( 'Zoptymalizowany proces zakupowy', 'gama-software' ), array( __( 'One-step checkout', 'gama-software' ), __( 'Autouzupełnianie adresów', 'gama-software' ), __( 'Integracje z kurierami', 'gama-software' ), __( 'Płatności Express', 'gama-software' ), __( 'Optymalizacja konwersji', 'gama-software' ) ) ),
+				array( __( 'Inventory Management Pro', 'gama-software' ), __( 'Zaawansowane zarządzanie magazynem', 'gama-software' ), array( __( 'Multi-warehouse support', 'gama-software' ), __( 'Automatyczne powiadomienia', 'gama-software' ), __( 'Prognozowanie zapasów', 'gama-software' ), __( 'Integracja z ERP', 'gama-software' ), __( 'Raporty i analityka', 'gama-software' ) ) ),
+				array( __( 'Customer Loyalty Program', 'gama-software' ), __( 'Program lojalnościowy dla klientów', 'gama-software' ), array( __( 'System punktów i nagród', 'gama-software' ), __( 'Poziomy lojalnościowe', 'gama-software' ), __( 'Spersonalizowane promocje', 'gama-software' ), __( 'Gamifikacja', 'gama-software' ), __( 'Integracja z newsletter', 'gama-software' ) ) ),
+				array( __( 'Performance Optimizer', 'gama-software' ), __( 'Optymalizacja wydajności sklepu', 'gama-software' ), array( __( 'Lazy loading obrazów', 'gama-software' ), __( 'Optymalizacja bazy danych', 'gama-software' ), __( 'Cache management', 'gama-software' ), __( 'CDN integration', 'gama-software' ), __( 'Monitoring wydajności', 'gama-software' ) ) ),
 			);
 			foreach ( $gama_software_modules as $gama_software_module ) :
 				?>
