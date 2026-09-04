@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Gama Local Mailpit
- * Description: Routes local development mail to the project Mailpit SMTP sink.
+ * Description: Routes non-production mail to an isolated SMTP sink.
  * Version: 0.1.0
  * Text Domain: gama-local-mailpit
  */
@@ -17,8 +17,8 @@ add_action(
     'phpmailer_init',
     static function (PHPMailer\PHPMailer\PHPMailer $mailer): void {
         $mailer->isSMTP();
-        $mailer->Host = 'mailpit';
-        $mailer->Port = 1025;
+        $mailer->Host = (string) ( getenv( 'GAMA_MAIL_SINK_HOST' ) ?: 'mailpit' );
+        $mailer->Port = (int) ( getenv( 'GAMA_MAIL_SINK_PORT' ) ?: 1025 );
         $mailer->SMTPAuth = false;
         $mailer->SMTPSecure = '';
     }

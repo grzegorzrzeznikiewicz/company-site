@@ -17,7 +17,13 @@ if ! wp_cli core is-installed; then
 fi
 
 wp_cli theme activate gama-software
-wp_cli plugin activate gama-local-mailpit
+if wp_cli plugin is-installed gama-local-mailpit; then
+  if [ "${WP_ENVIRONMENT_TYPE:-local}" = production ]; then
+    wp_cli plugin deactivate gama-local-mailpit >/dev/null 2>&1 || true
+  else
+    wp_cli plugin activate gama-local-mailpit
+  fi
+fi
 wp_cli plugin activate gama-contact
 wp_cli plugin activate gama-seo
 wp_cli plugin activate gama-security

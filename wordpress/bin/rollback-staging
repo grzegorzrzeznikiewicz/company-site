@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "$#" -ne 5 || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--confirm' ]]; then
+  echo 'Usage: wordpress/bin/rollback-staging --project gama-wp-staging-<id> --env-file <absolute-path> --confirm' >&2
+  exit 64
+fi
+project="$2"
+env_file="$4"
+if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
+  echo 'Rollback is limited to a gama-wp-staging-<id> namespace.' >&2
+  exit 64
+fi
+image="$(sed -n 's/^WORDPRESS_IMAGE=//p' "$env_file" | tail -n 1)"
+[[ "$image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]
+exec "$ROOT_DIR/bin/deploy-staging" --project "$project" --env-file "$env_file" --confirm

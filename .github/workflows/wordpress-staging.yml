@@ -1,0 +1,133 @@
+name: WordPress Staging Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: Full commit SHA that passed WordPress Quality Gates
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordpress-staging
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build immutable WordPress image
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.reference.outputs.image }}
+    steps:
+      - name: Validate requested revision
+        shell: bash
+        run: '[[ "${{ inputs.git_sha }}" =~ ^[a-f0-9]{40}$ ]]'
+
+      - name: Checkout requested revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.git_sha }}
+
+      - name: Require successful WordPress quality gates
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          successful_runs="$(gh run list --workflow 'WordPress Quality Gates' --commit '${{ inputs.git_sha }}' --status success --json conclusion --jq 'length')"
+          [[ "$successful_runs" -ge 1 ]]
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image tag
+        id: metadata
+        shell: bash
+        run: echo "tag=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gama-wordpress:sha-${{ inputs.git_sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push once
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: wordpress/runtime/Dockerfile
+          push: true
+          build-args: GAMA_GIT_SHA=${{ inputs.git_sha }}
+          tags: ${{ steps.metadata.outputs.tag }}
+
+      - name: Publish immutable reference
+        id: reference
+        shell: bash
+        run: echo "image=${{ steps.metadata.outputs.tag }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy exact image to staging
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: wordpress-staging
+    steps:
+      - name: Checkout deployment definition
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.git_sha }}
+
+      - name: Encode reviewed Compose definitions
+        id: compose
+        shell: bash
+        run: |
+          echo "base=$(base64 -w0 wordpress/deploy/compose.yaml)" >> "$GITHUB_OUTPUT"
+          echo "staging=$(base64 -w0 wordpress/deploy/staging.override.yaml)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy through isolated staging namespace
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          WORDPRESS_IMAGE: ${{ needs.build.outputs.image }}
+          COMPOSE_BASE: ${{ steps.compose.outputs.base }}
+          COMPOSE_STAGING: ${{ steps.compose.outputs.staging }}
+          GHCR_USERNAME: ${{ secrets.STAGING_GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.STAGING_GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.STAGING_SERVER_HOST }}
+          username: ${{ secrets.STAGING_SERVER_USER }}
+          key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT }}
+          envs: WORDPRESS_IMAGE,COMPOSE_BASE,COMPOSE_STAGING,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            target=/srv/gama-wordpress-staging
+            test -f "$target/.env"
+            install -d -m 0750 "$target"
+            printf '%s' "$COMPOSE_BASE" | base64 -d > "$target/compose.yaml.next"
+            printf '%s' "$COMPOSE_STAGING" | base64 -d > "$target/staging.override.yaml.next"
+            mv "$target/compose.yaml.next" "$target/compose.yaml"
+            mv "$target/staging.override.yaml.next" "$target/staging.override.yaml"
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            cd "$target"
+            export WORDPRESS_IMAGE
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml pull wordpress install bootstrap
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml up -d db mailpit uploads-init
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml stop wordpress || true
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml run --rm --no-deps install
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml up -d --wait wordpress
+            sudo --preserve-env=WORDPRESS_IMAGE docker compose --project-name gama-wp-staging --env-file .env --file compose.yaml --file staging.override.yaml run --rm bootstrap
+
+      - name: Verify staging noindex and health
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 10 --retry-all-errors https://staging.gama-software.com/ > staging.html
+          grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+noindex' staging.html
