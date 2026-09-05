@@ -19,6 +19,7 @@ wordpress/tests/plugin-package-contract.sh
 wordpress/tests/package-compose-contract.sh
 wordpress/tests/test-package-input-contract.sh
 wordpress/tests/test-package-isolation-contract.sh
+wordpress/tests/ci-package-input-contract.sh
 wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip
 
 wordpress/bin/package theme gama-software

@@ -38,6 +38,7 @@ jobs:
           wordpress/tests/production-deployment-contract.sh
           wordpress/tests/theme-contract.sh
           wordpress/tests/plugin-package-contract.sh
+          wordpress/tests/ci-package-input-contract.sh
           wordpress/tests/ci-failure-contract.sh
 
       - name: Upload immutable package set
@@ -67,12 +68,12 @@ jobs:
           path: wordpress/dist
 
       - name: Test exact contact plugin package
-        run: wordpress/bin/test-package wordpress/dist/gama-contact-0.3.1.zip
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.2.zip)"
 
       - name: Test exact theme package
         env:
           GAMA_THEME_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-browser-artifacts
-        run: wordpress/bin/test-package wordpress/dist/gama-software-0.4.0.zip
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
 
       - name: Upload browser evidence
         if: ${{ always() }}
