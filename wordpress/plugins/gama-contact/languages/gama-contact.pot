@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Gama Software
 msgid ""
 msgstr ""
-"Project-Id-Version: Gama Contact 0.3.1\n"
+"Project-Id-Version: Gama Contact 0.3.2\n"
 "Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -47,43 +47,43 @@ msgstr ""
 msgid "Firma"
 msgstr ""
 
-#: src/Form/FormRenderer.php:58
+#: src/Form/FormRenderer.php:59
 msgid "Wyślij wiadomość"
 msgstr ""
 
 #: src/Form/FormRenderer.php:60
-msgid "Włącz JavaScript albo użyj podanego obok adresu e-mail."
+msgid "Włącz JavaScript, aby wysłać wiadomość."
 msgstr ""
 
-#: src/Form/SubmissionController.php:32
+#: src/Form/SubmissionController.php:29
 msgid "Nie udało się zweryfikować formularza. Odśwież stronę i spróbuj ponownie."
 msgstr ""
 
-#: src/Form/SubmissionController.php:37
+#: src/Form/SubmissionController.php:34
 msgid "Dziękujemy. Wiadomość została przyjęta."
 msgstr ""
 
-#: src/Form/SubmissionController.php:40
+#: src/Form/SubmissionController.php:37
 msgid "Wysłano zbyt wiele wiadomości. Spróbuj ponownie później."
 msgstr ""
 
-#: src/Form/SubmissionController.php:47
+#: src/Form/SubmissionController.php:44
 msgid "Popraw zaznaczone pola."
 msgstr ""
 
-#: src/Form/SubmissionController.php:60
+#: src/Form/SubmissionController.php:57
 msgid "Formularz jest chwilowo niedostępny."
 msgstr ""
 
-#: src/Form/SubmissionController.php:74
+#: src/Form/SubmissionController.php:71
 msgid "Nowa wiadomość ze strony Gama Software"
 msgstr ""
 
-#: src/Form/SubmissionController.php:75
+#: src/Form/SubmissionController.php:72
 msgid "Nie udało się wysłać wiadomości. Spróbuj ponownie później."
 msgstr ""
 
-#: src/Form/SubmissionController.php:78
+#: src/Form/SubmissionController.php:75
 msgid "Dziękujemy. Wiadomość została wysłana."
 msgstr ""
 

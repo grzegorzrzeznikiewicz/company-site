@@ -7,7 +7,7 @@ Description: Production block-theme foundation for the Gama Software website.
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.4
-Version: 0.4.0
+Version: 0.4.1
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: gama-software
@@ -364,9 +364,7 @@ html {
 	padding-bottom: clamp(4rem, 7vw, 5rem);
 }
 
-.gama-contact__content,
-.gama-contact__details,
-.gama-contact__form-slot {
+.gama-contact__content {
 	display: flex;
 	flex-direction: column;
 	gap: var(--wp--preset--spacing--lg);
@@ -374,11 +372,6 @@ html {
 
 .gama-contact__form-slot > .wp-block-shortcode {
 	display: none;
-}
-
-.gama-contact__form-slot:has(.gama-contact-form) {
-	min-height: 0;
-	justify-content: flex-start;
 }
 
 .gama-contact__form-slot:has(.gama-contact-form) > .gama-contact__form-placeholder {
@@ -390,36 +383,89 @@ html {
 }
 
 .gama-contact__content > *,
-.gama-contact__details > *,
 .gama-contact__form-slot > * {
 	margin-top: 0;
 	margin-bottom: 0;
 }
 
 .gama-contact__card {
-	max-width: 64rem;
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 42rem;
 	margin-right: auto;
 	margin-left: auto;
-	padding: clamp(1.5rem, 5vw, 3rem);
-	border: 1px solid var(--wp--preset--color--border-subtle);
-	border-radius: var(--wp--custom--radius--card);
-	box-shadow: var(--wp--preset--shadow--elevation-2);
-}
-
-.gama-contact__layout {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
-	gap: clamp(2rem, 5vw, 4rem);
-	align-items: start;
+	padding: 2rem;
+	border-radius: .5rem;
+	box-shadow: var(--wp--preset--shadow--elevation-1);
 }
 
 .gama-contact__form-slot {
 	min-width: 0;
-	min-height: 16rem;
-	padding: var(--wp--preset--spacing--xl);
-	justify-content: center;
-	border-radius: var(--wp--custom--radius--card);
-	background-color: var(--wp--preset--color--surface-subtle);
+}
+
+.gama-contact .gama-contact-form__grid {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.gama-contact .gama-contact-form__field {
+	gap: .75rem;
+}
+
+.gama-contact .gama-contact-form label {
+	font-size: .875rem;
+	font-weight: 500;
+	line-height: 1;
+}
+
+.gama-contact .gama-contact-form input,
+.gama-contact .gama-contact-form textarea {
+	padding: .25rem .75rem;
+	border-color: transparent;
+	background-color: #f3f3f5;
+	color: var(--wp--preset--color--text-strong);
+	font-size: 1rem;
+	line-height: 1.5rem;
+}
+
+.gama-contact .gama-contact-form input {
+	height: 2.25rem;
+}
+
+.gama-contact .gama-contact-form textarea {
+	min-height: 4rem;
+	padding-top: .5rem;
+	padding-bottom: .5rem;
+	field-sizing: content;
+	resize: none;
+}
+
+.gama-contact .gama-contact-form [aria-invalid="true"] {
+	border-color: #b42318;
+}
+
+.gama-contact .gama-contact-form [type="submit"] {
+	min-height: 2.5rem;
+	padding: .5rem 1.5rem;
+	border: 0;
+	border-radius: .375rem;
+	font-size: .875rem;
+	font-weight: 500;
+	line-height: 1.5rem;
+}
+
+@media (min-width: 768px) {
+	.gama-contact__card {
+		padding: 3rem;
+	}
+
+	.gama-contact .gama-contact-form__grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.gama-contact .gama-contact-form input,
+	.gama-contact .gama-contact-form textarea {
+		font-size: .875rem;
+	}
 }
 
 .gama-site-footer__inner,

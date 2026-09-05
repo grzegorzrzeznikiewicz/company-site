@@ -3,19 +3,29 @@
 ## Decision
 
 - **VERDICT: NO-GO**
-- Technical verdict for repository commit
-  `6f0d11f3020afd4ad332afb90487d016e6353de6`: **APPROVE**
-- Review date: 2026-09-04
+- Historical technical verdict for repository commit
+  `6f0d11f3020afd4ad332afb90487d016e6353de6`: **APPROVE, superseded by the
+  Contact defect reported on 2026-09-05**. It is not approval of that UI or of
+  the corrected release candidate.
+- Review date: 2026-09-04; defect follow-up: 2026-09-05
 - Reviewed environment: isolated local deployment-model rehearsals plus a
   read-only probe of `staging.gama-software.com`
 - P0: none
-- Open technical implementation P1: none
+- Contact parity P1: reproduced after the review; the local correction requires
+  renewed candidate/staging evidence before technical approval is restored.
 
-NO-GO is caused by missing remote CI/release evidence, an unusable public
-staging endpoint and missing owner/infrastructure decisions. It is not approval
+NO-GO includes the newly discovered Contact parity defect as well as missing
+remote CI/release evidence, an unusable public staging endpoint and missing
+owner/infrastructure decisions. It is not approval
 to run GSWEB-29 or change production traffic.
 
 ## Verified evidence
+
+The following is historical evidence for the earlier revisions, not proof that
+the Contact layout was acceptable. Previous visibility/reflow checks missed a
+card that collapsed to 50px at a 320px viewport. The follow-up adds exact card
+and field geometry plus explicit loaded-stylesheet assertions; see
+[the Contact correction](GSWEB-19-contact-parity-fix.md).
 
 - The clean repository builds local release image
   `sha256:1946785ed178afeb6aa6660311ec031641a665f3e8be738698822e556045c620`
@@ -98,9 +108,10 @@ native-browser 200% zoom and assistive-technology spot check remains required.
 
 ### Jira evidence
 
-GSWEB-8 and GSWEB-22–28 statuses must be verified in the authenticated Gama
-Software Jira session. The automated browser cannot do this while macOS is
-locked.
+The authenticated Gama Software Chrome profile is accessible again. GSWEB-8
+and its children were read on 2026-09-05; Jira still showed their status as
+`Do zrobienia`. Jira status/evidence reconciliation remains outstanding and
+must not be inferred from local technical test results.
 
 ## Known deviations requiring explicit acceptance
 

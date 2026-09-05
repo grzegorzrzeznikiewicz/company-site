@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-theme-package.XXXXXX")"
 theme_source="$ROOT_DIR/theme/gama-software"
 theme_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$theme_source/style.css")"
-[[ "$theme_version" == '0.4.0' ]]
+[[ "$theme_version" == '0.4.1' ]]
 ZIP_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip"
 MANIFEST_PATH="$ROOT_DIR/dist/gama-software-$theme_version.manifest.txt"
 SHA_PATH="$ROOT_DIR/dist/gama-software-$theme_version.zip.sha256"

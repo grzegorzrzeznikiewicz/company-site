@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Gama Software
 msgid ""
 msgstr ""
-"Project-Id-Version: Gama Software 0.4.0\n"
+"Project-Id-Version: Gama Software 0.4.1\n"
 "Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -219,31 +219,15 @@ msgstr ""
 
 #: patterns/contact.php
 msgctxt "Pattern description"
-msgid "Editable contact details and a replaceable form slot."
+msgid "Centered contact form with an editable heading and e-mail fallback."
 msgstr ""
 
 #: patterns/contact.php:17
 msgid "Kontakt"
 msgstr ""
 
-#: patterns/contact.php:24
-msgid "Porozmawiajmy o Twoim projekcie"
-msgstr ""
-
-#: patterns/contact.php:25
-msgid "Opisz krótko swoje potrzeby. Odpowiemy i zaproponujemy najlepszy następny krok."
-msgstr ""
-
-#: patterns/contact.php:26
-msgid "E-mail:"
-msgstr ""
-
-#: patterns/contact.php:27
-msgid "Napisz e-mail"
-msgstr ""
-
-#: patterns/contact.php:32
-msgid "Formularz kontaktowy zostanie wyświetlony po aktywowaniu wtyczki Gama Contact."
+#: patterns/contact.php:22
+msgid "Formularz jest chwilowo niedostępny. Napisz do nas:"
 msgstr ""
 
 #: patterns/hero.php

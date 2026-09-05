@@ -1,5 +1,92 @@
 import { expect, test } from '@playwright/test';
 
+test('preserves the legacy contact layout at mobile and desktop widths @contact-form-layout', async ({
+  page,
+}) => {
+  const response = await page.goto('/#contact', {
+    waitUntil: 'domcontentloaded',
+  });
+  expect(response?.status()).toBe(200);
+  for (const width of [320, 390, 767, 768, 1440] as const) {
+    await page.setViewportSize({ width, height: 900 });
+
+    const contact = page.locator('main section#contact.gama-contact');
+    const form = contact.locator('form.gama-contact-form');
+    await expect(form).toBeVisible();
+    // A missing stylesheet used to produce a false pass in Docker (localhost
+    // asset URLs resolving to the browser container instead of WordPress).
+    await expect(form).toHaveCSS('display', 'flex');
+    await expect(contact.locator('.gama-contact__content')).toHaveCSS(
+      'display',
+      'flex',
+    );
+    const geometry = await contact.evaluate((section) => {
+      const rect = (selector: string) => {
+        const element = section.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Contact element missing: ${selector}`);
+        return element.getBoundingClientRect().toJSON() as {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        };
+      };
+
+      return {
+        card: rect('.gama-contact__card'),
+        form: rect('.gama-contact-form'),
+        name: rect('#gama-contact-name'),
+        email: rect('#gama-contact-email'),
+        phone: rect('#gama-contact-phone'),
+        message: rect('#gama-contact-message'),
+        button: rect('[type="submit"]'),
+      };
+    });
+
+    expect(geometry.card.width).toBeCloseTo(Math.min(width - 32, 672), 0);
+    expect(geometry.card.x + geometry.card.width / 2).toBeCloseTo(width / 2, 0);
+    expect(geometry.form.width).toBeCloseTo(
+      geometry.card.width - (width < 768 ? 64 : 96),
+      0,
+    );
+    expect(geometry.phone.width).toBeCloseTo(geometry.form.width, 0);
+    expect(geometry.message.width).toBeCloseTo(geometry.form.width, 0);
+    if (width < 768) {
+      expect(geometry.email.y).toBeGreaterThan(
+        geometry.name.y + geometry.name.height,
+      );
+      expect(geometry.name.width).toBeCloseTo(geometry.form.width, 0);
+    } else {
+      expect(geometry.email.y).toBeCloseTo(geometry.name.y, 0);
+      expect(geometry.email.x).toBeGreaterThan(
+        geometry.name.x + geometry.name.width,
+      );
+    }
+    expect(geometry.button.x + geometry.button.width / 2).toBeCloseTo(
+      width / 2,
+      0,
+    );
+    expect(geometry.button.height).toBeCloseTo(40, 0);
+    expect(geometry.card.height).toBeLessThan(520);
+    await expect(contact.locator('.gama-contact__details')).toHaveCount(0);
+    await expect(form.locator('br, p:not([class])')).toHaveCount(0);
+    await expect(form.locator('noscript')).toBeHidden();
+    for (const name of ['name', 'email', 'phone', 'message']) {
+      await expect(form.locator(`[name="${name}"]`)).toHaveCSS(
+        'font-size',
+        width < 768 ? '16px' : '14px',
+      );
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(width);
+    await test.info().attach(`contact-${width}.png`, {
+      body: await contact.screenshot(),
+      contentType: 'image/png',
+    });
+  }
+});
+
 test('@contact-form validates, delivers and reports transport errors in the browser', async ({
   page,
   request,

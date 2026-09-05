@@ -2,6 +2,12 @@
 
 All notable changes to `gama-software/gama-contact` are documented here.
 
+## 0.3.2 - 2026-09-05
+
+- Prevent the Core Shortcode block from inserting stray line breaks and paragraphs into the form.
+- Collapse unused validation spacing while preserving the accessible status live region.
+- Keep the submit action centered and clarify the JavaScript-disabled message.
+
 ## 0.3.1 - 2026-09-04
 
 - Serialize rate-limit updates with a MariaDB advisory lock.

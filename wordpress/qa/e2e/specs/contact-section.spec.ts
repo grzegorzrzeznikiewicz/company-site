@@ -19,11 +19,14 @@ test('renders an accessible editable Contact fallback without the form plugin @c
       contact.getByRole('link', { name: 'founders@gama-software.com' }),
     ).toHaveAttribute('href', 'mailto:founders@gama-software.com');
     await expect(
-      contact.getByText(
-        'Formularz kontaktowy zostanie wyświetlony po aktywowaniu wtyczki Gama Contact.',
-        { exact: true },
-      ),
+      contact.locator('.gama-contact__form-placeholder'),
     ).toBeVisible();
+    await expect(
+      contact.locator('.gama-contact__form-placeholder'),
+    ).toContainText('Formularz jest chwilowo niedostępny. Napisz do nas:');
+    const card = contact.locator('.gama-contact__card');
+    const bounds = await card.boundingBox();
+    expect(bounds?.width).toBeCloseTo(Math.min(width - 32, 672), 0);
     expect(
       await page.evaluate(
         () =>

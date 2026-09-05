@@ -35,7 +35,7 @@ $renderer   = $read( 'src/Form/FormRenderer.php' );
 $validator  = $read( 'src/Form/Validator.php' );
 $script     = $read( 'assets/contact-form.js' );
 
-foreach ( array( 'Version: 0.3.1', "GAMA_CONTACT_VERSION', '0.3.1", 'SubmissionController.php', 'RateLimiter.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
+foreach ( array( 'Version: 0.3.2', "GAMA_CONTACT_VERSION', '0.3.2", 'SubmissionController.php', 'RateLimiter.php', 'FormRenderer.php', 'Validator.php' ) as $required ) {
 	if ( ! str_contains( $plugin, $required ) ) {
 		$fail( "plugin bootstrap misses {$required}" );
 	}

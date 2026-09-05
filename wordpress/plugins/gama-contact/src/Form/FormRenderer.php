@@ -32,34 +32,39 @@ final class FormRenderer
                 <div class="gama-contact-form__field">
                     <label for="gama-contact-name"><?php esc_html_e('Imię i nazwisko', 'gama-contact'); ?></label>
                     <input id="gama-contact-name" name="name" type="text" autocomplete="name" required maxlength="120" aria-describedby="gama-contact-name-error">
-                    <p id="gama-contact-name-error" class="gama-contact-form__error" data-error-for="name"></p>
+                    <span id="gama-contact-name-error" class="gama-contact-form__error" data-error-for="name"></span>
                 </div>
                 <div class="gama-contact-form__field">
                     <label for="gama-contact-email"><?php esc_html_e('E-mail', 'gama-contact'); ?></label>
                     <input id="gama-contact-email" name="email" type="email" autocomplete="email" required maxlength="254" aria-describedby="gama-contact-email-error">
-                    <p id="gama-contact-email-error" class="gama-contact-form__error" data-error-for="email"></p>
+                    <span id="gama-contact-email-error" class="gama-contact-form__error" data-error-for="email"></span>
                 </div>
             </div>
             <div class="gama-contact-form__field">
                 <label for="gama-contact-phone"><?php esc_html_e('Telefon', 'gama-contact'); ?></label>
                 <input id="gama-contact-phone" name="phone" type="tel" autocomplete="tel" required maxlength="40" aria-describedby="gama-contact-phone-error">
-                <p id="gama-contact-phone-error" class="gama-contact-form__error" data-error-for="phone"></p>
+                <span id="gama-contact-phone-error" class="gama-contact-form__error" data-error-for="phone"></span>
             </div>
             <div class="gama-contact-form__field">
                 <label for="gama-contact-message"><?php esc_html_e('Wiadomość', 'gama-contact'); ?></label>
                 <textarea id="gama-contact-message" name="message" rows="5" required maxlength="5000" aria-describedby="gama-contact-message-error"></textarea>
-                <p id="gama-contact-message-error" class="gama-contact-form__error" data-error-for="message"></p>
+                <span id="gama-contact-message-error" class="gama-contact-form__error" data-error-for="message"></span>
             </div>
             <div class="gama-contact-form__trap" aria-hidden="true">
                 <label for="gama-contact-company"><?php esc_html_e('Firma', 'gama-contact'); ?></label>
                 <input id="gama-contact-company" name="company" type="text" tabindex="-1" autocomplete="off">
+                <input name="gama_contact_nonce" type="hidden" value="<?php echo esc_attr(wp_create_nonce('gama_contact_submit')); ?>">
             </div>
-            <input name="gama_contact_nonce" type="hidden" value="<?php echo esc_attr(wp_create_nonce('gama_contact_submit')); ?>">
-            <button class="wp-element-button" type="submit"><?php esc_html_e('Wyślij wiadomość', 'gama-contact'); ?></button>
-            <p class="gama-contact-form__status" aria-live="polite" aria-atomic="true"></p>
-            <noscript><p><?php esc_html_e('Włącz JavaScript albo użyj podanego obok adresu e-mail.', 'gama-contact'); ?></p></noscript>
+            <div class="gama-contact-form__actions">
+                <button class="wp-element-button" type="submit"><?php esc_html_e('Wyślij wiadomość', 'gama-contact'); ?></button>
+                <noscript><?php esc_html_e('Włącz JavaScript, aby wysłać wiadomość.', 'gama-contact'); ?></noscript>
+            </div>
+            <div class="gama-contact-form__status" aria-live="polite" aria-atomic="true"></div>
         </form>
         <?php
-        return (string) ob_get_clean();
+        // The Core Shortcode block applies wpautop after rendering this form.
+        // Keep inter-element whitespace compact so it cannot insert line breaks
+        // or orphan paragraphs into the field layout. Do not change global filters.
+        return preg_replace('/>\s+</', '><', trim((string) ob_get_clean())) ?? '';
     }
 }

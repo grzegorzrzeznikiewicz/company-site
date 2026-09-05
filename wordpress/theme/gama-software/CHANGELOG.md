@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 - 2026-09-05
+
+- Restore Contact parity: a centered 42rem card, responsive form fields and compact centered submit button.
+- Prevent the contact card from shrinking to intrinsic grid width and remove the extra text column and nested gray card.
+- Keep an editable e-mail fallback when the contact plugin is unavailable.
+
 ## 0.4.0 - 2026-09-04
 
 - Add an editable Core-block services Grid pattern with reusable responsive cards and local decorative icons.

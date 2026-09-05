@@ -48,7 +48,7 @@ if ( str_contains( $front_page, '<!-- wp:pattern {"slug":"gama-software/contact"
 if ( str_contains( $front_page, 'templateLock' ) || str_contains( $front_page, 'wp:html' ) ) {
 	$fail( 'Contact content must stay unlocked and avoid raw HTML blocks' );
 }
-foreach ( array( '.gama-contact {', '.gama-contact__card {', '.gama-contact__layout {', '.gama-contact__form-slot {' ) as $required_css ) {
+foreach ( array( '.gama-contact {', '.gama-contact__card {', '.gama-contact__form-slot {' ) as $required_css ) {
 	if ( ! str_contains( $style_css, $required_css ) ) {
 		$fail( "style.css misses {$required_css}" );
 	}

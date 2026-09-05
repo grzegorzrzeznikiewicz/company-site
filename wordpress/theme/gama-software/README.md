@@ -1,7 +1,7 @@
 # Gama Software theme
 
 `gama-software` is the production block-theme foundation for the Gama Software
-website. Version 0.4.0 targets WordPress 7.1 and PHP 8.4. Its controlled Global
+website. Version 0.4.1 targets WordPress 7.1 and PHP 8.4. Its controlled Global
 Styles palette, system typography, spacing, radii and shadows reproduce the
 approved visual foundation without Tailwind, React or remote fonts.
 
@@ -106,13 +106,16 @@ broken grid. Draft, private and future-scheduled posts are never public.
 ## Editing the Contact section
 
 The Contact section is made from direct, unlocked Core blocks in the Front Page
-template. Editors can change the heading, helper text, e-mail link, add an
-optional telephone link or CTA, and move or replace the entire form slot. The
-separate **Gama Software Contact** pattern provides the same starter structure.
+template. Its centered 42rem card preserves the original site layout: name and
+e-mail share a row from 768px, while phone and message span the form width.
+Editors can change the heading and fallback e-mail link, and move or replace
+the entire form slot. The separate **Gama Software Contact** pattern provides
+the same starter structure; there is no additional promotional text column.
 
 The `gama-contact__form-slot` Group is the stable presentation boundary for a
 theme-independent form block. Before the form plugin is active it displays a
-controlled explanatory message, while the real `mailto:` action remains
-usable. Form processing, validation and anti-spam never belong in the theme.
+visitor-facing availability message with a working `mailto:` link. That fallback
+is hidden when the form is present. Form processing, validation and anti-spam
+never belong in the theme.
 
 License: GPL-2.0-or-later.
