@@ -11,15 +11,56 @@
 - Reviewed environment: isolated local deployment-model rehearsals plus a
   read-only probe of `staging.gama-software.com`
 - P0: none
-- Contact parity P1: reproduced after the review; the local correction requires
-  renewed candidate/staging evidence before technical approval is restored.
+- Contact parity P1: locally corrected and independently approved in
+  `04b3063`; fresh isolated candidate acceptance and rollback passed on
+  2026-09-05. Public staging and owner acceptance are still outstanding.
 
-NO-GO includes the newly discovered Contact parity defect as well as missing
-remote CI/release evidence, an unusable public staging endpoint and missing
-owner/infrastructure decisions. It is not approval
+NO-GO remains in force after the local Contact correction because remote
+CI/release evidence, a usable public staging endpoint and owner/infrastructure
+decisions are missing. It is not approval
 to run GSWEB-29 or change production traffic.
 
-## Verified evidence
+## Fresh Contact-candidate rehearsal — 2026-09-05
+
+- Source: clean `feature/GSWEB-9` at
+  `04b306398cd2a071a38799e85def56745a358a05` (theme 0.4.1, contact 0.3.2).
+- Command: `wordpress/tests/staging-rollback-runtime.sh`, with retained evidence
+  root `/tmp/gama-contact-release.zBUpFs/`; exit status **0**.
+- Isolated project: `gama-wp-staging-9342-69152`.
+- Candidate image:
+  `sha256:3f9abb36a79d3711631095623fbcdcbe6d63300ade9c0de5df6a8391eeee579c`.
+  This is the rehearsal's local `test-candidate-sha-...` image, not a published
+  registry release or remote-CI artifact.
+- **2/2 regression checks passed** (desktop/mobile, navigation/logo, Axe WCAG
+  2.1 AA and existing performance budgets).
+- **13/13 acceptance checks passed**, including the added five-viewport Contact
+  geometry/loaded-CSS check, form delivery/errors, content inventory, blog,
+  Hero/CTA, services/modules and Editor/Administrator capability boundaries.
+- The exact previous source commit was
+  `043beee6490664758bdbbff55d7a9cdf9156a398`, image
+  `sha256:b9fe0078c4db6723ddad2f005328613bbbd15ebd4d075396381cc0a8925f4507`.
+  Deployment and code rollback preserved the database marker and upload SHA-256.
+- `noindex` and local Mailpit delivery were verified. Cleanup removed only the
+  disposable project's test resources; its container query was empty afterward.
+  The separate `gama-wordpress` preview remained healthy at HTTP 200.
+- Retained regression archive:
+  `gama-wp-staging-9342-69152-browser-artifacts.tar`, SHA-256
+  `7b752403748f9504105c54b838cc63989e633bb134e4706e573ce619002c43da`.
+- Retained acceptance archive:
+  `gama-wp-staging-9342-69152-acceptance-artifacts.tar`, SHA-256
+  `232ed27318243b6fff97917e3188b6d7cd444735ab370ed4bacce896ec97e8b4`.
+- Evidence review exposed a stale CI consumer: package lifecycle still named
+  contact 0.3.1 and theme 0.4.0. Commit `b988700` now validates the requested
+  package against source metadata and consumes contact 0.3.2/theme 0.4.1. Its
+  behavioral RED/GREEN contract and relevant package/CI contracts pass; an
+  independent task review returned APPROVE with no findings. This repairs the
+  local workflow definition but is not a substitute for a remote green run.
+
+This refresh closes the missing _local_ candidate-rehearsal evidence for the
+Contact fix. It does not restore a blanket Gate C approval, substitute for the
+owner's visual/accessibility acceptance, or authorize publication or cutover.
+
+## Historical verified evidence
 
 The following is historical evidence for the earlier revisions, not proof that
 the Contact layout was acceptable. Previous visibility/reflow checks missed a
@@ -85,10 +126,12 @@ the same digest was promoted to staging. Required sequence:
 
 ### P1 — public staging infrastructure
 
-The current `staging.gama-software.com` probe is not an acceptable staging
-environment: HTTPS presents a certificate for `blog.gama-software.com`, while
-HTTP does not redirect to HTTPS. Infrastructure must configure the correct
-certificate, routing and release namespace before the real acceptance run.
+The `staging.gama-software.com` endpoint is not an acceptable staging environment.
+The previous probe identified a certificate for `blog.gama-software.com`; the
+fresh 2026-09-05 10:33 UTC probe still fails hostname verification (curl exit
+60). HTTP returns 200 without redirecting to HTTPS. No certificate warning was
+bypassed. Infrastructure must configure the correct certificate, routing and
+release namespace before the real acceptance run.
 
 ### P1 — production inputs and owners
 
@@ -108,10 +151,14 @@ native-browser 200% zoom and assistive-technology spot check remains required.
 
 ### Jira evidence
 
-The authenticated Gama Software Chrome profile is accessible again. GSWEB-8
-and its children were read on 2026-09-05; Jira still showed their status as
-`Do zrobienia`. Jira status/evidence reconciliation remains outstanding and
-must not be inferred from local technical test results.
+The authenticated Gama Software Chrome profile is accessible. On 2026-09-05,
+GSWEB-10–30 were moved from backlog to board 1, joining GSWEB-9. The board's
+Epic grouping now displays GSWEB-8 with all 22 children. GSWEB-8 was changed to
+`W toku`; GSWEB-19 and GSWEB-28 to `Testowanie`, with evidence and remaining
+acceptance conditions recorded in comments. No task was marked `Gotowe` merely
+because it was moved onto the board. Reconciliation of the other tickets'
+acceptance criteria/status remains outstanding and must not be inferred from
+local tests.
 
 ## Known deviations requiring explicit acceptance
 

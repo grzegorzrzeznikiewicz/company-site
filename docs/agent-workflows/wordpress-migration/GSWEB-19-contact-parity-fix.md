@@ -74,10 +74,29 @@ final clean-fixture browser run passed 4/4. The test counters were cleared again
 afterward so the owner's manual test is not blocked. Production anti-spam
 configuration, the public site's traffic and content were not changed.
 
+## Follow-up candidate verification
+
+The clean source commit `04b306398cd2a071a38799e85def56745a358a05` then passed
+`wordpress/tests/staging-rollback-runtime.sh` (exit 0) in the separate project
+`gama-wp-staging-9342-69152`: 2/2 release regression and 13/13 acceptance tests,
+including the new exact Contact geometry test and Editor changes to Contact.
+Deployment and rollback to the actual preceding commit preserved database and
+uploaded media. The local rehearsal archives are retained under
+`/tmp/gama-contact-release.zBUpFs/`; image identities and archive checksums are
+recorded in [Gate C](GSWEB-28-gate-c.md).
+
+The disposable test project was cleaned up, while the user's `gama-wordpress`
+preview remained healthy at HTTP 200. Jira GSWEB-19 is now `Testowanie`, with
+the correction, test evidence and remaining owner acceptance recorded in its
+comment. This does not claim a public staging deployment or production mail
+delivery.
+
 ## Release boundary
 
 This is a local correction, not an epic completion or production deployment.
 The previous Gate C technical approval must not be reused for the old UI or
-the new release without renewed candidate/staging verification. Gate C remains
-NO-GO. No push, published artifact, production cutover or legacy retirement was
-performed as part of this fix.
+the new release without renewed candidate/staging verification. The isolated
+candidate rehearsal is now green; remote CI, usable public staging and owner
+acceptance remain outstanding, so Gate C stays NO-GO. No push, published
+artifact, production cutover or legacy retirement was performed as part of
+this fix.
