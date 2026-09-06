@@ -62,7 +62,10 @@ grep -Fq "Backup created: $backup" <<<"$backup_output"
 grep -Fxq "source_project=$source_project" "$backup/manifest.txt"
 grep -Fxq "source_wordpress_image=$source_image" "$backup/manifest.txt"
 grep -Fxq "source_wordpress_image_revision=$(git -C "$ROOT_DIR/.." rev-parse HEAD)" "$backup/manifest.txt"
-[[ "$(stat -f '%Lp' "$backup" 2>/dev/null || stat -c '%a' "$backup")" == 700 ]]
+if ! backup_permissions="$(stat -c '%a' "$backup" 2>/dev/null)"; then
+  backup_permissions="$(stat -f '%Lp' "$backup")"
+fi
+[[ "$backup_permissions" == 700 ]]
 
 restore_output="$("$ROOT_DIR/bin/restore" --project "$restore_project" --env-file "$env_file" --confirm "$backup")"
 grep -Fq "Restore completed: $restore_project" <<<"$restore_output"

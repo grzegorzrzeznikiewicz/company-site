@@ -25,6 +25,32 @@ expect_failure lint docker run --rm --network none --volume "$fixture:/fixture:r
   wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99 \
   -l /fixture/invalid.php
 
+if [[ ! -x "$ROOT_DIR/tests/wordpress-assets-quality.sh" \
+  || ! -x "$ROOT_DIR/tests/wordpress-php-quality.sh" ]]; then
+  echo 'WordPress asset and PHP quality gates must be executable.' >&2
+  exit 1
+fi
+
+printf '%s\n' 'const broken = ;' >"$fixture/invalid.js"
+expect_failure javascript-lint "$ROOT_DIR/tests/wordpress-assets-quality.sh" \
+  --javascript "$fixture/invalid.js"
+
+printf '%s\n' 'a { color: #zzzzzz; }' >"$fixture/invalid.css"
+expect_failure css-lint "$ROOT_DIR/tests/wordpress-assets-quality.sh" \
+  --css "$fixture/invalid.css"
+
+cat >"$fixture/static-analysis-error.php" <<'PHP'
+<?php
+
+function gama_ci_requires_string( string $value ): void {
+	echo esc_html( $value );
+}
+
+gama_ci_requires_string( 42 );
+PHP
+expect_failure static-analysis "$ROOT_DIR/tests/wordpress-php-quality.sh" \
+  --phpstan "$fixture/static-analysis-error.php"
+
 printf '%s\n' '#!/usr/bin/env bash' 'exit 23' >"$fixture/failing-test.sh"
 chmod +x "$fixture/failing-test.sh"
 expect_failure test "$fixture/failing-test.sh"
@@ -39,4 +65,4 @@ git -C "$secret_repo" add fixture.txt
 expect_failure secret "$ROOT_DIR/bin/check-secrets" "$secret_repo"
 
 "$ROOT_DIR/bin/check-secrets" "$REPOSITORY_ROOT"
-echo 'Controlled lint, test, build and secret-detection failure contracts passed.'
+echo 'Controlled PHP/JS/CSS lint, static-analysis, test, build and secret-detection failure contracts passed.'

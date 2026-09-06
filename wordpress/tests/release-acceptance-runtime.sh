@@ -37,6 +37,8 @@ cleanup() {
 trap cleanup EXIT
 
 docker build \
+  --cache-from 'gama-wordpress-browser:ci-cache' \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
 docker volume create --label gama.contract=acceptance-browser "$volume" >/dev/null
 docker run --rm \

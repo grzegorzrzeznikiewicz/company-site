@@ -8,19 +8,18 @@ use GamaSoftware\Contact\Form\FormRenderer;
 use GamaSoftware\Contact\Form\SubmissionController;
 use GamaSoftware\Contact\Support\I18n;
 
-final class Plugin
-{
-    private static bool $booted = false;
+final class Plugin {
 
-    public function boot(): void
-    {
-        if (self::$booted) {
-            return;
-        }
+	private static bool $booted = false;
 
-        self::$booted = true;
-        add_action('init', [I18n::class, 'load']);
-        add_action('init', [FormRenderer::class, 'register']);
-        add_action('rest_api_init', [SubmissionController::class, 'register']);
-    }
+	public function boot(): void {
+		if ( self::$booted ) {
+			return;
+		}
+
+		self::$booted = true;
+		add_action( 'init', array( I18n::class, 'load' ) );
+		add_action( 'init', array( FormRenderer::class, 'register' ) );
+		add_action( 'rest_api_init', array( SubmissionController::class, 'register' ) );
+	}
 }

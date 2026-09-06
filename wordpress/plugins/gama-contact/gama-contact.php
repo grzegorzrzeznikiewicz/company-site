@@ -18,12 +18,12 @@ namespace GamaSoftware\Contact;
 use GamaSoftware\Contact\Lifecycle\Activator;
 use GamaSoftware\Contact\Lifecycle\Deactivator;
 
-defined('ABSPATH') || exit;
+defined( 'ABSPATH' ) || exit;
 
-define('GAMA_CONTACT_VERSION', '0.3.2');
-define('GAMA_CONTACT_FILE', __FILE__);
-define('GAMA_CONTACT_PATH', plugin_dir_path(__FILE__));
-define('GAMA_CONTACT_URL', plugin_dir_url(__FILE__));
+define( 'GAMA_CONTACT_VERSION', '0.3.2' );
+define( 'GAMA_CONTACT_FILE', __FILE__ );
+define( 'GAMA_CONTACT_PATH', plugin_dir_path( __FILE__ ) );
+define( 'GAMA_CONTACT_URL', plugin_dir_url( __FILE__ ) );
 
 require_once GAMA_CONTACT_PATH . 'src/Lifecycle/Activator.php';
 require_once GAMA_CONTACT_PATH . 'src/Lifecycle/Deactivator.php';
@@ -34,7 +34,7 @@ require_once GAMA_CONTACT_PATH . 'src/Form/RateLimiter.php';
 require_once GAMA_CONTACT_PATH . 'src/Form/SubmissionController.php';
 require_once GAMA_CONTACT_PATH . 'src/Plugin.php';
 
-register_activation_hook(GAMA_CONTACT_FILE, [Activator::class, 'activate']);
-register_deactivation_hook(GAMA_CONTACT_FILE, [Deactivator::class, 'deactivate']);
+register_activation_hook( GAMA_CONTACT_FILE, array( Activator::class, 'activate' ) );
+register_deactivation_hook( GAMA_CONTACT_FILE, array( Deactivator::class, 'deactivate' ) );
 
-(new Plugin())->boot();
+( new Plugin() )->boot();

@@ -83,6 +83,10 @@ services:
     build:
       context: ../..
       dockerfile: wordpress/qa/browser.Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+      cache_from:
+        - gama-wordpress-browser:ci-cache
     shm_size: "1gb"
     environment:
       WP_BASE_URL: http://wordpress

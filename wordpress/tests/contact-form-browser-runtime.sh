@@ -32,6 +32,8 @@ network="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networ
 [[ -n "$network" ]]
 
 docker build \
+  --cache-from 'gama-wordpress-browser:ci-cache' \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
   --file "$ROOT_DIR/qa/browser.Dockerfile" \
   --tag "$IMAGE" \
   "$REPOSITORY_ROOT"

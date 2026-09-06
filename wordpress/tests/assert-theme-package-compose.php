@@ -79,7 +79,9 @@ if ( array_key_exists( 'HOME', $wp_environment )
 }
 $browser_build = $services['browser']['build'] ?? array();
 if ( $expected_root !== ( $browser_build['context'] ?? null )
-	|| 'wordpress/qa/browser.Dockerfile' !== ( $browser_build['dockerfile'] ?? null ) ) {
+	|| 'wordpress/qa/browser.Dockerfile' !== ( $browser_build['dockerfile'] ?? null )
+	|| array( 'BUILDKIT_INLINE_CACHE' => '1' ) !== ( $browser_build['args'] ?? array() )
+	|| array( 'gama-wordpress-browser:ci-cache' ) !== ( $browser_build['cache_from'] ?? array() ) ) {
 	gama_theme_compose_fail( 'browser build boundary changed' );
 }
 if ( '1073741824' !== ( $services['browser']['shm_size'] ?? null )

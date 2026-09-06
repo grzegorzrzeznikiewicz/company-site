@@ -12,5 +12,7 @@ RUN test "$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')" = "8.4" \
     && composer validate --strict --check-lock \
     && composer install --no-interaction --prefer-dist --no-progress \
     && composer check-platform-reqs
-COPY wordpress/qa/phpcs.xml.dist wordpress/qa/validate-theme-json.php wordpress/qa/extract-theme-json-i18n.php ./
+COPY wordpress/qa/phpcs.xml.dist wordpress/qa/phpcs-plugins.xml.dist wordpress/qa/phpstan.neon.dist ./
+COPY wordpress/qa/phpstan-bootstrap.php ./
+COPY wordpress/qa/validate-theme-json.php wordpress/qa/extract-theme-json-i18n.php ./
 USER 33:33

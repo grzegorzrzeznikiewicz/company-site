@@ -3,9 +3,11 @@
 `.github/workflows/wordpress-ci.yml` adds four named checks without changing
 or deleting the React/Symfony workflows:
 
-- **WordPress Source and Build** validates extension policy, static contracts,
-  PHPCS, packaging reproducibility, secret scanning and controlled failure
-  fixtures;
+- **WordPress Source and Build** validates extension policy and static
+  contracts, lints every first-party runtime JS/CSS asset, checks all
+  first-party production PHP with WPCS/PHPCS and PHPStan, audits every QA
+  dependency lock, builds reproducible packages, scans secrets and runs the
+  controlled failure fixtures;
 - **WordPress Package Lifecycle** downloads the exact SHA-named artifact from
   the build job and runs clean ZIP install/activate/deactivate/delete checks plus
   the browser suite;
@@ -18,48 +20,202 @@ or deleting the React/Symfony workflows:
 The workflow has read-only repository permission, workflow-scoped concurrency,
 explicit timeouts and SHA-qualified artifact names. Package outputs and browser
 evidence are retained for 14 days. No production or staging secret is consumed
-by CI. The failure contract proves that malformed PHP, a failing test process,
-an invalid package build input and a high-confidence token fixture each stop
-their gate; the fixture value is assembled only in temporary storage and is not
-committed or printed.
+by CI. The failure contract proves that malformed PHP, syntax-invalid
+JavaScript, invalid CSS, a real PHPStan type error, a failing test process, an
+invalid package build input and a high-confidence token fixture each stop their
+gate. Fixtures live only in temporary storage; the token is assembled rather
+than committed or printed.
+
+## Source coverage and policy
+
+The asset gate uses Node 24.14.0 by digest and an npm lock containing ESLint
+10.10.0 plus Stylelint 17.15.0. It checks the only three first-party runtime
+assets: the theme `style.css`, and the contact plugin's `contact-form.js` and
+`contact-form.css`. ESLint recommended browser rules and zero allowed warnings
+are blocking. Stylelint extends the maintained standard configuration with four
+specific compatibility exceptions:
+
+- `custom-property-pattern` permits WordPress's generated
+  `--wp--preset--...` hierarchy;
+- `selector-class-pattern` permits first-party BEM and WordPress block class
+  underscores;
+- `no-descending-specificity` permits component-grouped theme rules;
+- `media-feature-range-notation` preserves the broadly supported min/max media
+  query syntax used by the theme.
+
+The PHP gate covers all 25 production PHP files in the theme and every
+first-party plugin: contact, SEO, security, mail transport and local Mailpit.
+Theme PHP retains the full `WordPress` ruleset, text-domain check and global
+prefix check. Plugins use `WordPress-Core`; errors block while warnings remain
+advisory. Four named compatibility exceptions are scoped in
+`phpcs-plugins.xml.dist`: PSR-4 class filenames, upstream PHPMailer camel-case
+properties, intentional empty-string environment fallbacks and the existing
+non-Yoda strict comparisons. There is no blanket path exclusion.
+
+PHPStan 2.2.13 runs at level 5 with phpstan-wordpress 2.0.4 and WordPress 7.1.0
+stubs. It is limited to one process and 1 GiB because loading the complete
+WordPress stubs exceeded 512 MiB locally. `treatPhpDocTypesAsCertain` is false.
+There is no baseline, `ignoreErrors` list or excluded production path. A QA-only
+bootstrap supplies the string type of the runtime-derived `GAMA_CONTACT_URL`;
+it does not change plugin behavior.
+
+## Vulnerability audit policy
+
+`wordpress/tests/wordpress-dependency-audit.sh` audits all three WordPress QA
+locks: `qa/composer.lock`, `qa/assets/package-lock.json` and
+`qa/e2e/package-lock.json`. Composer audits the lock including development
+tools, fails for an abandoned package and has no advisory or severity ignore.
+Both npm audits use `--package-lock-only --audit-level=low`, include development
+tools and therefore block every reported severity. Audit services remain
+networked, no credentials are passed, and an unavailable service is a failure;
+the npm failure path is exercised against an unreachable registry. Incidental
+output from `composer install` or `npm ci` is not accepted as the audit gate.
+
+## Reproducibility, action pins and cache controls
+
+Composer, npm and container inputs remain locked, the PHP and browser QA images
+are digest-pinned, and the asset image adds the approved Node 24.14.0 digest.
+Every external action is pinned to a full commit SHA with a readable major
+version comment. On 2026-09-06 the official GitHub API resolved the pins to:
+
+- `actions/checkout` v7.0.1 — `3d3c42e5aac5ba805825da76410c181273ba90b1`;
+- `actions/upload-artifact` v7.0.1 — `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`;
+- `actions/download-artifact` v8.0.1 — `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c`;
+- `actions/cache` v6.1.0 — `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`.
+
+The referenced `action.yml` files all declare `runs.using: node24`; no forced
+Node 20 compatibility warning is expected.
+
+Persistent caches contain only serialized WordPress QA tool images with
+BuildKit inline cache metadata. Source QA
+keys include runner OS, Composer/npm locks, QA Dockerfiles and lint/static
+analysis configuration. Browser QA keys include runner OS, the E2E lock and
+package metadata, browser Dockerfile, Playwright configuration and timeout
+policy. Restored images expose dependency/build layers to the same `docker build`
+and Compose commands through explicit `--cache-from` inputs; the inline metadata
+is what makes those layers reusable on a fresh runner after `docker load`, while
+Docker still validates every context layer. Cache misses build the pinned
+browser QA image before the consumer command and are valid cold runs. Cache
+contents never include secrets, databases, uploads,
+release evidence, source-built ZIPs or other Docker projects. Package checksum,
+manifest, install and allowlist validation always runs and never trusts a
+cache.
+
+## Safe local mapping
+
+The source job maps to these non-destructive commands from the repository root:
+
+```bash
+wordpress/bin/ci-image-cache restore source
+wordpress/bin/validate-extensions-lock
+wordpress/tests/mount-contract.sh
+wordpress/tests/contact-plugin-contract.sh
+wordpress/tests/contact-form-browser-contract.sh
+wordpress/tests/mail-transport-plugin-contract.sh
+wordpress/tests/seo-plugin-contract.sh
+wordpress/tests/security-plugin-contract.sh
+wordpress/tests/backup-restore-contract.sh
+wordpress/tests/production-deployment-contract.sh
+wordpress/tests/theme-contract.sh
+wordpress/tests/plugin-package-contract.sh
+wordpress/tests/ci-package-input-contract.sh
+wordpress/tests/wordpress-ci-contract.sh
+wordpress/tests/ci-failure-contract.sh
+wordpress/tests/wordpress-assets-quality.sh
+wordpress/tests/wordpress-php-quality.sh
+wordpress/tests/dependency-audit-contract.sh
+wordpress/tests/wordpress-dependency-audit.sh
+wordpress/bin/ci-image-cache save source
+```
+
+The package lifecycle job consumes CI artifacts. Its safe local equivalent
+first creates the exact allowlisted packages, then uses disposable Compose
+namespaces:
+
+```bash
+wordpress/bin/ci-image-cache restore browser
+SOURCE_DATE_EPOCH=1767225600 wordpress/bin/package plugin gama-contact
+SOURCE_DATE_EPOCH=1767225600 wordpress/bin/package theme gama-software
+wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.2.zip)"
+wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
+wordpress/bin/ci-image-cache save browser
+```
+
+The runtime job's `--clean` and restore operations intentionally target the
+fixed `gama-wordpress` namespace. They are safe only on a separate disposable
+Docker daemon, VM or CI runner, never in another checkout on the shared Docker
+daemon that hosts the preview at `localhost:8090`. The context name below is an
+example that must already point at such a separately provisioned daemon:
+
+```bash
+DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/ci-image-cache restore browser
+DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/tests/runtime-smoke.sh --clean
+DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/start
+DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/tests/backup-restore-runtime.sh
+DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/ci-image-cache save browser
+```
+
+The release regression scripts generate exact disposable staging and guarded
+production-model namespaces and preserve the explicit rollback fixture:
+
+```bash
+wordpress/bin/ci-image-cache restore browser
+GAMA_ROLLBACK_BASE_REF=043beee6490664758bdbbff55d7a9cdf9156a398 wordpress/tests/staging-rollback-runtime.sh
+wordpress/tests/production-deployment-runtime.sh
+wordpress/bin/ci-image-cache save browser
+```
+
+## Historical duration evidence
+
+GitHub run `34021197096` tested PR merge
+`84b0abb5bbe3f41f4b051f6b5c08dabc3591bd6b` for head
+`968ed8cdf3241743f07b74cbdb840b3c492a2882` on independent cold Ubuntu runners,
+before the new lint/static-analysis/audit gates and persistent caches:
+
+- Source and Build: 31 seconds;
+- Package Lifecycle: 5 minutes 59 seconds;
+- Release Regression: 5 minutes 41 seconds;
+- Runtime and Restore: 4 minutes 33 seconds, failing only at the now-corrected
+  portable permission assertion after its 3 minute 27 second clean-runtime step
+  had passed;
+- overall elapsed time: approximately 6 minutes 34 seconds because downstream
+  jobs ran in parallel.
+
+Earlier successful run `34020621325` measured Source and Build at 30 seconds and
+Release Regression at 5 minutes 32 seconds. These are historical measurements,
+not claims about the expanded workflow. A first run of each new key is expected
+to be cold. A later hit should avoid downloading/installing QA dependencies and
+reuse Docker layers, but Docker context validation and every quality/package
+check still run. No post-change cold or warm remote duration has been measured;
+the controller will append final published-run evidence.
+
+## Legacy preservation and required checks
 
 The existing `.github/workflows/ci.yml`, `deploy.yml` and `rollback.yml` remain
 the active legacy React/Symfony path until Gate D. `.gitlab-ci.yml` and the
-scripts under `build/` are classified as historical/unknown-use deployment
-assets and are retained unchanged until GSWEB-30 verifies their consumers and
-shared-host impact. The new WordPress CI workflow performs no deployment.
+scripts under `build/` are historical/unknown-use deployment assets and remain
+unchanged until GSWEB-30 verifies their consumers and shared-host impact. The
+WordPress workflow performs no deployment.
 
-Repository branch protection should require all four WordPress job names above
-in addition to the current legacy checks during the stabilization period.
+Branch protection should require all four WordPress job names above plus the
+legacy checks **Backend Quality (Symfony)**, **Backend Tests**,
+**Frontend Quality** and **End-to-End Tests** during stabilization. Named jobs
+are not automatically required checks: the 2026-09-06 read-only GitHub audit
+found no required status-check names configured on `main`; protection must be
+reconciled before integration.
 
 ## Linux runner portability
 
-The first remote runs on [PR #8](https://github.com/grzegorzrzeznikiewicz/company-site/pull/8)
-exposed machine-specific assumptions that local macOS checks did not detect:
+Docker builds respect the caller's configuration rather than defaulting to a
+macOS-only `/private/tmp` directory. Browser builds resolve the actual repository
+root and do not depend on the checkout directory name. Legacy ESLint still
+excludes the isolated `wordpress/` project; the separate WordPress gate owns its
+runtime assets.
 
-- Docker builds now respect the caller's configuration instead of defaulting
-  to a macOS-only `/private/tmp` directory.
-- The resolved browser build context must equal the actual repository root;
-  the checkout directory no longer has to be named `web`. Both the local name
-  and a `company-site` fixture pass; a different context ending in `/web` is
-  rejected.
-- Legacy ESLint excludes the isolated `wordpress/` project, just as it excludes
-  `backend/`. Its React rules remain unchanged; WordPress has its own quality
-  and browser gates.
-- The PHP fixture loader matches the opening tag with a POSIX character class
-  instead of the BSD-only interpretation of `\?`. HTTP-header assertions
-  normalize CRLF before matching, avoiding different GNU/BSD handling of `\r`.
-  The original Linux failures were reproduced; transformed PHP parses with
-  both sed implementations and the real headers pass on GNU grep.
-- Release regression fetches full history and uses the explicit previous
-  WordPress revision `043beee6490664758bdbbff55d7a9cdf9156a398` as its rehearsal
-  baseline. A shallow checkout cannot resolve `HEAD^`, and the first parent of
-  this migration's PR merge is the legacy-only `main`, not a WordPress release.
-  This fixture baseline does not select a production rollback image.
-  The QA-only annotated tag `qa/wordpress-rollback-baseline-2026-09-05` retains
-  this already-public commit after a squash/rebase merge or source-branch
-  deletion. Keep the tag while CI uses this SHA; it is not a production release.
-
-Named jobs are not automatically required checks. The 2026-09-06 read-only
-GitHub audit found no required status-check names configured on `main`; branch
-protection must be reconciled before integration.
+The PHP fixture loader uses a POSIX character class for the opening tag and HTTP
+header assertions normalize CRLF. Backup permission inspection now tries GNU
+`stat -c` first and falls back to BSD `stat -f`, avoiding GNU's partial output
+on an unsupported `-f` invocation. Release regression fetches full history and
+uses `043beee6490664758bdbbff55d7a9cdf9156a398`, retained by the QA-only tag
+`qa/wordpress-rollback-baseline-2026-09-05`, instead of `HEAD^`. This fixture
+does not select a production rollback image.
