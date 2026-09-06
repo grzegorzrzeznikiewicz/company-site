@@ -4,11 +4,12 @@ Date: 2026-09-06 (Europe/Warsaw)
 
 ## Status
 
-**DONE_WITH_CONCERNS** — the bounded HTTPS test-environment follow-up and its
-focused signal-cleanup correction are implemented and verified. The correction
-is ready for the requested focused independent rereview. GSWEB-27 as a whole
-remains open for native/assistive-technology, CWV/budget, CI, public-staging and
-owner evidence.
+**DONE_WITH_CONCERNS** — the bounded HTTPS test-environment follow-up, signal
+cleanup correction and local port-validation portability correction are
+implemented and verified. Fix round 2 is ready for focused independent
+rereview, but the published remote run is still failed and a fresh remote CI
+run is required. GSWEB-27 as a whole remains open for native/assistive-
+technology, CWV/budget, CI, public-staging and owner evidence.
 
 ## Change
 
@@ -133,6 +134,101 @@ Important SHA-256 values:
 The already successful six-case and 13-case runtimes were retained rather than
 rerun because this change is confined to host-shell exit propagation and its
 focused cleanup regression.
+
+## Remote CI port-validation correction
+
+Published base `177afe9209e222bf8d519ccf44ec10d779c6ece6` was exercised by
+remote run `34033786293`, job `101488200053`, at PR merge revision
+`c9e73849342b1041df2842511a398868cfc3a671`. Direct evidence from the complete
+job log is limited to the following sequence: the unchanged six-case collection
+contract passed, the TLS sidecar reached `Healthy`, no TLS probe acknowledgement
+was printed, and the runtime finished with exit 1. The uploaded browser archive
+contains only its root directory.
+
+- full remote log:
+  `/tmp/gama-ci-177afe9.vJE57g/release-regression.log`, SHA-256
+  `c44d318947eeaa4dbbf72cfc982e889077536a82457d498c08eed35d70c9c44d`;
+- empty remote browser archive:
+  `/tmp/gama-ci-177afe9.vJE57g/release/gama-wp-staging-21310-2635-browser-artifacts.tar`,
+  SHA-256
+  `f13f329e77aca432b2e13d4400eebe084fdfb626819676a6b531aed3a2f3951f`.
+
+### Diagnosis and RED
+
+Local Docker Engine 29.7.2 / Compose 5.5.0 directly reports
+`HostConfig.PortBindings={}` for an unbound container. Bash 3.2.57 locally
+continues after the old standalone false `[[ "{}" == null ]]`, while Bash 5 in
+the pinned WordPress container exits 1 for the same command under `set -e`.
+That shell difference explains why the local assertion was silently ineffective.
+
+The unmodified real helper then ran in the exact disposable namespace
+`gama-wp-staging-https-port-20663-15568`. Its live sidecar was captured with
+`PortBindings={}`. On Bash 3.2 the helper incorrectly continued through all TLS
+probes and the six-case matrix and returned 0; this is direct evidence of the
+local masking behavior, not evidence for this fix. It restored both exact URLs
+and removed the sidecar, trust volume, TLS fixture and namespace. Retained
+diagnostic directory:
+`/tmp/gsweb27-https-port-red-177afe9.2wFBUR`; `runtime.audit` SHA-256
+`fe67a9309771274089fb7f9dd03a19f48a3f8108f5881b50954e20d010175249` and
+`runtime.log` SHA-256
+`e76e679af45c61b60e75ccb8fe9c494f6f363dcb4890f799795d1ddbd03f67f9`.
+
+The test-first port contract was RED with status 64 because the runtime did not
+yet expose its real validation boundary without starting the lifecycle. Its
+retained output is
+`/tmp/gsweb27-https-port-contract-red-177afe9.fRPDhQ/output.log`, SHA-256
+`1ded05671af7afcb237422788aecfdf85b0ce6147a7aac5ceef452c4342ab9f3`.
+
+The exact runner `PortBindings` value and runner Bash version were not printed
+in the remote log. Attribution of that remote exit to `{}` plus the Bash
+behavior is therefore a strong inference from the earliest possible failing
+operation and the direct local reproductions, not a direct observation of the
+runner value.
+
+### Short contract and GREEN
+
+The amended runtime has one sourceable validation function used by its real
+lifecycle:
+
+- `docker inspect` must itself succeed; missing/failed inspection is rejected;
+- only `null` and `{}` mean no host publication;
+- every nonempty or malformed value is rejected;
+- the TLS sidecar Compose definition remains without `ports` or host networking.
+
+The focused behavioral contract uses actual Docker objects. It accepts a real
+unbound `{}` container, rejects a running loopback-only publication with a
+nonempty `443/tcp` binding, rejects a missing container fail-closed, and also
+checks the older `null` serialization. Final contract output:
+`/tmp/gsweb27-https-port-contract-green-final-177afe9.78dZhT/output.log`,
+SHA-256
+`6f0e1ec1dba2a951fcaf318ac33ae4d1d2d1ee4bbc3b14e203c4ef647cdf6d46`.
+
+The real helper then passed the formerly failing boundary with live
+`PortBindings={}` in the same exact disposable project. Focused paths returned
+`INT=130`, `TERM=143`, and injected failure 97. All three restored exact
+`home=http://wordpress` and `siteurl=http://wordpress`; their exact sidecars,
+trust volumes, TLS fixtures and private keys were absent. Final cleanup found no
+project containers, Compose volumes or staging fixture.
+
+Retained runtime GREEN directory:
+`/tmp/gsweb27-https-port-runtime-green-177afe9.vAkz7u`. Important SHA-256
+values:
+
+- `int.audit`:
+  `83a9d98e40d89429f176b7280d99ac27ba6a33e518a057d0383478ad84305e52`;
+- `term.audit`:
+  `57c5e0461ec92d0fdfa8992af59f03fedc2609002c65ff4fb7cdb8183188c7ca`;
+- `exit-97.audit`:
+  `0022da1b7138a4add51d2379208e9e0b50baeea88bf40abc5b23671d989da537`;
+- `overall-cleanup.audit`:
+  `cdc52cccd310c1075982e178b525e47ad537d65a6b49ca139d5fc7170e8e71dc`;
+- `SHA256SUMS`:
+  `20cca3907f83b9adf172c83ea4a9ca9dbc6618bca98bc07b6fb500ea5ba6d007`.
+
+This GREEN is deliberately limited to the corrected port boundary and retained
+failure/signal cleanup behavior. The old successful local matrix is not
+attributed to this fix, the 13-case acceptance runtime was not rerun, and a
+fresh full remote CI run remains required after focused review.
 
 ## Full verification
 

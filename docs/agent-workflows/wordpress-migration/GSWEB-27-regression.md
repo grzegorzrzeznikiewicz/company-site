@@ -155,6 +155,37 @@ SHA-256
 The browser archive contains the public certificate fingerprints and probe
 results, but no private-key file or PEM private-key marker.
 
+### Remote CI portability correction — 2026-09-06
+
+Remote run `34033786293`, job `101488200053`, against published base
+`177afe9209e222bf8d519ccf44ec10d779c6ece6` reached a healthy TLS sidecar and
+then exited 1 before the first TLS probe acknowledgement. Its browser archive
+was empty. The full retained log is
+`/tmp/gama-ci-177afe9.vJE57g/release-regression.log`, SHA-256
+`c44d318947eeaa4dbbf72cfc982e889077536a82457d498c08eed35d70c9c44d`.
+
+The portability defect was the null-only Docker port-binding assertion. A
+sidecar with no published ports may serialize
+`HostConfig.PortBindings` as either `null` or `{}`. The corrected validation
+accepts only those two empty forms, rejects a real nonempty loopback publication,
+and fails closed if `docker inspect` fails. The exact remote representation was
+not printed, so its attribution to `{}` is an inference supported by the first
+failing operation and direct Docker/Bash reproductions, not a claimed remote
+observation.
+
+Focused local proof used only
+`gama-wp-staging-https-port-20663-15568`. The real helper passed the corrected
+boundary with live `{}`, returned 130 for real `INT`, 143 for real `TERM` and
+97 for the injected failure, restored both exact URLs in every case, and removed
+each sidecar, trust volume and TLS/private-key fixture. Final cleanup left no
+project container, Compose volume or staging fixture. Evidence:
+`/tmp/gsweb27-https-port-runtime-green-177afe9.vAkz7u`; `SHA256SUMS` SHA-256
+`20cca3907f83b9adf172c83ea4a9ca9dbc6618bca98bc07b6fb500ea5ba6d007`.
+
+This is focused local correction evidence only. The prior local 6/6 and 13/13
+results are not evidence for this fix, and a fresh full remote CI run remains
+required after independent review.
+
 This closes only the HTTP-environment explanation for the prior WebKit console
 errors. It is local Linux Playwright evidence, not native Safari, CI or public
 staging acceptance. GSWEB-27 still requires the separately owned CWV/Lighthouse

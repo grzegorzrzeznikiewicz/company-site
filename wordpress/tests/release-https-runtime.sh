@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+assert_no_published_ports() {
+  local container="$1"
+  local port_bindings
+
+  if ! port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$container")"; then
+    echo 'HTTPS runtime could not inspect sidecar port bindings.' >&2
+    return 1
+  fi
+  case "$port_bindings" in
+    null|'{}')
+      return 0
+      ;;
+    *)
+      echo 'HTTPS sidecar must not publish host ports.' >&2
+      return 1
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="${GAMA_STAGING_PROJECT:-}"
 browser_image="${GAMA_RELEASE_BROWSER_IMAGE:-}"
@@ -173,7 +196,9 @@ sidecar_container="$(
     --format '{{.ID}}'
 )"
 [[ -n "$sidecar_container" ]]
-[[ "$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$sidecar_container")" == null ]]
+if ! assert_no_published_ports "$sidecar_container"; then
+  exit 1
+fi
 sidecar_ip="$(docker inspect --format "{{(index .NetworkSettings.Networks \"$network\").IPAddress}}" "$sidecar_container")"
 [[ "$sidecar_ip" =~ ^[0-9a-fA-F:.]+$ ]]
 

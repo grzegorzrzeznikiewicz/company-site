@@ -7,24 +7,26 @@ dockerfile="$ROOT_DIR/qa/browser.Dockerfile"
 probe="$ROOT_DIR/qa/e2e/specs/support/release-tls-probe.cjs"
 runtime="$ROOT_DIR/tests/release-https-runtime.sh"
 cleanup_runtime="$ROOT_DIR/tests/release-https-cleanup-runtime.sh"
+port_contract="$ROOT_DIR/tests/release-https-port-contract.sh"
 compose="$ROOT_DIR/tests/release-https-compose.yaml"
 trust="$ROOT_DIR/tests/release-https-trust.sh"
 regression_runtime="$ROOT_DIR/tests/release-regression-runtime.sh"
 
-for file in "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; do
+for file in "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$port_contract" "$compose" "$trust" "$regression_runtime"; do
   if [[ ! -f "$file" ]]; then
     echo "Required HTTPS release helper is missing: $file" >&2
     exit 1
   fi
 done
-[[ -x "$runtime" && -x "$cleanup_runtime" && -x "$trust" ]]
+[[ -x "$runtime" && -x "$cleanup_runtime" && -x "$port_contract" && -x "$trust" ]]
 
-bash -n "$runtime" "$cleanup_runtime" "$trust" "$regression_runtime"
+bash -n "$runtime" "$cleanup_runtime" "$port_contract" "$trust" "$regression_runtime"
 node --input-type=module --check <"$probe"
-if grep -Eq '(^|[[:space:]])(mapfile|readarray)([[:space:]]|$)' "$runtime" "$cleanup_runtime" "$trust"; then
+if grep -Eq '(^|[[:space:]])(mapfile|readarray)([[:space:]]|$)' "$runtime" "$cleanup_runtime" "$port_contract" "$trust"; then
   echo 'HTTPS helpers must remain compatible with the repository host Bash 3.2.' >&2
   exit 1
 fi
+"$port_contract"
 
 if GAMA_STAGING_PROJECT=not-a-staging-project "$runtime" >/dev/null 2>&1; then
   echo 'HTTPS runtime accepted an unscoped Compose project.' >&2
@@ -89,6 +91,7 @@ grep -Fq 'option get home' "$runtime"
 grep -Fq 'option get siteurl' "$runtime"
 grep -Fq 'option update home' "$runtime"
 grep -Fq 'option update siteurl' "$runtime"
+grep -Fq 'assert_no_published_ports "$sidecar_container"' "$runtime"
 grep -Fq 'trap '\''cleanup "$?"'\'' EXIT' "$runtime"
 grep -Fq 'trap '\''cleanup 130'\'' INT' "$runtime"
 grep -Fq 'trap '\''cleanup 143'\'' TERM' "$runtime"
@@ -115,12 +118,12 @@ for directive in \
 done
 
 if grep -Eqi 'ignoreHTTPSErrors|ignore-certificate-errors|disable-web-security|unsafely-treat-insecure-origin-as-secure|NODE_TLS_REJECT_UNAUTHORIZED' \
-  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; then
+  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$port_contract" "$compose" "$trust" "$regression_runtime"; then
   echo 'HTTPS release helpers contain a certificate or browser-security bypass.' >&2
   exit 1
 fi
 if grep -Eqi 'security add-trusted-cert|certutil.+(/Users/|\$HOME|~/)|docker (system )?prune|runtime-smoke.+--clean' \
-  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; then
+  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$port_contract" "$compose" "$trust" "$regression_runtime"; then
   echo 'HTTPS release helpers can mutate host trust or broad Docker/runtime state.' >&2
   exit 1
 fi
