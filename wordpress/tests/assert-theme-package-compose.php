@@ -8,9 +8,11 @@ function gama_theme_compose_fail( string $message ): never {
 	exit( 1 );
 }
 
-$expected_zip = getenv( 'EXPECTED_PACKAGE_ZIP' );
-$resolved     = json_decode( (string) stream_get_contents( STDIN ), true );
-if ( ! is_string( $expected_zip ) || '' === $expected_zip || ! is_array( $resolved ) ) {
+$expected_zip  = getenv( 'EXPECTED_PACKAGE_ZIP' );
+$expected_root = getenv( 'EXPECTED_REPOSITORY_ROOT' );
+$resolved      = json_decode( (string) stream_get_contents( STDIN ), true );
+if ( ! is_string( $expected_zip ) || '' === $expected_zip
+	|| ! is_string( $expected_root ) || '' === $expected_root || ! is_array( $resolved ) ) {
 	gama_theme_compose_fail( 'invalid contract input' );
 }
 $services = $resolved['services'] ?? array();
@@ -76,7 +78,7 @@ if ( array_key_exists( 'HOME', $wp_environment )
 	gama_theme_compose_fail( 'WP-CLI must use task-specific paths without overriding HOME' );
 }
 $browser_build = $services['browser']['build'] ?? array();
-if ( ! str_ends_with( (string) ( $browser_build['context'] ?? '' ), '/web' )
+if ( $expected_root !== ( $browser_build['context'] ?? null )
 	|| 'wordpress/qa/browser.Dockerfile' !== ( $browser_build['dockerfile'] ?? null ) ) {
 	gama_theme_compose_fail( 'browser build boundary changed' );
 }

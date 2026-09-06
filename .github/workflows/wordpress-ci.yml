@@ -116,10 +116,14 @@ jobs:
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Rehearse immutable staging and rollback
         env:
           GAMA_RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-release-evidence
+          # A real, pre-contact-fix WordPress revision; the PR merge parent is legacy-only.
+          GAMA_ROLLBACK_BASE_REF: 043beee6490664758bdbbff55d7a9cdf9156a398
         run: |
           wordpress/tests/staging-rollback-runtime.sh
           wordpress/tests/production-deployment-runtime.sh
