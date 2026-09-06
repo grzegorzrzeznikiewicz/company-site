@@ -4,8 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 spec="$ROOT_DIR/qa/e2e/specs/release-regression.spec.ts"
 runtime="$ROOT_DIR/tests/release-regression-runtime.sh"
+collection_contract="$ROOT_DIR/qa/e2e/specs/support/release-matrix-contract.cjs"
 
-[[ -f "$spec" && -x "$runtime" ]]
+[[ -f "$spec" && -x "$runtime" && -f "$collection_contract" ]]
+(
+  cd "$ROOT_DIR/qa/e2e"
+  node ./specs/support/release-matrix-contract.cjs
+)
 grep -Fq "from '@axe-core/playwright'" "$spec"
 grep -Fq "['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']" "$spec"
 grep -Fq '@release-regression' "$spec"

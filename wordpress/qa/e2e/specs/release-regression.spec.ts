@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 
 const viewports = [
   { name: 'desktop', width: 1440, height: 900 },
-  { name: 'mobile', width: 390, height: 844 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'phone', width: 390, height: 844 },
 ] as const;
 
 for (const viewport of viewports) {
@@ -27,9 +28,9 @@ for (const viewport of viewports) {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'Gama Software',
     );
-    await expect(page.locator('img.custom-logo[alt="Gama Software"]')).toHaveCount(
-      2,
-    );
+    await expect(
+      page.locator('img.custom-logo[alt="Gama Software"]'),
+    ).toHaveCount(2);
     await expect(page.locator('form.gama-contact-form')).toBeVisible();
 
     const destinations = [
@@ -38,7 +39,10 @@ for (const viewport of viewports) {
       ['Moduły', '#modules'],
       ['Kontakt', '#contact'],
     ] as const;
-    if (viewport.name === 'desktop') {
+    const responsiveMenuButton = page.locator(
+      'header nav[aria-label="Główna nawigacja"] .wp-block-navigation__responsive-container-open',
+    );
+    if (!(await responsiveMenuButton.isVisible())) {
       for (const [label, hash] of destinations) {
         const link = page
           .locator('header nav[aria-label="Główna nawigacja"]')
@@ -48,11 +52,7 @@ for (const viewport of viewports) {
         await expect(page.locator(hash)).toBeInViewport();
       }
     } else {
-      await page
-        .locator(
-          'header nav[aria-label="Główna nawigacja"] .wp-block-navigation__responsive-container-open',
-        )
-        .click();
+      await responsiveMenuButton.click();
       const mobileMenu = page.locator(
         'header .wp-block-navigation__responsive-container.is-menu-open',
       );
@@ -75,7 +75,9 @@ for (const viewport of viewports) {
     });
     expect(duplicateIds).toEqual([]);
     expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
     ).toBe(true);
 
     const accessibility = await new AxeBuilder({ page })
@@ -98,7 +100,8 @@ for (const viewport of viewports) {
       ) as PerformanceResourceTiming[];
       return {
         timeToFirstByte: navigation.responseStart - navigation.startTime,
-        domContentLoaded: navigation.domContentLoadedEventEnd - navigation.startTime,
+        domContentLoaded:
+          navigation.domContentLoadedEventEnd - navigation.startTime,
         load: navigation.loadEventEnd - navigation.startTime,
         resourceCount: resources.length,
         transferredBytes: resources.reduce(

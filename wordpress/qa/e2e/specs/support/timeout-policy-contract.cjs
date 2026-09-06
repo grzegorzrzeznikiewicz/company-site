@@ -13,9 +13,7 @@ const {
   validateResolvedPolicy,
   validateSpecSources,
 } = require('./timeout-policy-reporter.cjs');
-const {
-  validatePlaywrightCliArguments,
-} = require('./run-playwright.cjs');
+const { validatePlaywrightCliArguments } = require('./run-playwright.cjs');
 
 const rootDirectory = path.resolve(__dirname, '../..');
 const baselineSources = readSpecSources(rootDirectory);
@@ -48,9 +46,13 @@ function withCopiedSpecTree(mutate, inspect) {
     path.join(os.tmpdir(), 'gama-timeout-policy-'),
   );
   try {
-    fs.cpSync(path.join(rootDirectory, 'specs'), path.join(fixtureRoot, 'specs'), {
-      recursive: true,
-    });
+    fs.cpSync(
+      path.join(rootDirectory, 'specs'),
+      path.join(fixtureRoot, 'specs'),
+      {
+        recursive: true,
+      },
+    );
     fs.copyFileSync(
       path.join(rootDirectory, 'playwright.config.ts'),
       path.join(fixtureRoot, 'playwright.config.ts'),
@@ -121,6 +123,67 @@ function replaceHeaderNavigationTestInfoParameter(source, parameter) {
 loadPinnedAstTools();
 assert.deepEqual(validateSpecSources(baselineSources), []);
 
+expectSourceMutationRejected(
+  'missing fixed projects mutation',
+  mutateSource('playwright.config.ts', (source) =>
+    source.replace(
+      /  projects: \[\n(?:.|\n)*?  \],\n  outputDir:/,
+      '  outputDir:',
+    ),
+  ),
+  /must define projects/,
+);
+
+expectSourceMutationRejected(
+  'third project mutation',
+  mutateSource('playwright.config.ts', (source) =>
+    source.replace(
+      "      use: { browserName: 'webkit' },\n    },\n  ],",
+      "      use: { browserName: 'webkit' },\n    },\n    {},\n  ],",
+    ),
+  ),
+  /projects must contain exactly the unnamed Chromium and named WebKit projects/,
+);
+
+for (const [label, needle, replacement] of [
+  ['named Chromium', '    {},', "    { name: 'chromium' },"],
+  ['renamed WebKit', "      name: 'webkit',", "      name: 'safari',"],
+  [
+    'broadened WebKit match',
+    "      testMatch: '**/release-regression.spec.ts',",
+    "      testMatch: '**/*.spec.ts',",
+  ],
+  [
+    'wrong WebKit browser',
+    "      use: { browserName: 'webkit' },",
+    "      use: { browserName: 'chromium' },",
+  ],
+  [
+    'WebKit grep override',
+    "      testMatch: '**/release-regression.spec.ts',",
+    "      testMatch: '**/release-regression.spec.ts',\n      grep: /release/ ,",
+  ],
+  [
+    'WebKit retry override',
+    "      use: { browserName: 'webkit' },",
+    "      use: { browserName: 'webkit' },\n      retries: 1,",
+  ],
+  [
+    'WebKit timeout override',
+    "      use: { browserName: 'webkit' },",
+    "      use: { browserName: 'webkit' },\n      timeout: 180_000,",
+  ],
+]) {
+  expectSourceMutationRejected(
+    `${label} project mutation`,
+    mutateSource('playwright.config.ts', (source) => {
+      assert.equal(source.split(needle).length - 1, 1);
+      return source.replace(needle, replacement);
+    }),
+    /projects must contain exactly the unnamed Chromium and named WebKit projects/,
+  );
+}
+
 assert.deepEqual(
   validatePlaywrightCliArguments([
     '--list',
@@ -169,10 +232,7 @@ assert.deepEqual(validateSpecSources(safeTestInfoTitleRead), []);
 expectFilesystemMutationRejected(
   'package metadata local import mutation',
   (fixtureRoot) => {
-    const aliasDirectory = path.join(
-      fixtureRoot,
-      'specs/support/policy-alias',
-    );
+    const aliasDirectory = path.join(fixtureRoot, 'specs/support/policy-alias');
     fs.mkdirSync(aliasDirectory, { recursive: true });
     fs.writeFileSync(
       path.join(aliasDirectory, 'index.ts'),
@@ -342,7 +402,8 @@ expectSourceMutationRejected(
   'environment destructuring mutation',
   mutateSource(
     'playwright.config.ts',
-    (source) => `${source}\nconst { WP_BASE_URL: unsafeBaseUrl } = process.env;\n`,
+    (source) =>
+      `${source}\nconst { WP_BASE_URL: unsafeBaseUrl } = process.env;\n`,
   ),
   /process\.env may only directly read allowlisted variables/,
 );
@@ -372,7 +433,10 @@ expectSourceMutationRejected(
     assert.equal(source.split('export default defineConfig({').length - 1, 1);
     assert.equal(source.split('\n});\n').length - 1, 1);
     return source
-      .replace('export default defineConfig({', 'const reviewed = defineConfig({')
+      .replace(
+        'export default defineConfig({',
+        'const reviewed = defineConfig({',
+      )
       .replace(
         '\n});\n',
         "\n});\n\nexport default { ...reviewed, timeout: 180_000, reporter: [['list']] };\n",
@@ -676,9 +740,9 @@ expectSourceMutationRejected(
 expectSourceMutationRejected(
   'function-expression callback arguments mutation',
   mutateSource('specs/header-footer-navigation.spec.ts', (source) =>
-    insertAfterHeaderTimeout('arguments[1]._timeoutManager.setIgnoreTimeouts();')(
-      replaceHeaderNavigationCallback(source, 'async function ()'),
-    ),
+    insertAfterHeaderTimeout(
+      'arguments[1]._timeoutManager.setIgnoreTimeouts();',
+    )(replaceHeaderNavigationCallback(source, 'async function ()')),
   ),
   /Playwright test and hook callbacks must be inline ArrowFunctionExpression values/,
 );
@@ -926,7 +990,26 @@ function validResolvedState() {
     config: {
       configFile: '/tests/playwright.config.ts',
       globalTimeout: 0,
-      projects: [{ name: '', retries: 0, timeout: DEFAULT_TIMEOUT }],
+      projects: [
+        {
+          name: '',
+          grep: /.*/,
+          grepInvert: null,
+          retries: 0,
+          timeout: DEFAULT_TIMEOUT,
+          use: { browserName: 'chromium' },
+          testMatch: ['**/*.@(spec|test).?(c|m)[jt]s?(x)'],
+        },
+        {
+          name: 'webkit',
+          grep: /.*/,
+          grepInvert: null,
+          retries: 0,
+          timeout: DEFAULT_TIMEOUT,
+          use: { browserName: 'webkit' },
+          testMatch: ['**/release-regression.spec.ts'],
+        },
+      ],
       reporter: [
         ['list'],
         ['html', {}],
@@ -1022,20 +1105,22 @@ expectResolvedMutationRejected(
   },
   /use only the timeout policy reporter or list, html and the final timeout policy reporter for every run/,
 );
-expectResolvedMutationRejected(
-  'project retry mutation',
-  ({ config }) => {
-    config.projects[0].retries = 1;
-  },
-  /project retries must be 0/,
-);
-expectResolvedMutationRejected(
-  'project timeout mutation',
-  ({ config }) => {
-    config.projects[0].timeout = 180_000;
-  },
-  /project timeout must be/,
-);
+for (const projectIndex of [0, 1]) {
+  expectResolvedMutationRejected(
+    `project ${projectIndex} retry mutation`,
+    ({ config }) => {
+      config.projects[projectIndex].retries = 1;
+    },
+    /project retries must be 0/,
+  );
+  expectResolvedMutationRejected(
+    `project ${projectIndex} timeout mutation`,
+    ({ config }) => {
+      config.projects[projectIndex].timeout = 180_000;
+    },
+    /project timeout must be/,
+  );
+}
 expectResolvedMutationRejected(
   'describe-level timeout mutation exposed by resolved suite',
   ({ tests }) => {
@@ -1051,7 +1136,7 @@ expectResolvedMutationRejected(
   /resolved test retries must be 0/,
 );
 expectResolvedMutationRejected(
-  'second project mutation',
+  'third project mutation',
   ({ config }) => {
     config.projects.push({
       name: 'bypass',
@@ -1059,7 +1144,49 @@ expectResolvedMutationRejected(
       timeout: DEFAULT_TIMEOUT,
     });
   },
-  /exactly one project/,
+  /exactly two projects/,
+);
+expectResolvedMutationRejected(
+  'named Chromium project mutation',
+  ({ config }) => {
+    config.projects[0].name = 'chromium';
+  },
+  /first project must be the unnamed Chromium project/,
+);
+expectResolvedMutationRejected(
+  'wrong Chromium browser mutation',
+  ({ config }) => {
+    config.projects[0].use.browserName = 'webkit';
+  },
+  /first project must be the unnamed Chromium project/,
+);
+expectResolvedMutationRejected(
+  'renamed WebKit project mutation',
+  ({ config }) => {
+    config.projects[1].name = 'safari';
+  },
+  /second project must be the named WebKit release-only project/,
+);
+expectResolvedMutationRejected(
+  'wrong WebKit browser mutation',
+  ({ config }) => {
+    config.projects[1].use.browserName = 'chromium';
+  },
+  /second project must be the named WebKit release-only project/,
+);
+expectResolvedMutationRejected(
+  'broadened WebKit match mutation',
+  ({ config }) => {
+    config.projects[1].testMatch = ['**/*.spec.ts'];
+  },
+  /second project must be the named WebKit release-only project/,
+);
+expectResolvedMutationRejected(
+  'WebKit grep mutation',
+  ({ config }) => {
+    config.projects[1].grep = /release/;
+  },
+  /second project must be the named WebKit release-only project/,
 );
 expectResolvedMutationRejected(
   'duplicate allowlisted test mutation',

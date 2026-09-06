@@ -20,6 +20,7 @@ const SOURCE_EXTENSIONS = Object.freeze([
   '.mjs',
 ]);
 const POLICY_INFRASTRUCTURE_FILES = new Set([
+  'specs/support/release-matrix-contract.cjs',
   'specs/support/timeout-policy-contract.cjs',
   'specs/support/timeout-policy-reporter.cjs',
 ]);
@@ -38,6 +39,7 @@ const REQUIRED_CONFIG_PROPERTIES = new Set([
   'tsconfig',
   'expect',
   'use',
+  'projects',
   'outputDir',
   'reporter',
 ]);
@@ -129,6 +131,10 @@ const FORBIDDEN_REFLECTION_PROPERTIES = new Set([
 ]);
 const POLICY_NODE_MODULES = new Map([
   [
+    'specs/support/release-matrix-contract.cjs',
+    new Set(['node:assert/strict', 'node:child_process', 'node:path']),
+  ],
+  [
     'specs/support/timeout-policy-contract.cjs',
     new Set([
       'node:assert/strict',
@@ -142,10 +148,7 @@ const POLICY_NODE_MODULES = new Map([
     'specs/support/timeout-policy-reporter.cjs',
     new Set(['node:crypto', 'node:fs', 'node:path']),
   ],
-  [
-    'specs/support/run-playwright.cjs',
-    new Set(['node:child_process']),
-  ],
+  ['specs/support/run-playwright.cjs', new Set(['node:child_process'])],
 ]);
 
 const ALLOWED_SCOPED_TIMEOUTS = Object.freeze([
@@ -488,7 +491,10 @@ function expressionCanYieldFunction(expressionPath, seenBindings = new Set()) {
     if (seenBindings.has(binding)) {
       return false;
     }
-    if (binding.path.isFunctionDeclaration?.() || binding.path.isClassDeclaration?.()) {
+    if (
+      binding.path.isFunctionDeclaration?.() ||
+      binding.path.isClassDeclaration?.()
+    ) {
       return true;
     }
     if (!binding.constant || !binding.path.isVariableDeclarator?.()) {
@@ -517,7 +523,10 @@ function expressionCanYieldFunction(expressionPath, seenBindings = new Set()) {
     }
     return false;
   }
-  if (current.isMemberExpression?.() || current.isOptionalMemberExpression?.()) {
+  if (
+    current.isMemberExpression?.() ||
+    current.isOptionalMemberExpression?.()
+  ) {
     const objectPath = current.get('object');
     const propertyName = memberPropertyName(current);
     if (
@@ -531,15 +540,11 @@ function expressionCanYieldFunction(expressionPath, seenBindings = new Set()) {
       current.get('property').isNumericLiteral?.() &&
       objectPath.isArrayExpression?.()
     ) {
-      const member = objectPath.get('elements')[
-        current.get('property').node.value
-      ];
+      const member =
+        objectPath.get('elements')[current.get('property').node.value];
       return expressionCanYieldFunction(member, seenBindings);
     }
-    if (
-      propertyName !== undefined &&
-      objectPath.isObjectExpression?.()
-    ) {
+    if (propertyName !== undefined && objectPath.isObjectExpression?.()) {
       const property = objectPath
         .get('properties')
         .find((candidate) => objectPropertyName(candidate) === propertyName);
@@ -577,7 +582,9 @@ function validatePlaywrightConfigShape(file, programPath, errors) {
     }
   }
   if (defineConfigBinding === undefined) {
-    errors.push(`${file}: must directly import defineConfig from @playwright/test.`);
+    errors.push(
+      `${file}: must directly import defineConfig from @playwright/test.`,
+    );
     return;
   }
 
@@ -612,7 +619,9 @@ function validatePlaywrightConfigShape(file, programPath, errors) {
 
   const argumentsPaths = configCall.get('arguments');
   if (argumentsPaths.length !== 1) {
-    errors.push(`${file}: defineConfig must receive exactly one configuration object.`);
+    errors.push(
+      `${file}: defineConfig must receive exactly one configuration object.`,
+    );
     return;
   }
   const configProperties = validateClosedObjectProperties(
@@ -654,7 +663,9 @@ function validatePlaywrightConfigShape(file, programPath, errors) {
     expectProperties.has('timeout') &&
     !hasNumericValue(expectProperties.get('timeout'), 15_000)
   ) {
-    errors.push(`${file}: Playwright expect timeout must be the literal 15000.`);
+    errors.push(
+      `${file}: Playwright expect timeout must be the literal 15000.`,
+    );
   }
 
   const useProperties = validateClosedObjectProperties(
@@ -681,6 +692,53 @@ function validatePlaywrightConfigShape(file, programPath, errors) {
     }
   }
 
+  const projects = configProperties.get('projects');
+  let hasFixedProjects = projects?.isArrayExpression?.() === true;
+  const projectEntries = hasFixedProjects ? projects.get('elements') : [];
+  hasFixedProjects &&= projectEntries.length === 2;
+  if (projectEntries.length === 2) {
+    const projectErrorCount = errors.length;
+    const chromiumProperties = validateClosedObjectProperties(
+      file,
+      'unnamed Chromium project',
+      projectEntries[0],
+      new Set(),
+      new Set(),
+      errors,
+    );
+    hasFixedProjects &&= chromiumProperties.size === 0;
+
+    const webkitProperties = validateClosedObjectProperties(
+      file,
+      'named WebKit project',
+      projectEntries[1],
+      new Set(['name', 'testMatch', 'use']),
+      new Set(['name', 'testMatch', 'use']),
+      errors,
+    );
+    const webkitUseProperties = validateClosedObjectProperties(
+      file,
+      'named WebKit project use config',
+      webkitProperties.get('use'),
+      new Set(['browserName']),
+      new Set(['browserName']),
+      errors,
+    );
+    hasFixedProjects &&=
+      errors.length === projectErrorCount &&
+      hasStringValue(webkitProperties.get('name'), 'webkit') &&
+      hasStringValue(
+        webkitProperties.get('testMatch'),
+        '**/release-regression.spec.ts',
+      ) &&
+      hasStringValue(webkitUseProperties.get('browserName'), 'webkit');
+  }
+  if (!hasFixedProjects) {
+    errors.push(
+      `${file}: Playwright config projects must contain exactly the unnamed Chromium and named WebKit projects.`,
+    );
+  }
+
   const reporter = configProperties.get('reporter');
   const reporterEntries = reporter?.isArrayExpression?.()
     ? reporter.get('elements')
@@ -702,7 +760,10 @@ function memberPropertyName(memberPath) {
   if (!memberPath.node.computed && memberPath.get('property').isIdentifier()) {
     return memberPath.node.property.name;
   }
-  if (memberPath.node.computed && memberPath.get('property').isNumericLiteral()) {
+  if (
+    memberPath.node.computed &&
+    memberPath.get('property').isNumericLiteral()
+  ) {
     return memberPath.node.property.value;
   }
   return constantString(memberPath.get('property'));
@@ -829,8 +890,8 @@ function validateSpecSources(sourceEntries) {
     sourceFiles.add(file);
   }
   if (
-    sourceEntries.filter(({ file }) => file === PLAYWRIGHT_CONFIG_FILE).length !==
-    1
+    sourceEntries.filter(({ file }) => file === PLAYWRIGHT_CONFIG_FILE)
+      .length !== 1
   ) {
     errors.push(
       `Timeout policy requires exactly one ${PLAYWRIGHT_CONFIG_FILE} source entry.`,
@@ -896,10 +957,18 @@ function validateSpecSources(sourceEntries) {
     const testImports = [];
     const testInfoTypeNames = new Set();
     for (const statement of programPath.get('body')) {
-      if (statement.isExportNamedDeclaration() || statement.isExportAllDeclaration()) {
+      if (
+        statement.isExportNamedDeclaration() ||
+        statement.isExportAllDeclaration()
+      ) {
         if (statement.node.source != null) {
           const specifier = statement.node.source.value;
-          validateModuleSpecifier(file, statement.node.source, specifier, 're-export');
+          validateModuleSpecifier(
+            file,
+            statement.node.source,
+            specifier,
+            're-export',
+          );
           if (specifier === '@playwright/test') {
             errors.push(
               `${location(file, statement.node)}: re-exporting Playwright is forbidden.`,
@@ -911,7 +980,12 @@ function validateSpecSources(sourceEntries) {
         continue;
       }
       const importedModule = statement.node.source.value;
-      validateModuleSpecifier(file, statement.node.source, importedModule, 'import');
+      validateModuleSpecifier(
+        file,
+        statement.node.source,
+        importedModule,
+        'import',
+      );
       if (importedModule !== '@playwright/test') {
         continue;
       }
@@ -1091,7 +1165,10 @@ function validateSpecSources(sourceEntries) {
         );
         return;
       }
-      if (isGlobalIdentifier(callee, 'eval') || isGlobalIdentifier(callee, 'Function')) {
+      if (
+        isGlobalIdentifier(callee, 'eval') ||
+        isGlobalIdentifier(callee, 'Function')
+      ) {
         errors.push(
           `${location(file, callPath.node)}: dynamic code execution is forbidden in timeout-controlled modules.`,
         );
@@ -1310,9 +1387,9 @@ function validateSpecSources(sourceEntries) {
           name === 'process' &&
           identifierPath.scope.getBinding(name) === undefined
         ) {
-        const isApprovedProcessProperty =
-          (parent?.isMemberExpression?.() ||
-            parent?.isOptionalMemberExpression?.()) &&
+          const isApprovedProcessProperty =
+            (parent?.isMemberExpression?.() ||
+              parent?.isOptionalMemberExpression?.()) &&
             parent.get('object').node === identifierPath.node &&
             !parent.node.computed &&
             !parent.node.optional &&
@@ -1331,7 +1408,8 @@ function validateSpecSources(sourceEntries) {
           return;
         }
         const isDirectCall =
-          (parent?.isCallExpression?.() || parent?.isOptionalCallExpression?.()) &&
+          (parent?.isCallExpression?.() ||
+            parent?.isOptionalCallExpression?.()) &&
           parent.get('callee').node === identifierPath.node;
         const isDirectResolve =
           parent?.isMemberExpression?.() &&
@@ -1352,7 +1430,10 @@ function validateSpecSources(sourceEntries) {
       },
     });
 
-    if (testImports.length > 1 || (isSpecFile(file) && testImports.length !== 1)) {
+    if (
+      testImports.length > 1 ||
+      (isSpecFile(file) && testImports.length !== 1)
+    ) {
       errors.push(
         `${file}: expected exactly one named Playwright test import.`,
       );
@@ -1496,7 +1577,7 @@ function validateSpecSources(sourceEntries) {
           isDirectBindingReference(calleePath.get('object'), testBinding) &&
           ['beforeEach', 'afterEach', 'beforeAll', 'afterAll'].includes(
             memberPropertyName(calleePath),
-        );
+          );
         const argumentsPaths = callPath.get('arguments');
         const callbackPath = argumentsPaths.at(-1);
         if (directTestCall || testHookCall) {
@@ -1626,10 +1707,7 @@ function validateSpecSources(sourceEntries) {
         );
         return;
       }
-      if (
-        derivesFromTest &&
-        ['call', 'apply', 'bind'].includes(propertyName)
-      ) {
+      if (derivesFromTest && ['call', 'apply', 'bind'].includes(propertyName)) {
         errors.push(
           `${location(file, memberPath.node)}: indirect invocation of a Playwright test API is forbidden.`,
         );
@@ -1742,16 +1820,16 @@ function validateSpecSources(sourceEntries) {
         const declaratorPath = patternPath.parentPath;
         const destructuresTimeoutSource =
           declaratorPath?.isVariableDeclarator?.() &&
-            declaratorPath.get('init')?.node != null &&
-            (expressionDerivesFromBinding(
+          declaratorPath.get('init')?.node != null &&
+          (expressionDerivesFromBinding(
+            declaratorPath.get('init'),
+            testBindings,
+          ) ||
+            expressionDerivesFromTestInfo(
               declaratorPath.get('init'),
               testBindings,
-            ) ||
-              expressionDerivesFromTestInfo(
-                declaratorPath.get('init'),
-                testBindings,
-                testInfoBindings,
-              ));
+              testInfoBindings,
+            ));
         if (destructuresTimeoutSource) {
           errors.push(
             `${location(file, propertyPath.node)}: destructuring Playwright test or TestInfo is forbidden.`,
@@ -1951,10 +2029,44 @@ function validatePlaywrightRuntimeEnvironment(errors) {
     }
   }
   if (hasDebugCliFlag()) {
-    errors.push(
-      'Playwright --debug mode is forbidden by the timeout policy.',
-    );
+    errors.push('Playwright --debug mode is forbidden by the timeout policy.');
   }
+}
+
+function hasOnlyPattern(patterns, expected) {
+  if (typeof patterns === 'string') {
+    return patterns === expected;
+  }
+  return (
+    Array.isArray(patterns) && patterns.length === 1 && patterns[0] === expected
+  );
+}
+
+function hasDefaultGrep(project) {
+  return (
+    project.grep instanceof RegExp &&
+    project.grep.source === '.*' &&
+    project.grep.flags === '' &&
+    project.grepInvert == null
+  );
+}
+
+function isUnnamedChromiumProject(project) {
+  return (
+    project?.name === '' &&
+    project.use?.browserName === 'chromium' &&
+    hasOnlyPattern(project.testMatch, '**/*.@(spec|test).?(c|m)[jt]s?(x)') &&
+    hasDefaultGrep(project)
+  );
+}
+
+function isNamedWebKitReleaseProject(project) {
+  return (
+    project?.name === 'webkit' &&
+    project.use?.browserName === 'webkit' &&
+    hasOnlyPattern(project.testMatch, '**/release-regression.spec.ts') &&
+    hasDefaultGrep(project)
+  );
 }
 
 function validateResolvedPolicy(
@@ -1980,8 +2092,20 @@ function validateResolvedPolicy(
       `resolved globalTimeout must be 0, got ${config.globalTimeout}.`,
     );
   }
-  if (!Array.isArray(config.projects) || config.projects.length !== 1) {
-    errors.push('resolved Playwright config must contain exactly one project.');
+  if (!Array.isArray(config.projects) || config.projects.length !== 2) {
+    errors.push(
+      'resolved Playwright config must contain exactly two projects.',
+    );
+  }
+  if (!isUnnamedChromiumProject(config.projects?.[0])) {
+    errors.push(
+      'resolved first project must be the unnamed Chromium project with the default full-suite match.',
+    );
+  }
+  if (!isNamedWebKitReleaseProject(config.projects?.[1])) {
+    errors.push(
+      'resolved second project must be the named WebKit release-only project.',
+    );
   }
   if (!configHasApprovedReporters(config, configDirectory)) {
     errors.push(
