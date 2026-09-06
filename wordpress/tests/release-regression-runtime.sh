@@ -41,13 +41,11 @@ docker build \
   --build-arg BUILDKIT_INLINE_CACHE=1 \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
 docker volume create --label gama.contract=release-browser "$volume" >/dev/null
-docker run --rm \
-  --network "$network" \
-  --volume "$volume:/artifacts" \
-  --env WP_BASE_URL=http://wordpress \
-  --env GAMA_PLAYWRIGHT_RUN=release-regression \
-  "$image" npm test -- --grep @release-regression
+GAMA_STAGING_PROJECT="$project" \
+  GAMA_RELEASE_BROWSER_IMAGE="$image" \
+  GAMA_RELEASE_BROWSER_ARTIFACT_VOLUME="$volume" \
+  "$ROOT_DIR/tests/release-https-runtime.sh"
 docker run --rm --network none --volume "$volume:/artifacts:ro" --entrypoint sh "$image" -ec \
-  'test -f /artifacts/release-regression/report/index.html; test -f /artifacts/release-regression/test-results/.last-run.json'
+  'test -f /artifacts/release-regression/report/index.html; test -f /artifacts/release-regression/test-results/.last-run.json; test -f /artifacts/tls-probes/reject-untrusted.json; test -f /artifacts/tls-probes/reject-wrong-hostname.json; test -f /artifacts/tls-probes/accept-valid.json; test -f /artifacts/tls-probes/metadata.json'
 
-echo 'Release browser regression, WCAG 2.1 AA and performance budgets passed.'
+echo 'Release browser regression over trusted HTTPS, WCAG 2.1 AA and performance budgets passed.'

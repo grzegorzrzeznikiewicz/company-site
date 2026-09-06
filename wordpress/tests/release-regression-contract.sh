@@ -22,5 +22,6 @@ grep -Fq 'report/index.html' "$runtime"
 grep -Fq 'test-results/.last-run.json' "$runtime"
 grep -Fq 'browser-artifacts.tar' "$runtime"
 grep -Fq 'release-regression-runtime.sh' "$ROOT_DIR/tests/staging-rollback-runtime.sh"
+"$ROOT_DIR/tests/release-https-contract.sh"
 
 echo 'Release regression, WCAG and performance evidence contract passed.'
