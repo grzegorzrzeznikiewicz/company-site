@@ -52,7 +52,7 @@ SOURCE_COMPOSE=(docker compose --project-name "$source_project" --env-file "$env
 RESTORE_COMPOSE=(docker compose --project-name "$restore_project" --env-file "$env_file" --file "$ROOT_DIR/deploy/compose.yaml" --file "$ROOT_DIR/deploy/restore.override.yaml")
 
 "$ROOT_DIR/bin/deploy-staging" --project "$source_project" --env-file "$env_file" --confirm
-source_post_id="$("${SOURCE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=page --post_status=publish --post_title="$marker" --post_content="$marker" --porcelain --allow-root | tail -n 1)"
+source_post_id="$("${SOURCE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post create --post_type=page --post_status=publish --post_title="$marker" --post_content="$marker" --porcelain --allow-root)"
 [[ "$source_post_id" =~ ^[1-9][0-9]*$ ]]
 source_upload_sha="$("${SOURCE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap eval "\$uploads=wp_upload_dir(); \$path=\$uploads['basedir'].'/$upload_name'; file_put_contents(\$path,'$marker'); echo hash_file('sha256',\$path);" --allow-root | tail -n 1)"
 [[ "$source_upload_sha" =~ ^[a-f0-9]{64}$ ]]
@@ -75,8 +75,12 @@ elapsed="$(sed -n 's/^Elapsed seconds: //p' <<<"$restore_output")"
 
 restored_wordpress_container="$("${RESTORE_COMPOSE[@]}" ps -q wordpress)"
 [[ "$(docker inspect --format '{{.Image}}' "$restored_wordpress_container")" == "$source_image" ]]
-restored_post_id="$("${RESTORE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post list --post_type=page --search="$marker" --field=ID --allow-root | tail -n 1)"
+restored_post_id="$("${RESTORE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post get "$source_post_id" --field=ID --allow-root)"
+restored_post_title="$("${RESTORE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post get "$source_post_id" --field=post_title --allow-root)"
+restored_post_content="$("${RESTORE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap post get "$source_post_id" --field=post_content --allow-root)"
 [[ "$restored_post_id" == "$source_post_id" ]]
+[[ "$restored_post_title" == "$marker" ]]
+[[ "$restored_post_content" == "$marker" ]]
 restored_upload_sha="$("${RESTORE_COMPOSE[@]}" run --rm --no-deps --entrypoint wp bootstrap eval "\$uploads=wp_upload_dir(); echo hash_file('sha256',\$uploads['basedir'].'/$upload_name');" --allow-root | tail -n 1)"
 [[ "$restored_upload_sha" == "$source_upload_sha" ]]
 
