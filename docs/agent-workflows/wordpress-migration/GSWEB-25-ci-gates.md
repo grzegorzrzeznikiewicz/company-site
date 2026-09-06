@@ -74,16 +74,22 @@ adopted Core image
 `wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d`.
 The disposable exporter has no network or published port and mounts only the
 owned artifact volume read-only. Each wrapper refuses a generated volume name
-that already exists and records ownership only after its own create succeeds.
+that already exists. Creation adds an unpredictable per-invocation ownership
+label; the wrapper records acquisition only after Docker returns that exact
+label, then verifies it again before export and removal. A missing or different
+label is treated as foreign ownership and the volume is neither exported nor
+removed.
 
 The shared release-evidence boundary preserves an existing nonzero test status
 while still attempting export and owned-volume cleanup. If the test status was
 zero, a missing volume, failed or unreadable tar stream, failed final promotion,
 or incomplete volume removal makes the wrapper fail and is reported on stderr.
 Archive data is first written to a uniquely owned temporary path. The final
-path is reserved without clobbering, so existing files, directories, symlinks,
-and unrelated stale `.partial` paths are preserved; cleanup removes only paths
-and the volume acquired by the current invocation.
+archive is published with the POSIX `link` no-replace primitive from that
+same-directory temporary file. This atomically refuses files, directories, or
+symlinks that appear at the destination; unrelated stale `.partial` paths are
+also preserved. Cleanup removes only temporary paths and the volume whose
+ownership label still matches the current invocation.
 
 `wordpress/tests/release-evidence-export-contract.sh` exercises both real
 wrappers with controlled command-boundary failures and runs in the existing

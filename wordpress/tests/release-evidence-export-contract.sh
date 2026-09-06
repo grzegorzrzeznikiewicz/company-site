@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/gama-release-evidence-contract.XXXXXX")"
 expected_image='wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d'
+real_link="$(command -v link)"
 failures=0
 
 cleanup() {
@@ -51,11 +52,31 @@ if [[ "$1 ${2:-}" == 'network inspect' && "${GAMA_FAKE_SETUP_STATUS:-0}" -ne 0 ]
   exit "$GAMA_FAKE_SETUP_STATUS"
 fi
 if [[ "$1 ${2:-}" == 'volume inspect' ]]; then
-  [[ -f "$GAMA_FAKE_DOCKER_STATE" ]]
-  exit
+  if [[ ! -f "$GAMA_FAKE_DOCKER_STATE" ]]; then
+    exit 1
+  fi
+  if [[ " $* " == *' --format '* ]]; then
+    case "${GAMA_FAKE_OWNERSHIP_RESPONSE:-match}" in
+      missing) exit 0 ;;
+      mismatch) printf '%s\n' 'foreign-owner'; exit 0 ;;
+      *) [[ -f "$GAMA_FAKE_DOCKER_STATE.owner" ]] && cat "$GAMA_FAKE_DOCKER_STATE.owner"; exit 0 ;;
+    esac
+  fi
+  exit 0
 fi
 if [[ "$1 ${2:-}" == 'volume create' ]]; then
+  owner=''
+  for argument in "$@"; do
+    case "$argument" in
+      gama.release-evidence-owner=*) owner="${argument#*=}" ;;
+    esac
+  done
   : >"$GAMA_FAKE_DOCKER_STATE"
+  if [[ "${GAMA_FAKE_FOREIGN_VOLUME_ON_CREATE:-0}" -eq 1 ]]; then
+    printf '%s\n' 'foreign-owner' >"$GAMA_FAKE_DOCKER_STATE.owner"
+  elif [[ -n "$owner" ]]; then
+    printf '%s\n' "$owner" >"$GAMA_FAKE_DOCKER_STATE.owner"
+  fi
   exit 0
 fi
 if [[ "$1 ${2:-}" == 'volume rm' ]]; then
@@ -63,6 +84,7 @@ if [[ "$1 ${2:-}" == 'volume rm' ]]; then
     exit "$GAMA_FAKE_REMOVE_STATUS"
   fi
   unlink "$GAMA_FAKE_DOCKER_STATE"
+  [[ ! -f "$GAMA_FAKE_DOCKER_STATE.owner" ]] || unlink "$GAMA_FAKE_DOCKER_STATE.owner"
   exit 0
 fi
 if [[ "$1" == run && " $* " == *' --entrypoint tar '* ]]; then
@@ -75,12 +97,22 @@ if [[ "$1" == run && " $* " == *' --entrypoint tar '* ]]; then
     printf '%s' 'keep-directory-content' >"$GAMA_FAKE_FINAL_DESTINATION/content"
   fi
   tar -C "$GAMA_FAKE_EXPORT_SOURCE" -cf - .
-  exit
+  export_status=$?
+  case "${GAMA_FAKE_CHANGE_OWNER_AFTER_EXPORT:-}" in
+    missing) [[ ! -f "$GAMA_FAKE_DOCKER_STATE.owner" ]] || unlink "$GAMA_FAKE_DOCKER_STATE.owner" ;;
+    mismatch) printf '%s\n' 'foreign-owner' >"$GAMA_FAKE_DOCKER_STATE.owner" ;;
+  esac
+  exit "$export_status"
 fi
 if [[ "$1" == run && " $* " == *' --entrypoint sh '* ]]; then
   if [[ "${GAMA_FAKE_DROP_VOLUME_BEFORE_CLEANUP:-0}" -eq 1 ]]; then
     unlink "$GAMA_FAKE_DOCKER_STATE"
+    [[ ! -f "$GAMA_FAKE_DOCKER_STATE.owner" ]] || unlink "$GAMA_FAKE_DOCKER_STATE.owner"
   fi
+  case "${GAMA_FAKE_CHANGE_OWNER_BEFORE_CLEANUP:-}" in
+    missing) [[ ! -f "$GAMA_FAKE_DOCKER_STATE.owner" ]] || unlink "$GAMA_FAKE_DOCKER_STATE.owner" ;;
+    mismatch) printf '%s\n' 'foreign-owner' >"$GAMA_FAKE_DOCKER_STATE.owner" ;;
+  esac
   exit 0
 fi
 if [[ "$1" == run && " $* " == *' npm test '* ]]; then
@@ -90,21 +122,28 @@ exit 0
 EOF
 chmod +x "$fixture_dir/bin/docker"
 
-cat >"$fixture_dir/bin/ln" <<'EOF'
+cat >"$fixture_dir/bin/link" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${GAMA_FAKE_PROMOTION_STATUS:-0}" -ne 0 ]]; then
   exit "$GAMA_FAKE_PROMOTION_STATUS"
 fi
-exec /bin/ln "$@"
-EOF
-cat >"$fixture_dir/bin/mv" <<'EOF'
-#!/usr/bin/env bash
-if [[ "${GAMA_FAKE_PROMOTION_STATUS:-0}" -ne 0 ]]; then
-  exit "$GAMA_FAKE_PROMOTION_STATUS"
+destination="${!#}"
+if [[ -n "${GAMA_FAKE_REPLACE_DURING_PROMOTION:-}" ]]; then
+  case "$GAMA_FAKE_REPLACE_DURING_PROMOTION" in
+    file) printf '%s' 'keep-foreign-file' >"$destination" ;;
+    directory)
+      mkdir "$destination"
+      printf '%s' 'keep-foreign-directory' >"$destination/content"
+      ;;
+    symlink)
+      printf '%s' 'keep-foreign-target' >"$destination.foreign-target"
+      /bin/ln -s "$destination.foreign-target" "$destination"
+      ;;
+  esac
 fi
-exec /bin/mv "$@"
+exec "$GAMA_REAL_LINK" "$@"
 EOF
-chmod +x "$fixture_dir/bin/ln" "$fixture_dir/bin/mv"
+chmod +x "$fixture_dir/bin/link"
 
 run_wrapper() {
   local wrapper="$1"
@@ -119,6 +158,7 @@ run_wrapper() {
     GAMA_FAKE_DOCKER_LOG="$case_dir/docker.log" \
     GAMA_FAKE_DOCKER_STATE="$case_dir/volume" \
     GAMA_FAKE_EXPORT_SOURCE="$fixture_dir/source" \
+    GAMA_REAL_LINK="$real_link" \
     GAMA_STAGING_PROJECT=gama-wp-staging-contract \
     GAMA_RELEASE_ARTIFACT_ROOT="$case_dir/artifacts" \
     "${@:3}" \
@@ -190,8 +230,11 @@ status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_FINA
 case_name=missing-volume
 status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_DROP_VOLUME_BEFORE_CLEANUP=1)"
 [[ "$status" -ne 0 ]] || fail "$case_name returned success."
-grep -Fq 'Required evidence volume is missing:' "$fixture_dir/$case_name/stderr" \
-  || fail "$case_name did not report the missing owned volume."
+if ! grep -Fq 'Required evidence volume is missing:' "$fixture_dir/$case_name/stderr"; then
+  sed -n '1,20p' "$fixture_dir/$case_name/stderr" >&2
+  sed -n '1,40p' "$fixture_dir/$case_name/docker.log" >&2
+  fail "$case_name did not report the missing owned volume."
+fi
 
 case_name=cleanup-failure
 status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_REMOVE_STATUS=44)"
@@ -217,6 +260,52 @@ status="$(run_wrapper release-acceptance-runtime "$case_name" env)"
 [[ -e "$fixture_dir/$case_name/volume" ]] || fail "$case_name was deleted by this invocation."
 grep -Fq 'Refusing preexisting generated evidence volume:' "$fixture_dir/$case_name/stderr" \
   || fail "$case_name refusal was not reported."
+
+for ownership_case in create-race missing-response mismatch-response; do
+  case_name="volume-ownership-$ownership_case"
+  case "$ownership_case" in
+    create-race)
+      status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_FOREIGN_VOLUME_ON_CREATE=1)"
+      ;;
+    missing-response)
+      status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_OWNERSHIP_RESPONSE=missing)"
+      ;;
+    mismatch-response)
+      status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_OWNERSHIP_RESPONSE=mismatch)"
+      ;;
+  esac
+  [[ "$status" -ne 0 ]] || fail "$case_name adopted a volume without verified ownership."
+  [[ -e "$fixture_dir/$case_name/volume" ]] || fail "$case_name removed the foreign or unverifiable volume."
+  if grep -Eq '^run .* --entrypoint tar |^volume rm ' "$fixture_dir/$case_name/docker.log"; then
+    fail "$case_name exported or removed the foreign or unverifiable volume."
+  fi
+  grep -Fq 'Refusing evidence volume without matching ownership label:' "$fixture_dir/$case_name/stderr" \
+    || fail "$case_name refusal was not reported."
+done
+
+for changed_owner in missing mismatch; do
+  case_name="volume-ownership-changed-before-cleanup-$changed_owner"
+  status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_CHANGE_OWNER_BEFORE_CLEANUP="$changed_owner")"
+  [[ "$status" -ne 0 ]] || fail "$case_name exported a volume whose ownership was no longer verifiable."
+  [[ -e "$fixture_dir/$case_name/volume" ]] || fail "$case_name removed the foreign or unverifiable volume."
+  if grep -Eq '^run .* --entrypoint tar |^volume rm ' "$fixture_dir/$case_name/docker.log"; then
+    fail "$case_name exported or removed the foreign or unverifiable volume."
+  fi
+  grep -Fq 'Refusing evidence export for volume without matching ownership label:' "$fixture_dir/$case_name/stderr" \
+    || fail "$case_name refusal was not reported."
+done
+
+for changed_owner in missing mismatch; do
+  case_name="volume-ownership-changed-after-export-$changed_owner"
+  status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_CHANGE_OWNER_AFTER_EXPORT="$changed_owner")"
+  [[ "$status" -ne 0 ]] || fail "$case_name removed a volume whose ownership changed after export."
+  [[ -e "$fixture_dir/$case_name/volume" ]] || fail "$case_name removed the foreign or unverifiable volume."
+  if grep -Eq '^volume rm ' "$fixture_dir/$case_name/docker.log"; then
+    fail "$case_name removed the foreign or unverifiable volume."
+  fi
+  grep -Fq 'Refusing cleanup of evidence volume without matching ownership label:' "$fixture_dir/$case_name/stderr" \
+    || fail "$case_name cleanup refusal was not reported."
+done
 
 case_name=preexisting-final
 mkdir -p "$fixture_dir/$case_name/artifacts"
@@ -264,6 +353,30 @@ status="$(run_wrapper release-acceptance-runtime "$case_name" env)"
 assert_status "$case_name" 0 "$status"
 [[ -L "$partial" && "$(<"$victim")" == keep-victim ]] \
   || fail "$case_name followed or removed the stale partial symlink."
+
+for replacement in file directory symlink; do
+  case_name="replacement-during-promotion-$replacement"
+  case_dir="$fixture_dir/$case_name"
+  archive="$(archive_path release-acceptance-runtime "$case_dir")"
+  status="$(run_wrapper release-acceptance-runtime "$case_name" env GAMA_FAKE_REPLACE_DURING_PROMOTION="$replacement")"
+  [[ "$status" -ne 0 ]] || fail "$case_name returned success."
+  case "$replacement" in
+    file)
+      [[ -f "$archive" && "$(<"$archive")" == keep-foreign-file ]] \
+        || fail "$case_name modified or deleted the foreign file."
+      ;;
+    directory)
+      [[ -d "$archive" && "$(<"$archive/content")" == keep-foreign-directory ]] \
+        || fail "$case_name modified or deleted the foreign directory sentinel."
+      [[ "$(find "$archive" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" -eq 1 ]] \
+        || fail "$case_name added evidence inside the foreign directory."
+      ;;
+    symlink)
+      [[ -L "$archive" && "$(<"$archive.foreign-target")" == keep-foreign-target ]] \
+        || fail "$case_name modified or deleted the foreign symlink."
+      ;;
+  esac
+done
 
 case_name=setup-failure-before-acquisition
 mkdir -p "$fixture_dir/$case_name/artifacts"

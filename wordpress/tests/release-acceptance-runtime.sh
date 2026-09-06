@@ -9,6 +9,7 @@ artifact_root="${GAMA_RELEASE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}/codex-gsweb28-artif
 image="gama-wordpress-browser:gsweb28"
 volume="gama-acceptance-browser-artifacts-$$"
 volume_acquired=0
+volume_ownership_token=''
 
 if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
   echo 'GAMA_STAGING_PROJECT must name the active isolated staging namespace.' >&2
@@ -28,7 +29,7 @@ cleanup() {
   local final_status
   trap - EXIT
   set +e
-  gama_release_evidence_finalize "$status" "$volume_acquired" "$volume" "$archive"
+  gama_release_evidence_finalize "$status" "$volume_acquired" "$volume" "$archive" "$volume_ownership_token"
   final_status=$?
   set -e
   exit "$final_status"
@@ -41,6 +42,7 @@ docker build \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
 if gama_release_evidence_acquire_volume "$volume" gama.contract=acceptance-browser; then
   volume_acquired=1
+  volume_ownership_token="$GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN"
 else
   status=$?
   exit "$status"

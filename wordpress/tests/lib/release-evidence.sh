@@ -1,23 +1,53 @@
 #!/usr/bin/env bash
 
 GAMA_RELEASE_EVIDENCE_IMAGE='wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d'
+GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN=''
 
 gama_release_evidence_acquire_volume() {
   local volume="$1"
   local contract_label="$2"
   local create_status
+  local owner_marker
+  local ownership_response
+  local ownership_token
+
+  GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN=''
 
   if docker volume inspect "$volume" >/dev/null 2>&1; then
     echo "Refusing preexisting generated evidence volume: $volume" >&2
     return 1
   fi
 
-  docker volume create --label "$contract_label" "$volume" >/dev/null
+  owner_marker="$(mktemp "${TMPDIR:-/tmp}/gama-release-volume-owner.XXXXXX")"
+  create_status=$?
+  if [[ "$create_status" -ne 0 ]]; then
+    echo "Evidence volume ownership token creation failed with status $create_status: $volume" >&2
+    return "$create_status"
+  fi
+  ownership_token="${owner_marker##*/}"
+  unlink "$owner_marker"
+  create_status=$?
+  if [[ "$create_status" -ne 0 ]]; then
+    echo "Evidence volume ownership token cleanup failed with status $create_status: $owner_marker" >&2
+    return "$create_status"
+  fi
+
+  docker volume create --label "$contract_label" \
+    --label "gama.release-evidence-owner=$ownership_token" "$volume" >/dev/null
   create_status=$?
   if [[ "$create_status" -ne 0 ]]; then
     echo "Evidence volume creation failed with status $create_status: $volume" >&2
     return "$create_status"
   fi
+
+  ownership_response="$(docker volume inspect \
+    --format '{{ index .Labels "gama.release-evidence-owner" }}' "$volume" 2>/dev/null)"
+  create_status=$?
+  if [[ "$create_status" -ne 0 || "$ownership_response" != "$ownership_token" ]]; then
+    echo "Refusing evidence volume without matching ownership label: $volume" >&2
+    return 1
+  fi
+  GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN="$ownership_token"
 }
 
 gama_release_evidence_finalize() {
@@ -25,9 +55,11 @@ gama_release_evidence_finalize() {
   local volume_acquired="$2"
   local volume="$3"
   local archive="$4"
+  local ownership_token="$5"
   local final_status="$primary_status"
   local export_container="$volume-export"
   local operation_status
+  local ownership_response
   local temporary_archive=''
 
   if [[ "$volume_acquired" -ne 1 ]]; then
@@ -40,6 +72,17 @@ gama_release_evidence_finalize() {
 
   if ! docker volume inspect "$volume" >/dev/null 2>&1; then
     echo "Required evidence volume is missing: $volume" >&2
+    if [[ "$primary_status" -eq 0 ]]; then
+      final_status=1
+    fi
+    return "$final_status"
+  fi
+
+  ownership_response="$(docker volume inspect \
+    --format '{{ index .Labels "gama.release-evidence-owner" }}' "$volume" 2>/dev/null)"
+  operation_status=$?
+  if [[ "$operation_status" -ne 0 || "$ownership_response" != "$ownership_token" ]]; then
+    echo "Refusing evidence export for volume without matching ownership label: $volume" >&2
     if [[ "$primary_status" -eq 0 ]]; then
       final_status=1
     fi
@@ -68,17 +111,8 @@ gama_release_evidence_finalize() {
         final_status=1
       fi
     else
-      if ( set -o noclobber; : >"$archive" ) 2>/dev/null; then
-        mv "$temporary_archive" "$archive"
-        operation_status=$?
-        if [[ "$operation_status" -eq 0 ]]; then
-          temporary_archive=''
-        else
-          unlink "$archive" 2>/dev/null
-        fi
-      else
-        operation_status=$?
-      fi
+      link "$temporary_archive" "$archive" 2>/dev/null
+      operation_status=$?
       if [[ "$operation_status" -ne 0 ]]; then
         echo "Evidence archive promotion failed with status $operation_status: $archive" >&2
         if [[ "$primary_status" -eq 0 ]]; then
@@ -97,6 +131,17 @@ gama_release_evidence_finalize() {
         fi
       fi
     fi
+  fi
+
+  ownership_response="$(docker volume inspect \
+    --format '{{ index .Labels "gama.release-evidence-owner" }}' "$volume" 2>/dev/null)"
+  operation_status=$?
+  if [[ "$operation_status" -ne 0 || "$ownership_response" != "$ownership_token" ]]; then
+    echo "Refusing cleanup of evidence volume without matching ownership label: $volume" >&2
+    if [[ "$primary_status" -eq 0 ]]; then
+      final_status=1
+    fi
+    return "$final_status"
   fi
 
   docker volume rm "$volume" >/dev/null 2>&1

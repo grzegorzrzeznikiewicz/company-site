@@ -41,7 +41,7 @@ docker run --rm --name "$fixture_container" --network none \
   "printf '%s\\n' 'known non-secret release evidence' > /artifacts/evidence.txt"
 
 set +e
-gama_release_evidence_finalize 0 "$volume_acquired" "$volume" "$archive"
+gama_release_evidence_finalize 0 "$volume_acquired" "$volume" "$archive" "$GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN"
 finalize_status=$?
 set -e
 
@@ -73,7 +73,7 @@ docker run --rm --name "$fixture_container" --network none \
 mkdir "$blocked_archive"
 printf '%s' 'keep-directory-content' >"$blocked_archive/content"
 set +e
-gama_release_evidence_finalize 0 "$volume_acquired" "$volume" "$blocked_archive" 2>"$promotion_stderr"
+gama_release_evidence_finalize 0 "$volume_acquired" "$volume" "$blocked_archive" "$GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN" 2>"$promotion_stderr"
 promotion_status=$?
 set -e
 if [[ "$promotion_status" -eq 0 ]]; then
