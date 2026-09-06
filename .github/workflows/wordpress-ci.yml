@@ -1,0 +1,206 @@
+name: WordPress Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-build:
+    name: WordPress Source and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore WordPress source QA image cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: wordpress/.cache/ci-images/source
+          key: ${{ runner.os }}-wordpress-source-qa-v1-${{ hashFiles('wordpress/qa/composer.json', 'wordpress/qa/composer.lock', 'wordpress/qa/assets/package.json', 'wordpress/qa/assets/package-lock.json', 'wordpress/qa/Dockerfile', 'wordpress/qa/assets.Dockerfile', 'wordpress/qa/phpcs*.xml.dist', 'wordpress/qa/phpstan*', 'wordpress/qa/assets/*.mjs') }}
+
+      - name: Load cached WordPress source QA images
+        run: wordpress/bin/ci-image-cache restore source
+
+      - name: Prepare local-only environment
+        run: cp wordpress/.env.example wordpress/.env
+
+      - name: Validate source, policy and reproducible packages
+        run: |
+          wordpress/bin/validate-extensions-lock
+          wordpress/tests/mount-contract.sh
+          wordpress/tests/contact-plugin-contract.sh
+          wordpress/tests/contact-form-browser-contract.sh
+          wordpress/tests/mail-transport-plugin-contract.sh
+          wordpress/tests/seo-plugin-contract.sh
+          wordpress/tests/security-plugin-contract.sh
+          wordpress/tests/backup-restore-contract.sh
+          wordpress/tests/production-deployment-contract.sh
+          wordpress/tests/production-workflow-boundary-contract.sh
+          wordpress/tests/theme-contract.sh
+          wordpress/tests/plugin-package-contract.sh
+          wordpress/tests/ci-package-input-contract.sh
+          wordpress/tests/release-acceptance-contract.sh
+          wordpress/tests/release-acceptance-contract-regression.sh
+          wordpress/tests/release-evidence-export-contract.sh
+          wordpress/tests/wordpress-ci-contract.sh
+          wordpress/tests/ci-failure-contract.sh
+
+      - name: Lint all first-party WordPress JavaScript and CSS
+        run: wordpress/tests/wordpress-assets-quality.sh
+
+      - name: Check all first-party WordPress PHP
+        run: wordpress/tests/wordpress-php-quality.sh
+
+      - name: Audit every WordPress QA dependency lock
+        run: |
+          wordpress/tests/dependency-audit-contract.sh
+          wordpress/tests/wordpress-dependency-audit.sh
+
+      - name: Persist WordPress source QA image cache
+        if: ${{ always() }}
+        run: wordpress/bin/ci-image-cache save source
+
+      - name: Upload immutable package set
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordpress-packages-${{ github.sha }}
+          path: |
+            wordpress/dist/*.zip
+            wordpress/dist/*.manifest.txt
+            wordpress/dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  package-lifecycle:
+    name: WordPress Package Lifecycle
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore WordPress browser QA image cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: wordpress/.cache/ci-images/browser
+          key: ${{ runner.os }}-wordpress-browser-qa-v1-${{ hashFiles('wordpress/qa/e2e/package-lock.json', 'wordpress/qa/e2e/package.json', 'wordpress/qa/browser.Dockerfile', 'wordpress/qa/e2e/playwright.config.ts', 'wordpress/qa/e2e/timeout-policy.tsconfig.json') }}
+
+      - name: Load cached WordPress browser QA image
+        run: wordpress/bin/ci-image-cache restore browser
+
+      - name: Download exact package set
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wordpress-packages-${{ github.sha }}
+          path: wordpress/dist
+
+      - name: Test exact contact plugin package
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.2.zip)"
+
+      - name: Test exact theme package
+        env:
+          GAMA_THEME_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-browser-artifacts
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
+
+      - name: Persist WordPress browser QA image cache
+        if: ${{ always() }}
+        run: wordpress/bin/ci-image-cache save browser
+
+      - name: Upload browser evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordpress-browser-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/wordpress-browser-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+  runtime-and-restore:
+    name: WordPress Runtime and Restore
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore WordPress browser QA image cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: wordpress/.cache/ci-images/browser
+          key: ${{ runner.os }}-wordpress-browser-qa-v1-${{ hashFiles('wordpress/qa/e2e/package-lock.json', 'wordpress/qa/e2e/package.json', 'wordpress/qa/browser.Dockerfile', 'wordpress/qa/e2e/playwright.config.ts', 'wordpress/qa/e2e/timeout-policy.tsconfig.json') }}
+
+      - name: Load cached WordPress browser QA image
+        run: wordpress/bin/ci-image-cache restore browser
+
+      - name: Prepare local-only environment
+        run: cp wordpress/.env.example wordpress/.env
+
+      - name: Verify clean runtime
+        run: wordpress/tests/runtime-smoke.sh --clean
+
+      - name: Verify full isolated restore
+        run: |
+          wordpress/bin/start
+          wordpress/tests/backup-restore-runtime.sh
+
+      - name: Persist WordPress browser QA image cache
+        if: ${{ always() }}
+        run: wordpress/bin/ci-image-cache save browser
+
+      - name: Remove only CI runtime volumes
+        if: ${{ always() }}
+        run: wordpress/bin/reset --confirm
+
+  release-regression:
+    name: WordPress Release Regression
+    needs: source-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Restore WordPress browser QA image cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: wordpress/.cache/ci-images/browser
+          key: ${{ runner.os }}-wordpress-browser-qa-v1-${{ hashFiles('wordpress/qa/e2e/package-lock.json', 'wordpress/qa/e2e/package.json', 'wordpress/qa/browser.Dockerfile', 'wordpress/qa/e2e/playwright.config.ts', 'wordpress/qa/e2e/timeout-policy.tsconfig.json') }}
+
+      - name: Load cached WordPress browser QA image
+        run: wordpress/bin/ci-image-cache restore browser
+
+      - name: Rehearse immutable staging and rollback
+        env:
+          GAMA_RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-release-evidence
+          # A real, pre-contact-fix WordPress revision; the PR merge parent is legacy-only.
+          GAMA_ROLLBACK_BASE_REF: 043beee6490664758bdbbff55d7a9cdf9156a398
+        run: |
+          wordpress/tests/staging-rollback-runtime.sh
+          wordpress/tests/production-deployment-runtime.sh
+
+      - name: Persist WordPress browser QA image cache
+        if: ${{ always() }}
+        run: wordpress/bin/ci-image-cache save browser
+
+      - name: Upload release regression evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordpress-release-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/wordpress-release-evidence
+          if-no-files-found: error
+          retention-days: 14

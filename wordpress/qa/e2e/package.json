@@ -1,0 +1,16 @@
+{
+  "name": "gama-software-wordpress-theme-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.*"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "web-vitals": "6.2.1"
+  },
+  "scripts": {
+    "test": "env -u PW_TEST_SOURCE_TRANSFORM -u PW_TEST_SOURCE_TRANSFORM_SCOPE -u PW_TEST_REPORTER -u PWDEBUG sh -c 'node ./specs/support/timeout-policy-contract.cjs && node ./specs/support/run-playwright.cjs \"$@\"' --"
+  }
+}

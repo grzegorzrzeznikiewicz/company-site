@@ -1,0 +1,105 @@
+name: WordPress Production Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_run_id:
+        description: Production deployment run to roll back
+        required: true
+        type: string
+      rollback_scope:
+        description: Route back to legacy or roll WordPress code back in place
+        required: true
+        default: routing-to-legacy
+        type: choice
+        options:
+          - routing-to-legacy
+          - code-only
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordpress-production
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Execute approved production rollback
+    runs-on: ubuntu-latest
+    environment: wordpress-production-rollback
+    steps:
+      - name: Validate request
+        env:
+          INPUT_DEPLOYMENT_RUN_ID: ${{ inputs.deployment_run_id }}
+        shell: bash
+        run: '[[ "$INPUT_DEPLOYMENT_RUN_ID" =~ ^[1-9][0-9]*$ ]]'
+
+      - name: Route to legacy independently of WordPress health
+        if: ${{ inputs.rollback_scope == 'routing-to-legacy' }}
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          DEPLOYMENT_RUN_ID: ${{ inputs.deployment_run_id }}
+          ROLLBACK_RUN_ID: ${{ github.run_id }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: DEPLOYMENT_RUN_ID,ROLLBACK_RUN_ID
+          script: |
+            set -euo pipefail
+            hook=/usr/local/sbin/gama-wordpress-rollback-routing
+            sudo test -f "$hook" && sudo test ! -L "$hook" && sudo test -x "$hook"
+            test "$(sudo stat -c %u "$hook")" -eq 0
+            writable_path="$(sudo find "$hook" -perm /022 -print -quit)"
+            test -z "$writable_path"
+            sudo "$hook" --target legacy --deployment-run-id "$DEPLOYMENT_RUN_ID" --rollback-run-id "$ROLLBACK_RUN_ID"
+
+      - name: Back up and roll application code back
+        if: ${{ inputs.rollback_scope == 'code-only' }}
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
+        env:
+          DEPLOYMENT_RUN_ID: ${{ inputs.deployment_run_id }}
+          ROLLBACK_RUN_ID: ${{ github.run_id }}
+          PRODUCTION_BACKUP_ROOT: ${{ secrets.PRODUCTION_BACKUP_ROOT }}
+          PRODUCTION_BACKUP_EXPECTED_SOURCE: ${{ secrets.PRODUCTION_BACKUP_EXPECTED_SOURCE }}
+          GHCR_USERNAME: ${{ secrets.PRODUCTION_GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.PRODUCTION_GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          envs: DEPLOYMENT_RUN_ID,ROLLBACK_RUN_ID,PRODUCTION_BACKUP_ROOT,PRODUCTION_BACKUP_EXPECTED_SOURCE,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            target=/srv/gama-wordpress-production
+            deployment="$target/deployments/$DEPLOYMENT_RUN_ID/deployment.env"
+            sudo test -f "$deployment" && sudo test ! -L "$deployment"
+            test "$(sudo stat -c %u "$deployment")" -eq 0
+            writable_path="$(sudo find "$deployment" -perm /022 -print -quit)"
+            test -z "$writable_path"
+            for tool in backup deploy-production rollback-production; do
+              sudo test -f "$target/bin/$tool" && sudo test ! -L "$target/bin/$tool" && sudo test -x "$target/bin/$tool"
+              test "$(sudo stat -c %u "$target/bin/$tool")" -eq 0
+              writable_path="$(sudo find "$target/bin/$tool" -perm /022 -print -quit)"
+              test -z "$writable_path"
+            done
+            case "$PRODUCTION_BACKUP_ROOT" in /*) ;; *) exit 64;; esac
+            test -d "$PRODUCTION_BACKUP_ROOT"
+            mountpoint -q "$PRODUCTION_BACKUP_ROOT"
+            actual_backup_source="$(findmnt -n -o SOURCE --target "$PRODUCTION_BACKUP_ROOT")"
+            [[ -n "$PRODUCTION_BACKUP_EXPECTED_SOURCE" && "$actual_backup_source" == "$PRODUCTION_BACKUP_EXPECTED_SOURCE" ]]
+            current_container="$(sudo docker ps --filter label=com.docker.compose.project=gama-wp-production --filter label=com.docker.compose.service=wordpress --format '{{.ID}}')"
+            [[ -n "$current_container" && "$current_container" != *$'\n'* ]]
+            [[ "$(sudo docker inspect --format '{{.State.Health.Status}}' "$current_container")" == healthy ]]
+            rollback_backup="$PRODUCTION_BACKUP_ROOT/wordpress-prerollback-$ROLLBACK_RUN_ID"
+            sudo "$target/bin/backup" --project gama-wp-production "$rollback_backup"
+            sudo bash -c 'cd -- "$1" && sha256sum -c SHA256SUMS' bash "$rollback_backup"
+            previous_image="$(sudo sed -n 's/^previous_image=//p' "$deployment")"
+            [[ "$previous_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            sudo "$target/bin/rollback-production" \
+              --project gama-wp-production --env-file "$target/.env" \
+              --image "$previous_image" --http-port 8080 --confirm-image "$previous_image"

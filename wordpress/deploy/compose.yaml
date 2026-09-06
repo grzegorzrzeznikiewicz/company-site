@@ -1,0 +1,104 @@
+name: gama-wordpress-release
+
+services:
+  db:
+    image: mariadb:10.11.18-jammy@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${WP_DB_NAME:?required}
+      MARIADB_USER: ${WP_DB_USER:?required}
+      MARIADB_PASSWORD: ${WP_DB_PASSWORD:?required}
+      MARIADB_ROOT_PASSWORD: ${WP_DB_ROOT_PASSWORD:?required}
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping --host=127.0.0.1 --user=$$MARIADB_USER --password=$$MARIADB_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  install:
+    image: ${WORDPRESS_IMAGE:?immutable image digest required}
+    user: "0:0"
+    entrypoint: ["/usr/local/bin/gama-wordpress-install-release"]
+    volumes:
+      - core:/var/www/html
+
+  uploads-init:
+    image: ${WORDPRESS_IMAGE:?immutable image digest required}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["mkdir -p /uploads && chown 33:33 /uploads && chmod 0775 /uploads"]
+    volumes:
+      - uploads:/uploads
+
+  wordpress:
+    image: ${WORDPRESS_IMAGE:?immutable image digest required}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WORDPRESS_HTTP_PORT-8080}:80"
+    environment: &wordpress-environment
+      HOME: /tmp
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: ${WP_DB_NAME:?required}
+      WORDPRESS_DB_USER: ${WP_DB_USER:?required}
+      WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD:?required}
+      WP_HOME: ${WP_HOME:?required}
+      WP_SITE_TITLE: ${WP_SITE_TITLE:?required}
+      WP_ADMIN_USER: ${WP_ADMIN_USER:?required}
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD:?required}
+      WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL:?required}
+      WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:?required}
+      GAMA_CONTACT_RECIPIENT: ${GAMA_CONTACT_RECIPIENT:?required}
+      GAMA_CONTACT_SENDER: ${GAMA_CONTACT_SENDER:?required}
+      GAMA_MAIL_SINK_HOST: ${GAMA_MAIL_SINK_HOST:-}
+      GAMA_MAIL_SINK_PORT: ${GAMA_MAIL_SINK_PORT:-1025}
+      GAMA_SMTP_HOST: ${GAMA_SMTP_HOST:-}
+      GAMA_SMTP_PORT: ${GAMA_SMTP_PORT:-}
+      GAMA_SMTP_USERNAME: ${GAMA_SMTP_USERNAME:-}
+      GAMA_SMTP_PASSWORD: ${GAMA_SMTP_PASSWORD:-}
+      GAMA_SMTP_ENCRYPTION: ${GAMA_SMTP_ENCRYPTION:-}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('DISALLOW_FILE_EDIT', true);
+        define('DISALLOW_FILE_MODS', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+        define('WP_ENVIRONMENT_TYPE', getenv('WP_ENVIRONMENT_TYPE'));
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && 'https' === $$_SERVER['HTTP_X_FORWARDED_PROTO']) {
+          $$_SERVER['HTTPS'] = 'on';
+        }
+        define('FORCE_SSL_ADMIN', 'production' === WP_ENVIRONMENT_TYPE);
+        define('GAMA_CONTACT_RECIPIENT', getenv('GAMA_CONTACT_RECIPIENT'));
+        define('GAMA_CONTACT_SENDER', getenv('GAMA_CONTACT_SENDER'));
+    volumes:
+      - core:/var/www/html
+      - uploads:/var/www/html/wp-content/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$body = @file_get_contents(\"http://127.0.0.1/wp-login.php\"); $$status = $$http_response_header[0] ?? \"\"; exit(str_starts_with($$status, \"HTTP/\") && !str_contains($$status, \" 4\") && !str_contains($$status, \" 5\") ? 0 : 1);'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  bootstrap:
+    image: ${WORDPRESS_IMAGE:?immutable image digest required}
+    user: "33:33"
+    environment: *wordpress-environment
+    entrypoint: ["/usr/local/bin/gama-wordpress-bootstrap"]
+    volumes:
+      - core:/var/www/html
+      - uploads:/var/www/html/wp-content/uploads
+    depends_on:
+      wordpress:
+        condition: service_healthy
+
+volumes:
+  core:
+  database:
+  uploads:

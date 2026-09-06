@@ -1,0 +1,112 @@
+#!/bin/sh
+set -eu
+
+cd /var/www/html
+
+wp_cli() {
+  wp --allow-root --url="$WP_HOME" "$@"
+}
+
+if ! wp_cli core is-installed; then
+  wp_cli core install \
+    --title="$WP_SITE_TITLE" \
+    --admin_user="$WP_ADMIN_USER" \
+    --admin_password="$WP_ADMIN_PASSWORD" \
+    --admin_email="$WP_ADMIN_EMAIL" \
+    --skip-email
+fi
+
+wp_cli theme activate gama-software
+if wp_cli plugin is-installed gama-local-mailpit; then
+  if [ "${WP_ENVIRONMENT_TYPE:-local}" = production ]; then
+    wp_cli plugin deactivate gama-local-mailpit >/dev/null 2>&1 || true
+  else
+    wp_cli plugin activate gama-local-mailpit
+  fi
+fi
+wp_cli plugin activate gama-contact
+wp_cli plugin activate gama-mail-transport
+wp_cli plugin activate gama-seo
+wp_cli plugin activate gama-security
+
+for default_plugin in akismet hello; do
+  if wp_cli plugin is-installed "$default_plugin" && ! wp_cli plugin is-active "$default_plugin"; then
+    wp_cli plugin delete "$default_plugin"
+  fi
+done
+for retired_default_theme in twentytwentythree twentytwentyfour; do
+  if wp_cli theme is-installed "$retired_default_theme" && ! wp_cli theme is-active "$retired_default_theme"; then
+    wp_cli theme delete "$retired_default_theme"
+  fi
+done
+
+ensure_published_page() {
+  slug="$1"
+  title="$2"
+  page_id="$(wp_cli post list --post_type=page --name="$slug" --post_status=publish --posts_per_page=1 --field=ID | head -n 1)"
+  if [ -z "$page_id" ]; then
+    existing_id="$(wp_cli post list --post_type=page --name="$slug" --post_status=any --posts_per_page=1 --field=ID | head -n 1)"
+    if [ -n "$existing_id" ]; then
+      page_id="$existing_id"
+    else
+      page_id="$(wp_cli post create --post_type=page --post_title="$title" --post_name="$slug" --post_status=publish --porcelain)"
+    fi
+  fi
+
+  wp_cli post update "$page_id" --post_status=publish >/dev/null
+  printf '%s\n' "$page_id"
+}
+
+home_page_id="$(ensure_published_page home Home)"
+blog_page_id="$(ensure_published_page blog Blog)"
+
+ensure_legal_draft() {
+  slug="$1"
+  title="$2"
+  existing_id="$(wp_cli post list --post_type=page --name="$slug" --post_status=any --posts_per_page=1 --field=ID | head -n 1)"
+  if [ -z "$existing_id" ]; then
+    wp_cli post create \
+      --post_type=page \
+      --post_title="$title" \
+      --post_name="$slug" \
+      --post_status=draft \
+      --post_content='<!-- wp:heading {"level":1} --><h1 class="wp-block-heading">TREŚĆ WYMAGA ZATWIERDZENIA WŁAŚCICIELA</h1><!-- /wp:heading --><!-- wp:paragraph --><p>To jest techniczny szkic strony prawnej. Nie publikować przed przekazaniem i zatwierdzeniem właściwej treści.</p><!-- /wp:paragraph -->' \
+      --porcelain >/dev/null
+  fi
+}
+
+ensure_legal_draft polityka-prywatnosci 'Polityka prywatności'
+ensure_legal_draft regulamin Regulamin
+
+custom_logo_id="$(wp_cli eval 'echo (int) get_theme_mod("custom_logo", 0);' 2>/dev/null || true)"
+if ! wp_cli eval "\$post = get_post((int) '$custom_logo_id'); exit(\$post instanceof WP_Post && 'attachment' === \$post->post_type ? 0 : 1);"; then
+  logo_attachment_id="$(wp_cli post list --post_type=attachment --post_status=inherit --meta_key=_gama_asset_key --meta_value=gama-software-logo --posts_per_page=1 --field=ID | head -n 1)"
+  if [ -z "$logo_attachment_id" ]; then
+    logo_attachment_id="$(wp_cli media import /var/www/html/wp-content/themes/gama-software/assets/images/gama-software-logo.png --title='Gama Software — logo' --alt='Gama Software' --porcelain)"
+    wp_cli post meta update "$logo_attachment_id" _gama_asset_key gama-software-logo >/dev/null
+    wp_cli post meta update "$logo_attachment_id" _wp_attachment_image_alt 'Gama Software' >/dev/null
+  fi
+  wp_cli theme mod set custom_logo "$logo_attachment_id" >/dev/null
+  custom_logo_id="$logo_attachment_id"
+fi
+
+site_icon_id="$(wp_cli option get site_icon 2>/dev/null || true)"
+if ! wp_cli eval "\$post = get_post((int) '$site_icon_id'); exit(\$post instanceof WP_Post && 'attachment' === \$post->post_type ? 0 : 1);"; then
+  wp_cli option update site_icon "$custom_logo_id" >/dev/null
+fi
+
+wp_cli option update show_on_front page
+wp_cli option update page_on_front "$home_page_id"
+wp_cli option update page_for_posts "$blog_page_id"
+wp_cli option update permalink_structure '/%postname%/'
+wp_cli option update WPLANG pl_PL
+wp_cli rewrite flush --hard
+
+wp_cli eval '
+$post = get_post( 1 );
+$default_content = "<!-- wp:paragraph -->\n<p>Welcome to WordPress. This is your first post. Edit or delete it, then start writing!</p>\n<!-- /wp:paragraph -->";
+if ( $post instanceof WP_Post && "post" === $post->post_type && "Hello world!" === $post->post_title && trim( $post->post_content ) === $default_content ) {
+    wp_delete_post( $post->ID, true );
+    echo "Removed the exact WordPress demonstration post.";
+}
+'

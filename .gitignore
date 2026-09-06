@@ -14,6 +14,25 @@ build/dist/
 !backend/.env
 backend/.env.local
 backend/.env.*.local
+wordpress/.env
+/wordpress/.env.*
+!/wordpress/.env.example
+/wordpress/dist/
+/wordpress/.cache/
+/wordpress/logs/
+/wordpress/tmp/
+/wordpress/wp-content/
+/wordpress/**/*.log
+/wordpress/**/vendor/
+/wordpress/**/node_modules/
+/wordpress/**/coverage/
+/wordpress/**/.phpunit.cache/
+/wordpress/**/.phpunit.result.cache
+/wordpress/**/.php-cs-fixer.cache
+/wordpress/**/assets/build/
+/wordpress/**/build/
+/wordpress/**/languages/*.mo
+/wordpress/**/languages/*.json
 
 # Symfony backend build artifacts
 backend/var/

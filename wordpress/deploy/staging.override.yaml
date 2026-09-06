@@ -1,0 +1,20 @@
+services:
+  mailpit:
+    image: axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --output-document=/dev/null http://127.0.0.1:8025/api/v1/info"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  wordpress:
+    depends_on:
+      mailpit:
+        condition: service_healthy
+
+  bootstrap:
+    depends_on:
+      mailpit:
+        condition: service_healthy

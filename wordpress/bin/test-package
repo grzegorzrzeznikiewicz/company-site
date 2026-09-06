@@ -1,0 +1,987 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: wordpress/bin/test-package <gama-contact-X.Y.Z.zip|gama-software-X.Y.Z.zip>" >&2
+  exit 64
+fi
+
+if ! dist_dir="$(cd "$ROOT_DIR/dist" && pwd -P)"; then
+  echo "Canonical artifact directory does not exist: $ROOT_DIR/dist" >&2
+  exit 64
+fi
+if ! zip_dir="$(cd "$(dirname "$1")" && pwd -P)"; then
+  echo "Artifact parent directory does not exist: $(dirname "$1")" >&2
+  exit 64
+fi
+zip_path="$zip_dir/$(basename "$1")"
+artifact_name="$(basename "$zip_path")"
+case "$artifact_name" in
+  gama-contact-*.zip)
+    if [[ ! "$artifact_name" =~ ^gama-contact-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))\.zip$ ]]; then
+      echo "Unsupported package artifact: $artifact_name" >&2
+      exit 64
+    fi
+    package_kind=plugin
+    package_version="${BASH_REMATCH[1]}"
+    project_prefix=gama-package
+    COMPOSE_FILE="$ROOT_DIR/tests/package-compose.yaml"
+    site_url=http://gama-package.test
+    admin_user=package-admin
+    admin_password=package-test-password-only
+    ;;
+  gama-software-*.zip)
+    if [[ ! "$artifact_name" =~ ^gama-software-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))\.zip$ ]]; then
+      echo "Unsupported package artifact: $artifact_name" >&2
+      exit 64
+    fi
+    package_kind=theme
+    package_version="${BASH_REMATCH[1]}"
+    project_prefix=gama-theme-package
+    COMPOSE_FILE="$ROOT_DIR/tests/theme-package-compose.yaml"
+    site_url=http://wordpress
+    admin_user=theme-admin
+    admin_password=theme-test-password-only
+    ;;
+  *)
+    echo "Unsupported package artifact: $artifact_name" >&2
+    exit 64
+    ;;
+esac
+if [[ "$zip_dir" != "$dist_dir" \
+  || -L "$zip_path" \
+  || ! -f "$zip_path" ]]; then
+  echo "Expected a supported regular, non-symlink package ZIP directly in $dist_dir." >&2
+  exit 64
+fi
+if [[ "$package_kind" == theme ]]; then
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "The unzip command is required to verify a theme artifact." >&2
+    exit 69
+  fi
+  if [[ "$(unzip -Z1 "$zip_path" | grep -Fxc 'gama-software/style.css')" -ne 1 ]]; then
+    echo "Theme artifact must contain exactly one gama-software/style.css." >&2
+    exit 64
+  fi
+  theme_header="$(unzip -p "$zip_path" gama-software/style.css)"
+  archive_version="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' <<<"$theme_header")"
+  if [[ ! "$archive_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ \
+    || "$archive_version" != "$package_version" ]]; then
+    echo "Theme artifact filename and its single strict SemVer header must match." >&2
+    exit 64
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    sha256_stream() { shasum -a 256 | cut -d' ' -f1; }
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256_stream() { sha256sum | cut -d' ' -f1; }
+  else
+    echo "A SHA-256 command (shasum or sha256sum) is required." >&2
+    exit 69
+  fi
+  archive_theme_hash_lines=''
+  while IFS= read -r archive_entry; do
+    if [[ "$archive_entry" == 'gama-software/' || "$archive_entry" == */ ]]; then
+      continue
+    fi
+    if [[ "$archive_entry" != gama-software/* ]]; then
+      echo "Theme artifact contains an entry outside gama-software/: $archive_entry" >&2
+      exit 64
+    fi
+    archive_hash="$(unzip -p "$zip_path" "$archive_entry" | sha256_stream)"
+    archive_theme_hash_lines+="${archive_entry#gama-software/}:$archive_hash"$'\n'
+  done < <(unzip -Z1 "$zip_path")
+  archive_theme_hashes="$(printf '%s' "$archive_theme_hash_lines" | LC_ALL=C sort)"
+  if [[ -z "$archive_theme_hashes" ]]; then
+    echo "Theme artifact contains no files to compare after installation." >&2
+    exit 64
+  fi
+fi
+
+project_name="${project_prefix}-$(date +%s)-$$-${RANDOM}"
+if [[ ! "$project_name" =~ ^gama-(package|theme-package)-[0-9]+-[0-9]+-[0-9]+$ || "$project_name" == "gama-wordpress" ]]; then
+  echo "Refusing unsafe disposable Compose project name: $project_name" >&2
+  exit 1
+fi
+
+export PACKAGE_ZIP="$zip_path"
+COMPOSE=(docker compose --project-name "$project_name" --file "$COMPOSE_FILE")
+PLAYWRIGHT_TEST=(
+  env
+  -u PW_TEST_SOURCE_TRANSFORM
+  -u PW_TEST_SOURCE_TRANSFORM_SCOPE
+  -u PW_TEST_REPORTER
+  -u PWDEBUG
+  node ./specs/support/run-playwright.cjs
+)
+
+query_project_resource_ids() {
+  local resource_kind="$1"
+  local project_filter="label=com.docker.compose.project=$project_name"
+
+  case "$resource_kind" in
+    container)
+      docker container ls --all --quiet --filter "$project_filter"
+      ;;
+    volume)
+      docker volume ls --quiet --filter "$project_filter"
+      ;;
+    network)
+      docker network ls --quiet --filter "$project_filter"
+      ;;
+    image)
+      docker image ls --quiet --filter "$project_filter"
+      ;;
+    *)
+      echo "Unsupported Docker resource kind: $resource_kind" >&2
+      return 64
+      ;;
+  esac
+}
+
+assert_project_absent() {
+  local resource_kind resource_ids query_status
+  local resource_kinds=(container volume network)
+
+  if [[ "$package_kind" == theme ]]; then
+    resource_kinds+=(image)
+  fi
+
+  for resource_kind in "${resource_kinds[@]}"; do
+    resource_ids="$(query_project_resource_ids "$resource_kind")" || {
+      query_status=$?
+      echo "Could not query pre-existing $resource_kind resources for $project_name." >&2
+      return "$query_status"
+    }
+    if [[ -n "$resource_ids" ]]; then
+      echo "Refusing to start: disposable project label already has $resource_kind resources: $project_name" >&2
+      printf '%s\n' "$resource_ids" >&2
+      return 1
+    fi
+  done
+}
+
+collect_browser_artifacts() {
+  local artifact_root="${GAMA_THEME_ARTIFACT_ROOT:-${TMPDIR:-/tmp}/codex-gsweb12-artifacts}"
+  local artifact_directory="$artifact_root/$project_name"
+  local artifact_archive="$artifact_directory/browser-artifacts.tar"
+  local partial_archive="$artifact_archive.partial"
+  local volume_ids volume_id command_status
+
+  volume_ids="$(docker volume ls --quiet \
+    --filter "label=com.docker.compose.project=$project_name" \
+    --filter "name=^${project_name}_browser-artifacts$")" || {
+    command_status=$?
+    echo "Could not query the browser artifact volume for $project_name." >&2
+    return "$command_status"
+  }
+  if [[ -z "$volume_ids" ]]; then
+    echo "No browser artifact volume exists for $project_name; nothing can be collected." >&2
+    return 0
+  fi
+  if [[ "$(wc -l <<<"$volume_ids" | tr -d '[:space:]')" -ne 1 ]]; then
+    echo "Expected exactly one labelled browser artifact volume for $project_name." >&2
+    printf '%s\n' "$volume_ids" >&2
+    return 1
+  fi
+  volume_id="$volume_ids"
+  if [[ "$volume_id" != "${project_name}_browser-artifacts" ]]; then
+    echo "Refusing unexpected labelled artifact volume: $volume_id" >&2
+    return 1
+  fi
+  mkdir -p "$artifact_directory" || return $?
+  if [[ -e "$artifact_archive" || -L "$artifact_archive" || -e "$partial_archive" || -L "$partial_archive" ]]; then
+    echo "Refusing to overwrite an existing browser artifact archive for $project_name." >&2
+    return 1
+  fi
+
+  docker run --rm --network none \
+    --volume "$volume_id:/artifacts:ro" \
+    --entrypoint tar \
+    wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99 \
+    -C /artifacts -cf - . >"$partial_archive"
+  command_status=$?
+  if [[ "$command_status" -ne 0 ]]; then
+    unlink "$partial_archive" 2>/dev/null || true
+    echo "Browser artifact collection failed with status $command_status for $project_name." >&2
+    return "$command_status"
+  fi
+  mv "$partial_archive" "$artifact_archive" || return $?
+  echo "Collected complete browser artifact volume: $artifact_archive"
+}
+
+echo "Disposable Compose project: $project_name"
+assert_project_absent
+echo "Disposable project label is unused before start."
+
+cleanup() {
+  local test_status=$?
+  local cleanup_status=0
+  local command_status resource_kind remaining_resources
+  local resource_kinds=(container volume network)
+
+  if [[ "$package_kind" == theme ]]; then
+    resource_kinds+=(image)
+  fi
+
+  set +e
+  echo "Cleaning only disposable Compose project: $project_name"
+  if [[ "$package_kind" == theme ]]; then
+    collect_browser_artifacts
+    command_status=$?
+    if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+      cleanup_status=$command_status
+    fi
+  fi
+  "${COMPOSE[@]}" ps --all
+  command_status=$?
+  if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+    cleanup_status=$command_status
+  fi
+  if [[ "$package_kind" == theme ]]; then
+    "${COMPOSE[@]}" down --volumes --remove-orphans --rmi local
+  else
+    "${COMPOSE[@]}" down --volumes --remove-orphans
+  fi
+  command_status=$?
+  if [[ "$command_status" -ne 0 && "$cleanup_status" -eq 0 ]]; then
+    cleanup_status=$command_status
+  fi
+  for resource_kind in "${resource_kinds[@]}"; do
+    remaining_resources="$(query_project_resource_ids "$resource_kind")"
+    command_status=$?
+    if [[ "$command_status" -ne 0 ]]; then
+      echo "Could not verify cleanup of $resource_kind resources for $project_name." >&2
+      if [[ "$cleanup_status" -eq 0 ]]; then
+        cleanup_status=$command_status
+      fi
+    elif [[ -n "$remaining_resources" ]]; then
+      echo "Disposable project cleanup left labelled $resource_kind resources behind." >&2
+      printf '%s\n' "$remaining_resources" >&2
+      if [[ "$cleanup_status" -eq 0 ]]; then
+        cleanup_status=1
+      fi
+    fi
+  done
+  set -e
+  trap - EXIT
+  if [[ "$test_status" -ne 0 ]]; then
+    exit "$test_status"
+  fi
+  exit "$cleanup_status"
+}
+trap cleanup EXIT
+
+wp_cmd() {
+  local output status=0
+  output="$("${COMPOSE[@]}" run --rm --no-deps wp "$@" 2>&1)" || status=$?
+  printf '%s\n' "$output"
+  if grep -Eqi '(^|[[:space:]])(PHP[[:space:]]+)?(warning|notice|deprecated|fatal)(:|[[:space:]])|fatal error|uncaught' <<<"$output"; then
+    return 1
+  fi
+  return "$status"
+}
+
+first_inactive_core_theme() {
+  local candidate inactive_themes
+  inactive_themes="$(wp_cmd theme list --status=inactive --field=name)" || return $?
+  while IFS= read -r candidate; do
+    if [[ "$candidate" == twenty* ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done <<<"$inactive_themes"
+  return 1
+}
+
+theme_file_hashes() {
+  wp_cmd eval '$root = realpath(get_theme_root("gama-software") . "/gama-software"); $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)); $hashes=[]; foreach ($iterator as $file) { if ($file->isFile()) { $relative=substr($file->getPathname(), strlen($root)+1); $hashes[$relative]=hash_file("sha256",$file->getPathname()); } } ksort($hashes,SORT_STRING); foreach ($hashes as $relative=>$hash) { echo $relative . ":" . $hash . PHP_EOL; }' \
+    | grep -E '^[A-Za-z0-9._/-]+:[0-9a-f]{64}$'
+}
+
+theme_template_hashes() {
+  wp_cmd eval '$root = get_theme_root("gama-software") . "/gama-software/templates"; foreach (glob($root . "/*.html") as $file) { echo basename($file) . ":" . hash_file("sha256", $file) . PHP_EOL; }' \
+    | grep -E '^[A-Za-z0-9._-]+:[0-9a-f]{64}$'
+}
+
+"${COMPOSE[@]}" up --detach --wait db wordpress
+
+wp_cmd core install \
+  --url="$site_url" \
+  --title='Gama package test' \
+  --admin_user="$admin_user" \
+  --admin_password="$admin_password" \
+  --admin_email=package-admin@example.test \
+  --skip-email
+
+wp_cmd core version | grep -Fx '7.1'
+wp_cmd eval 'if (version_compare(PHP_VERSION, "8.4", "<") || version_compare(PHP_VERSION, "8.5", ">=")) { exit(1); } echo PHP_VERSION;' | grep -E '^8\.4\.'
+
+if [[ "$package_kind" == theme ]]; then
+  offline_update_eval='$now = time(); $core = (object) ["last_checked" => $now, "version_checked" => get_bloginfo("version"), "updates" => []]; $extensions = (object) ["last_checked" => $now, "checked" => [], "response" => [], "no_update" => [], "translations" => []]; set_site_transient("update_core", $core, DAY_IN_SECONDS); set_site_transient("update_plugins", $extensions, DAY_IN_SECONDS); set_site_transient("update_themes", $extensions, DAY_IN_SECONDS); echo "offline-update-transients-ok";'
+  install_offline_request_guard() {
+    local guard_source guard_encoded
+    guard_source='<?php
+add_filter( "translations_api", static fn () => array( "translations" => array() ) );
+add_filter(
+	"pre_http_request",
+	static function( $preempt, $args, $url ) {
+		if (
+			! is_string( $url )
+			|| "api.wordpress.org" !== wp_parse_url( $url, PHP_URL_HOST )
+			|| ( ! str_contains( $url, "/plugins/update-check/1.1/" ) && ! str_contains( $url, "/themes/update-check/1.1/" ) )
+		) {
+			return $preempt;
+		}
+
+		return array(
+			"headers"  => array(),
+			"body"     => "{\"plugins\":[],\"themes\":[],\"no_update\":[],\"translations\":[]}",
+			"response" => array(
+				"code"    => 200,
+				"message" => "OK",
+			),
+			"cookies"  => array(),
+			"filename" => null,
+		);
+	},
+	10,
+	3
+);
+'
+    guard_encoded="$(printf '%s' "$guard_source" | base64 | tr -d '\n')"
+    [[ -n "$guard_encoded" ]]
+    wp_cmd eval '$directory = WP_CONTENT_DIR . "/mu-plugins"; if (!is_dir($directory) && !mkdir($directory, 0755, true)) { exit(1); } $code = base64_decode("'"$guard_encoded"'", true); if (!is_string($code) || !str_starts_with($code, "<?php") || file_put_contents($directory . "/gama-offline-request-harness.php", $code) === false) { exit(1); } echo "offline-request-guard-installed";' | grep -Fx 'offline-request-guard-installed'
+    wp_cmd eval '$urls = ["https://api.wordpress.org/plugins/update-check/1.1/", "https://api.wordpress.org/themes/update-check/1.1/"]; foreach ($urls as $url) { $response = wp_remote_post($url); $body = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response), true); if (200 !== wp_remote_retrieve_response_code($response) || !is_array($body) || [] !== ($body["plugins"] ?? null) || [] !== ($body["themes"] ?? null) || [] !== ($body["no_update"] ?? null) || [] !== ($body["translations"] ?? null)) { exit(1); } } echo "offline-request-guard-ok";' | grep -Fx 'offline-request-guard-ok'
+  }
+  remove_offline_request_guard() {
+    wp_cmd eval '$file = WP_CONTENT_DIR . "/mu-plugins/gama-offline-request-harness.php"; if (is_file($file) && !unlink($file)) { exit(1); } echo "offline-request-guard-removed";' | grep -Fx 'offline-request-guard-removed'
+  }
+  prime_offline_theme_update_cache() {
+    # A local WP-CLI ZIP install clears this cache but does not rebuild its checked-theme map.
+    wp_cmd eval 'require_once ABSPATH . "wp-admin/includes/update.php"; wp_update_themes(); $current = get_site_transient("update_themes"); if (!is_object($current) || !isset($current->last_checked) || !is_array($current->checked ?? null) || !array_key_exists("gama-software", $current->checked)) { exit(1); } echo "offline-theme-update-cache-primed";' | grep -Fx 'offline-theme-update-cache-primed'
+  }
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+  install_offline_request_guard
+  wp_cmd theme install /package/gama-software.zip --force
+  prime_offline_theme_update_cache
+  remove_offline_request_guard
+  wp_cmd theme activate gama-software
+  wp_cmd theme get gama-software --field=version | grep -Fx "$package_version"
+  logo_attachment_id="$(wp_cmd media import /var/www/html/wp-content/themes/gama-software/assets/images/gama-software-logo.png --title='Gama Software — logo' --alt='Gama Software' --porcelain | grep -E '^[0-9]+$')"
+  wp_cmd post meta update "$logo_attachment_id" _gama_asset_key gama-software-logo >/dev/null
+  wp_cmd theme mod set custom_logo "$logo_attachment_id" >/dev/null
+  wp_cmd post create --post_type=page --post_status=draft --post_name=polityka-prywatnosci --post_title='Polityka prywatności' --post_content='<!-- wp:heading {"level":1} --><h1 class="wp-block-heading">TREŚĆ WYMAGA ZATWIERDZENIA WŁAŚCICIELA</h1><!-- /wp:heading -->' >/dev/null
+  wp_cmd post create --post_type=page --post_status=draft --post_name=regulamin --post_title=Regulamin --post_content='<!-- wp:heading {"level":1} --><h1 class="wp-block-heading">TREŚĆ WYMAGA ZATWIERDZENIA WŁAŚCICIELA</h1><!-- /wp:heading -->' >/dev/null
+
+  installed_contract='require_once ABSPATH . "wp-admin/includes/theme.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$root = realpath(get_theme_root("gama-software") . "/gama-software");
+if ($root !== WP_CONTENT_DIR . "/themes/gama-software") { $fail("Theme is not at the exact installed ZIP path"); }
+foreach (["style.css", "functions.php", "theme.json", "templates/index.html", "templates/home.html", "templates/single.html", "parts/header.html", "patterns/article.php", "patterns/contact.php", "patterns/hero.php", "patterns/not-found.php", "patterns/services.php", "patterns/modules.php", "assets/images/gama-software-logo.png", "assets/icons/service-ai.svg", "assets/icons/service-consulting.svg", "assets/icons/service-ecommerce.svg", "assets/icons/module-package.svg"] as $file) {
+    $path = realpath($root . "/" . $file);
+    if ($path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR)) { $fail("Runtime file escaped installed theme: " . $file); }
+}
+$walk = static function (array $blocks, string $source) use (&$walk, $fail): void {
+    foreach ($blocks as $block) {
+        if (($block["blockName"] ?? null) === null) {
+            if (trim((string) ($block["innerHTML"] ?? "")) !== "") { $fail("Non-block fragment in " . $source); }
+        } elseif (($block["blockName"] ?? null) === "core/pattern") {
+            $slug = $block["attrs"]["slug"] ?? null;
+            $pattern = is_string($slug) ? WP_Block_Patterns_Registry::get_instance()->get_registered($slug) : null;
+            if (!is_array($pattern) || empty($pattern["content"])) { $fail("Unresolved pattern reference in " . $source); }
+            $walk(parse_blocks($pattern["content"]), "expanded pattern " . $slug);
+        } else {
+            if (!WP_Block_Type_Registry::get_instance()->is_registered($block["blockName"])) { $fail("Unregistered block " . $block["blockName"] . " in " . $source); }
+            $walk($block["innerBlocks"] ?? [], $source);
+        }
+    }
+};
+foreach (array_merge(glob($root . "/templates/*.html"), glob($root . "/parts/*.html")) as $file) { $walk(parse_blocks(file_get_contents($file)), basename($file)); }
+$search_blocks = parse_blocks(file_get_contents($root . "/templates/search.html"));
+$find_search = static function (array $blocks) use (&$find_search): ?array { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/search") { return $block; } $found = $find_search($block["innerBlocks"] ?? []); if ($found !== null) { return $found; } } return null; };
+$search = $find_search($search_blocks);
+if (!is_array($search) || ($search["attrs"] ?? []) !== ["showLabel" => true]) { $fail("Search block does not defer labels to Core localization"); }
+$translate_search = static fn ($translation, $text) => $text === "Search" ? "GSWEB12 localized search" : $translation;
+add_filter("gettext", $translate_search, 10, 2);
+$rendered_search = render_block($search);
+remove_filter("gettext", $translate_search, 10);
+if (!str_contains($rendered_search, "GSWEB12 localized search")) { $fail("Core-localized Search defaults were not rendered"); }
+$pattern = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/not-found");
+if (!is_array($pattern) || empty($pattern["content"])) { $fail("Theme pattern was not registered"); }
+$walk(parse_blocks($pattern["content"]), "registered pattern");
+$hero = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/hero");
+if (!is_array($hero) || empty($hero["content"]) || ($hero["inserter"] ?? null) !== true) { $fail("Editable Hero pattern was not registered in the inserter"); }
+$hero_blocks = parse_blocks($hero["content"]);
+$walk($hero_blocks, "registered Hero pattern");
+$count_h1 = static function (array $blocks) use (&$count_h1): int { $count = 0; foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/heading" && (($block["attrs"]["level"] ?? 2) === 1)) { ++$count; } $count += $count_h1($block["innerBlocks"] ?? []); } return $count; };
+if ($count_h1($hero_blocks) !== 1 || !str_contains($hero["content"], "\"url\":\"/#services\"")) { $fail("Editable Hero pattern semantics differ"); }
+$services = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/services");
+if (!is_array($services) || !is_string($services["content"] ?? null) || $services["content"] === "" || ($services["inserter"] ?? null) !== true) { $fail("Editable Services pattern was not registered in the inserter"); }
+$services_blocks = parse_blocks($services["content"]);
+$walk($services_blocks, "registered Services pattern");
+$count_by_class = static function (array $blocks, string $class_name) use (&$count_by_class): int { $count = 0; foreach ($blocks as $block) { if (($block["attrs"]["className"] ?? null) === $class_name) { ++$count; } $count += $count_by_class($block["innerBlocks"] ?? [], $class_name); } return $count; };
+$find_by_class = static function (array $blocks, string $class_name) use (&$find_by_class): ?array { foreach ($blocks as $block) { if (($block["attrs"]["className"] ?? null) === $class_name) { return $block; } $found = $find_by_class($block["innerBlocks"] ?? [], $class_name); if ($found !== null) { return $found; } } return null; };
+$services_section = $find_by_class($services_blocks, "gama-services");
+$services_grid = $find_by_class($services_blocks, "gama-services__grid");
+if (!is_array($services_section) || ($services_section["blockName"] ?? null) !== "core/group" || (($services_section["attrs"]["anchor"] ?? null) !== "services") || !is_array($services_grid) || ($services_grid["blockName"] ?? null) !== "core/group" || (($services_grid["attrs"]["layout"]["type"] ?? null) !== "grid") || (($services_grid["attrs"]["layout"]["minimumColumnWidth"] ?? null) !== "20rem") || $count_by_class($services_blocks, "gama-service-card") !== 3 || substr_count($services["content"], "alt=\"\"") !== 3) { $fail("Editable Services pattern structure differs"); }
+foreach (["Nasze Usługi", "Wdrożenia E-commerce", "Konsultacje E-commerce", "Agenci AI"] as $required) { if (!str_contains($services["content"], $required)) { $fail("Editable Services pattern misses " . $required); } }
+foreach (["service-ecommerce.svg", "service-consulting.svg", "service-ai.svg"] as $asset) { if (!str_contains($services["content"], get_theme_file_uri("assets/icons/" . $asset))) { $fail("Editable Services pattern misses installed icon " . $asset); } }
+$front_page_content = file_get_contents($root . "/templates/front-page.html");
+if (!is_string($front_page_content)) { $fail("Could not read installed front-page template"); }
+$front_page_blocks = parse_blocks($front_page_content);
+$walk($front_page_blocks, "front-page");
+$contains_services_pattern = static function (array $blocks) use (&$contains_services_pattern): bool { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/pattern" && (($block["attrs"]["slug"] ?? null) === "gama-software/services")) { return true; } if ($contains_services_pattern($block["innerBlocks"] ?? [])) { return true; } } return false; };
+$front_page_services = $find_by_class($front_page_blocks, "gama-services");
+if ($contains_services_pattern($front_page_blocks) || !is_array($front_page_services) || (($front_page_services["attrs"]["anchor"] ?? null) !== "services") || $count_by_class($front_page_blocks, "gama-service-card") !== 3 || substr_count($front_page_content, "\"className\":\"gama-service-card__icon\"") !== 3 || str_contains($front_page_content, "templateLock") || str_contains($front_page_content, "\"lock\"")) { $fail("Installed front-page Services blocks are not directly editable"); }
+$modules = WP_Block_Patterns_Registry::get_instance()->get_registered("gama-software/modules");
+if (!is_array($modules) || !is_string($modules["content"] ?? null) || $modules["content"] === "" || ($modules["inserter"] ?? null) !== true) { $fail("Editable Modules pattern was not registered in the inserter"); }
+$modules_blocks = parse_blocks($modules["content"]);
+$walk($modules_blocks, "registered Modules pattern");
+$modules_section = $find_by_class($modules_blocks, "gama-modules");
+$modules_grid = $find_by_class($modules_blocks, "gama-modules__grid");
+if (!is_array($modules_section) || (($modules_section["attrs"]["anchor"] ?? null) !== "modules") || !is_array($modules_grid) || (($modules_grid["attrs"]["layout"]["type"] ?? null) !== "grid") || (($modules_grid["attrs"]["layout"]["minimumColumnWidth"] ?? null) !== "20rem") || $count_by_class($modules_blocks, "gama-module-card") !== 6 || $count_by_class($modules_blocks, "gama-module-card__features") !== 6) { $fail("Editable Modules pattern structure differs"); }
+foreach (["Moduły Magento 2", "Advanced SEO Suite", "Performance Optimizer", "Zapisz się na listę oczekujących"] as $required) { if (!str_contains($modules["content"], $required)) { $fail("Editable Modules pattern misses " . $required); } }
+$contains_modules_pattern = static function (array $blocks) use (&$contains_modules_pattern): bool { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/pattern" && (($block["attrs"]["slug"] ?? null) === "gama-software/modules")) { return true; } if ($contains_modules_pattern($block["innerBlocks"] ?? [])) { return true; } } return false; };
+$front_page_modules = $find_by_class($front_page_blocks, "gama-modules");
+if ($contains_modules_pattern($front_page_blocks) || !is_array($front_page_modules) || (($front_page_modules["attrs"]["anchor"] ?? null) !== "modules") || $count_by_class($front_page_blocks, "gama-module-card") !== 6 || $count_by_class($front_page_blocks, "gama-module-card__features") !== 6 || !str_contains($front_page_content, "href=\"/#contact\"")) { $fail("Installed front-page Modules blocks are not directly editable"); }
+echo "installed-theme-parse-and-provenance-ok";'
+  wp_cmd eval "$installed_contract" | grep -Fx 'installed-theme-parse-and-provenance-ok'
+
+  navigation_runtime_body="$(sed '/^<[?]php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/assert-theme-navigation-runtime.php")"
+  navigation_runtime_status=0
+  navigation_runtime_output="$(wp_cmd eval "$navigation_runtime_body")" || navigation_runtime_status=$?
+  printf '%s\n' "$navigation_runtime_output"
+  [[ "$navigation_runtime_status" -eq 0 ]] || exit "$navigation_runtime_status"
+  grep -Fx 'installed-navigation-runtime-ok' <<<"$navigation_runtime_output"
+
+  policy_contract='require_once ABSPATH . "wp-admin/includes/user.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+WP_Block_Type_Registry::get_instance()->register(new WP_Block_Type("gama-test/extra"));
+$context = new WP_Block_Editor_Context(["name" => "core/edit-site"]);
+$admin = get_user_by("login", "theme-admin");
+wp_set_current_user($admin->ID);
+foreach ([true, false, ["core/html", "core/paragraph"]] as $input) {
+    if (gama_software_filter_allowed_blocks($input, $context) !== $input) { $fail("Administrative block policy changed input"); }
+}
+$settings = ["codeEditingEnabled" => true, "sentinel" => 7];
+if (gama_software_filter_editor_settings($settings, $context) !== $settings) { $fail("Administrative editor settings changed"); }
+$editor_id = wp_create_user("theme-editor", "test-only-password", "theme-editor@example.test");
+$editor = get_user_by("id", $editor_id); $editor->set_role("editor"); wp_set_current_user($editor_id);
+if (gama_software_filter_allowed_blocks(false, $context) !== false) { $fail("False policy was not preserved"); }
+$array = gama_software_filter_allowed_blocks(["core/html", "core/paragraph"], $context);
+if ($array !== ["core/paragraph"]) { $fail("Existing allowlist was widened or filtered incorrectly"); }
+$all = gama_software_filter_allowed_blocks(true, $context);
+if (!in_array("gama-test/extra", $all, true) || in_array("core/html", $all, true)) { $fail("True policy did not preserve registered blocks minus core/html"); }
+$filtered = gama_software_filter_editor_settings(["codeEditingEnabled" => true, "sentinel" => 7], $context);
+if (($filtered["codeEditingEnabled"] ?? null) !== false || ($filtered["sentinel"] ?? null) !== 7) { $fail("Editor code policy changed unrelated settings"); }
+wp_delete_user($editor_id);
+echo "editor-policy-ok";'
+  policy_status=0
+  policy_output="$(wp_cmd eval "$policy_contract")" || policy_status=$?
+  printf '%s\n' "$policy_output"
+  [[ "$policy_status" -eq 0 ]] || exit "$policy_status"
+  grep -Fx 'editor-policy-ok' <<<"$policy_output"
+
+  global_styles_contract='require_once ABSPATH . "wp-admin/includes/user.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$theme_data = WP_Theme_JSON_Resolver::get_theme_data();
+$theme_settings = $theme_data->get_settings();
+$merged_settings = WP_Theme_JSON_Resolver::get_merged_data()->get_settings();
+$expected_palette = ["base"=>"#ffffff","surface-subtle"=>"#f9fafb","border-subtle"=>"#e5e7eb","text-strong"=>"#101828","text"=>"#364153","text-muted"=>"#4a5565","text-card-muted"=>"#717182","text-on-dark-muted"=>"#99a1af","surface-inverse"=>"#101828","accent-soft"=>"#dbeafe","accent"=>"#155dfc"];
+$expected_fonts = ["small"=>".875rem","body"=>"1rem","button"=>"1.125rem","lead"=>"1.25rem","heading-3"=>"1.5rem","heading-2"=>"2.25rem","display"=>"3rem","display-large"=>"3.75rem"];
+$expected_spacing = ["sm"=>".5rem","md"=>"1rem","lg"=>"1.5rem","xl"=>"2rem","xxl"=>"3rem","section"=>"5rem"];
+$expected_shadows = ["elevation-1","elevation-2","elevation-3"];
+$map = static function (array $items, string $value): array { $mapped=[]; foreach ($items as $item) { $mapped[$item["slug"] ?? ""]=$item[$value] ?? null; } return $mapped; };
+if ($map($theme_settings["color"]["palette"]["theme"] ?? [], "color") !== $expected_palette) { $fail("Theme-origin palette differs"); }
+if ($map($theme_settings["typography"]["fontSizes"]["theme"] ?? [], "size") !== $expected_fonts) { $fail("Theme-origin font sizes differ"); }
+if ($map($theme_settings["spacing"]["spacingSizes"]["theme"] ?? [], "size") !== $expected_spacing) { $fail("Theme-origin spacing differs"); }
+if (array_column($theme_settings["shadow"]["presets"]["theme"] ?? [], "slug") !== $expected_shadows) { $fail("Theme-origin shadows differ"); }
+if (($theme_settings["typography"]["fontFamilies"]["theme"][0]["slug"] ?? null) !== "system-sans" || count($theme_settings["typography"]["fontFamilies"]["theme"] ?? []) !== 1) { $fail("Theme-origin font family differs"); }
+foreach ([["color","custom"],["color","defaultPalette"],["color","customGradient"],["color","defaultGradients"],["color","customDuotone"],["color","defaultDuotone"],["typography","customFontSize"],["typography","defaultFontSizes"],["typography","fontStyle"],["typography","fontWeight"],["typography","letterSpacing"],["typography","lineHeight"],["spacing","customSpacingSize"],["spacing","defaultSpacingSizes"],["shadow","defaultPresets"]] as [$group,$key]) { if (($merged_settings[$group][$key] ?? null) !== false) { $fail("Merged setting is not disabled: $group.$key"); } }
+if (($merged_settings["layout"]["contentSize"] ?? null) !== "70rem" || ($merged_settings["layout"]["wideSize"] ?? null) !== "80rem" || ($merged_settings["layout"]["allowCustomContentAndWideSize"] ?? null) !== false) { $fail("Merged layout differs"); }
+if (($merged_settings["custom"]["color"]["accentHover"] ?? null) !== "#1447e6" || ($merged_settings["custom"]["radius"]["card"] ?? null) !== ".875rem") { $fail("Merged custom tokens differ"); }
+$css = wp_get_global_stylesheet();
+foreach (["--wp--preset--color--accent: #155dfc","--wp--preset--font-size--body: 1rem","--wp--preset--spacing--section: 5rem","--wp--preset--shadow--elevation-1:","--wp--custom--color--accent-hover: #1447e6","--wp--custom--radius--card: .875rem"] as $needle) { if (!str_contains($css, $needle)) { $fail("Runtime CSS misses $needle"); } }
+if (preg_match("#https?://|@font-face#i", $css)) { $fail("Runtime Global Styles contains a remote request or font face"); }
+wp_styles(); wp_scripts();
+$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
+WP_Block_Type_Registry::get_instance()->register(new WP_Block_Type("gama-test/extra"));
+$context = new WP_Block_Editor_Context(["name"=>"core/edit-post"]);
+$assert_editor_settings = static function (array $settings, bool $is_admin) use ($fail,$expected_palette,$expected_fonts,$expected_spacing,$expected_shadows,$map): void {
+    if ($map($settings["colors"] ?? [], "color") !== $expected_palette || ($settings["gradients"] ?? null) !== [] || $map($settings["fontSizes"] ?? [], "size") !== $expected_fonts || $map($settings["spacingSizes"] ?? [], "size") !== $expected_spacing) { $fail("Editor-facing preset choices differ"); }
+    if (($settings["disableCustomColors"] ?? null) !== true || ($settings["disableCustomGradients"] ?? null) !== true || ($settings["disableCustomFontSizes"] ?? null) !== true || ($settings["enableCustomLineHeight"] ?? null) !== false || ($settings["disableCustomSpacingSizes"] ?? null) !== true || ($settings["enableCustomUnits"] ?? null) !== ["px","rem","%"] || ($settings["enableCustomSpacing"] ?? null) !== true) { $fail("Editor-facing arbitrary controls differ"); }
+    $features=$settings["__experimentalFeatures"] ?? [];
+    if (($features["shadow"]["defaultPresets"] ?? null) !== false || array_column($features["shadow"]["presets"]["theme"] ?? [], "slug") !== $expected_shadows) { $fail("Editor-facing shadows differ"); }
+    if (($features["typography"]["fontFamilies"]["theme"][0]["slug"] ?? null) !== "system-sans" || count($features["typography"]["fontFamilies"]["theme"] ?? []) !== 1) { $fail("Editor-facing font family differs"); }
+    $allowed=$settings["allowedBlockTypes"] ?? null;
+    if ($is_admin && $allowed !== true) { $fail("Administrator block policy changed"); }
+    if (!$is_admin && (!is_array($allowed) || in_array("core/html",$allowed,true) || !in_array("gama-test/extra",$allowed,true))) { $fail("Editor block policy removed an allowed extra block or kept Custom HTML"); }
+};
+$assert_editor_settings(get_block_editor_settings([], $context), true);
+$editor_id=wp_create_user("style-editor","test-only-password","style-editor@example.test"); $editor=get_user_by("id",$editor_id); $editor->set_role("editor"); wp_set_current_user($editor_id);
+$assert_editor_settings(get_block_editor_settings([], $context), false);
+wp_delete_user($editor_id);
+if ((string) wp_get_theme("gama-software")->get("Version") !== GAMA_EXPECTED_THEME_VERSION) { $fail("Installed theme version differs from its artifact"); }
+echo "global-styles-runtime-ok";'
+  runtime_status=0
+  runtime_output="$(wp_cmd eval "define('GAMA_EXPECTED_THEME_VERSION', '$package_version');$global_styles_contract")" || runtime_status=$?
+  printf '%s\n' "$runtime_output"
+  [[ "$runtime_status" -eq 0 ]] || exit "$runtime_status"
+  grep -Fx 'global-styles-runtime-ok' <<<"$runtime_output"
+
+  wp_cmd eval 'update_option("permalink_structure", "/%postname%/"); flush_rewrite_rules(false); echo "permalinks-ok";' | grep -Fx 'permalinks-ok'
+  wp_cmd post update 1 --post_title='Second fixture article' --post_content='Package-only article used to prove pagination.' --post_date='2026-09-01 12:00:00' --post_name=second-fixture-article --post_status=publish
+  wp_cmd post update 2 --post_name=sample-page --post_status=publish
+  home_id="$(wp_cmd post create --post_type=page --post_title=Home --post_name=home --post_status=publish --porcelain | tail -n 1)"
+  blog_id="$(wp_cmd post create --post_type=page --post_title=Blog --post_name=blog --post_status=publish --porcelain | tail -n 1)"
+  wp_cmd option update show_on_front page
+  wp_cmd option update page_on_front "$home_id"
+  wp_cmd option update page_for_posts "$blog_id"
+  wp_cmd option update posts_per_page 1
+  wp_cmd option update blogname 'Gama styles fixture'
+  wp_cmd post create --post_type=post --post_title='Focus neighbour' --post_name=focus-neighbour --post_status=publish --post_date='2026-09-02 12:00:00'
+  [[ "$logo_attachment_id" =~ ^[0-9]+$ ]]
+  fixture_content=''
+  IFS= read -r -d '' fixture_content <<'HTML' || true
+<!-- wp:group {"className":"gama-global-styles-fixture","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-global-styles-fixture"><!-- wp:heading {"level":1} -->
+<h1 class="wp-block-heading">Global Styles fixture</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 class="wp-block-heading">Semantic heading two</h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">Semantic heading three</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Body primitive with a <a class="gama-fixture-link" href="#fixture-target">visible text link</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#fixture-target">Primary action</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons -->
+
+<!-- wp:paragraph {"fontSize":"small"} -->
+<p class="has-small-font-size">Small preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"body"} -->
+<p class="has-body-font-size">Body preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"button","className":"gama-fixture-button-preset"} -->
+<p class="gama-fixture-button-preset has-button-font-size">Button preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"lead"} -->
+<p class="has-lead-font-size">Lead preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"heading-3","className":"gama-fixture-heading-3-preset"} -->
+<p class="gama-fixture-heading-3-preset has-heading-3-font-size">Heading three preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"heading-2","className":"gama-fixture-heading-2-preset"} -->
+<p class="gama-fixture-heading-2-preset has-heading-2-font-size">Heading two preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"display"} -->
+<p class="has-display-font-size">Display preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph {"fontSize":"display-large"} -->
+<p class="has-display-large-font-size">Display large preset</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:group {"backgroundColor":"surface-subtle","className":"gama-fixture-subtle","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-subtle has-surface-subtle-background-color has-background"><!-- wp:paragraph -->
+<p>Subtle surface</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"base","textColor":"text-card-muted","className":"gama-fixture-card","style":{"border":{"radius":"var:custom|radius|card"},"shadow":"var:preset|shadow|elevation-1","spacing":{"padding":{"top":"var:preset|spacing|lg","right":"var:preset|spacing|lg","bottom":"var:preset|spacing|lg","left":"var:preset|spacing|lg"}}},"layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-card has-text-card-muted-color has-base-background-color has-text-color has-background" style="border-radius:var(--wp--custom--radius--card);box-shadow:var(--wp--preset--shadow--elevation-1);padding-top:var(--wp--preset--spacing--lg);padding-right:var(--wp--preset--spacing--lg);padding-bottom:var(--wp--preset--spacing--lg);padding-left:var(--wp--preset--spacing--lg)"><!-- wp:paragraph -->
+<p>Muted card primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"accent-soft","className":"gama-fixture-soft","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-soft has-accent-soft-background-color has-background"><!-- wp:paragraph -->
+<p>Soft accent primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:group {"backgroundColor":"surface-inverse","textColor":"text-on-dark-muted","className":"gama-fixture-inverse","layout":{"type":"constrained"}} -->
+<div class="wp-block-group gama-fixture-inverse has-text-on-dark-muted-color has-surface-inverse-background-color has-text-color has-background"><!-- wp:paragraph -->
+<p>Inverse surface primitive</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+
+<!-- wp:image {"align":"wide","sizeSlug":"full","linkDestination":"none"} -->
+<figure class="wp-block-image alignwide size-full"><img src="/wp-admin/images/w-logo-blue.png" alt="Responsive fixture media"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:html -->
+<iframe title="Responsive fixture embed" src="about:blank" width="900" height="120"></iframe>
+<!-- /wp:html -->
+
+<!-- wp:paragraph -->
+<p>averylongunbrokentokenthatmustwrapwithoutcreatinghorizontaloverflowatthesmallestrequiredviewportwidthofthreehundredandtwentypixels</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:search {"showLabel":true} /-->
+
+<!-- wp:paragraph {"anchor":"fixture-target"} -->
+<p id="fixture-target">Fixture target</p>
+<!-- /wp:paragraph --></div>
+<!-- /wp:group -->
+HTML
+  wp_cmd post update "$home_id" --post_content="$fixture_content"
+  style_editor_id="$(wp_cmd user create style-editor style-editor@example.test --role=editor --user_pass=style-editor-test-only --porcelain | tail -n 1)"
+  [[ "$style_editor_id" =~ ^[0-9]+$ ]]
+  editor_fixture_id="$(wp_cmd post create --post_type=page --post_title='Editor preset fixture' --post_name=editor-preset-fixture --post_status=publish --post_author="$style_editor_id" --post_content='<!-- wp:paragraph --><p>Editor preset fixture</p><!-- /wp:paragraph -->' --porcelain | tail -n 1)"
+  [[ "$editor_fixture_id" =~ ^[0-9]+$ ]]
+  navigation_editor_id="$(wp_cmd user create theme-navigation-editor theme-navigation-editor@example.test --role=editor --user_pass=navigation-editor-test-only --porcelain | tail -n 1)"
+  [[ "$navigation_editor_id" =~ ^[0-9]+$ ]]
+  navigation_editor_contract='require_once ABSPATH . "wp-admin/includes/user.php";
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$role_before = get_role("editor")->capabilities;
+$user = get_user_by("login", "theme-navigation-editor");
+if (!$user instanceof WP_User || $user->roles !== ["editor"] || $user->has_cap("edit_theme_options")) { $fail("Disposable Editor precondition differs"); }
+$user->add_cap("edit_theme_options");
+$fresh = new WP_User($user->ID);
+if ($fresh->roles !== ["editor"] || !$fresh->has_cap("edit_theme_options") || $fresh->has_cap("activate_plugins")) { $fail("Disposable direct capability grant differs"); }
+if (get_role("editor")->capabilities !== $role_before || get_role("editor")->has_cap("edit_theme_options")) { $fail("Shared Editor role was mutated"); }
+echo "navigation-editor-direct-cap-ok";'
+  wp_cmd eval "$navigation_editor_contract" | grep -Fx 'navigation-editor-direct-cap-ok'
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+
+  "${COMPOSE[@]}" build browser
+  "${COMPOSE[@]}" run --rm --no-deps browser node ./specs/support/timeout-policy-contract.cjs
+  timeout_policy_list_output="$("${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=timeout-policy browser "${PLAYWRIGHT_TEST[@]}" --list)"
+  printf '%s\n' "$timeout_policy_list_output"
+  if [[ "$(grep -Fc 'Semantic timeout policy passed:' <<<"$timeout_policy_list_output")" -ne 1 ]]; then
+    echo 'The configured timeout policy reporter did not pass exactly once during the preflight listing.' >&2
+    exit 1
+  fi
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-initial browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-initial
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=content browser "${PLAYWRIGHT_TEST[@]}" --grep @content
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=open browser "${PLAYWRIGHT_TEST[@]}" --grep @open
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=save browser "${PLAYWRIGHT_TEST[@]}" --grep @save
+
+  pair_a_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+foreach ([["front-page", "wp_template"], ["header", "wp_template_part"]] as [$slug, $type]) {
+    $template = get_block_template("gama-software//" . $slug, $type);
+    if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true) { $fail("Pair A is not a backed custom override: " . $slug); }
+    echo $template->wp_id . ":" . $slug . PHP_EOL;
+}'
+  pair_a_output="$(wp_cmd eval "$pair_a_contract")"
+  grep -Eq '^[0-9]+:front-page$' <<<"$pair_a_output"
+  grep -Eq '^[0-9]+:header$' <<<"$pair_a_output"
+
+  alternate_theme="$(first_inactive_core_theme)"
+  [[ -n "$alternate_theme" ]]
+  wp_cmd theme activate "$alternate_theme"
+  wp_cmd theme activate gama-software
+  pair_a_reactivated_output="$(wp_cmd eval "$pair_a_contract")"
+  grep -Eq 'front-page|header' <<<"$pair_a_reactivated_output"
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=reset browser "${PLAYWRIGHT_TEST[@]}" --grep @reset
+
+  pair_b_output="$(wp_cmd eval '$admin = get_user_by("login", "theme-admin"); wp_set_current_user($admin->ID);
+$create = static function (string $route, string $content): int {
+    $request = new WP_REST_Request("POST", $route); $request->set_body_params(["content" => $content]);
+    $response = rest_do_request($request); if ($response->is_error()) { fwrite(STDERR, wp_json_encode($response->as_error()) . PHP_EOL); exit(1); }
+    return (int) $response->get_data()["wp_id"];
+};
+$page = get_block_template("gama-software//page", "wp_template");
+$single = get_block_template("gama-software//single", "wp_template");
+$page_id = $create("/wp/v2/templates/gama-software//page", $page->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B page</p><!-- /wp:paragraph -->");
+$single_id = $create("/wp/v2/templates/gama-software//single", $single->content . "\n<!-- wp:paragraph --><p>GSWEB12 helper pair B single</p><!-- /wp:paragraph -->");
+echo $page_id . "," . $single_id;')"
+  pair_b_ids="$(tail -n 1 <<<"$pair_b_output")"
+  [[ "$pair_b_ids" =~ ^[0-9]+,[0-9]+$ ]]
+  sentinel="gsweb12-${RANDOM}-${RANDOM}"
+  wp_cmd option update gama_theme_test_sentinel "$sentinel"
+  helper_body="$(sed '/^<[?]php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/reset-theme-overrides.php")"
+  ids_php="[${pair_b_ids/,/, }]"
+  targets_php="[['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]"
+  helper_prefix="define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);"
+  assert_pair_b_exists="foreach ([$pair_b_ids] as \$id) { if (!get_post(\$id)) { fwrite(STDERR, 'Pair B override disappeared during a rejected reset.' . PHP_EOL); exit(1); } } echo 'pair-b-still-exists';"
+  duplicate_id="${pair_b_ids%%,*}"
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', [$duplicate_id,$duplicate_id]); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'page','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted duplicate IDs.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'single','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'page','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted swapped same-type ID/slug bindings.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'other-theme','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted a wrong theme.' >&2; exit 1; fi
+  wp_cmd eval "$assert_pair_b_exists" | grep -Fx 'pair-b-still-exists'
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', false); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted missing confirmation.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', 'production'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted durable project.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', 'wrong-sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);$helper_body"; then echo 'Reset helper accepted wrong sentinel.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', []); define('GAMA_THEME_RESET_TARGETS', []);$helper_body"; then echo 'Reset helper accepted empty IDs.' >&2; exit 1; fi
+  if wp_cmd eval "define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', [['theme'=>'gama-software','slug'=>'index','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]);$helper_body"; then echo 'Reset helper accepted wrong slug.' >&2; exit 1; fi
+  wp_cmd eval "$helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
+
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=public browser "${PLAYWRIGHT_TEST[@]}" --grep @public
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-choices browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-editor-choices
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-front-snapshots browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-front-snapshots
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-editor-snapshots browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-editor-snapshots
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-focus browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-focus
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-admin-persistence browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-admin-persistence
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=global-styles-dpr2 browser "${PLAYWRIGHT_TEST[@]}" --grep @global-styles-dpr2
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=services browser "${PLAYWRIGHT_TEST[@]}" --grep @services
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=modules browser "${PLAYWRIGHT_TEST[@]}" --grep @modules
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=blog browser "${PLAYWRIGHT_TEST[@]}" --grep @blog
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=contact-section browser "${PLAYWRIGHT_TEST[@]}" --grep @contact-section
+  installed_theme_hashes_before="$(theme_file_hashes)"
+  [[ "$installed_theme_hashes_before" == "$archive_theme_hashes" ]]
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-save browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-save
+
+  navigation_persistence_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+foreach (["header","footer"] as $slug) {
+    $template = get_block_template("gama-software//" . $slug, "wp_template_part");
+    if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true || $template->slug !== $slug || $template->theme !== "gama-software") { $fail("Custom template-part binding differs: " . $slug); }
+    $content = (string) $template->content;
+    if ($slug === "footer" && !str_contains($content,"Test redaktora")) { $fail("Saved footer copyright differs"); }
+    if ($slug === "header") {
+        $find_navigation = static function (array $blocks) use (&$find_navigation): ?array { foreach ($blocks as $block) { if (($block["blockName"] ?? null) === "core/navigation") { return $block; } $found=$find_navigation($block["innerBlocks"] ?? []); if ($found !== null) { return $found; } } return null; };
+        $navigation = $find_navigation(parse_blocks($content));
+        if (!is_array($navigation)) { $fail("Saved header lost Core Navigation"); }
+        $ref = $navigation["attrs"]["ref"] ?? null;
+        $navigation_blocks = $navigation["innerBlocks"] ?? [];
+        if ($ref !== null) {
+            $navigation_post = get_post((int) $ref);
+            if (!$navigation_post instanceof WP_Post || $navigation_post->post_type !== "wp_navigation" || $navigation_post->post_status !== "publish") { $fail("Navigation ref does not bind a published wp_navigation record"); }
+            $navigation_blocks = parse_blocks($navigation_post->post_content);
+        }
+        $navigation_blocks = array_values(array_filter($navigation_blocks, static fn(array $block): bool => ($block["blockName"] ?? null) !== null));
+        $labels = array_map(static fn(array $block): ?string => $block["attrs"]["label"] ?? null, $navigation_blocks);
+        if ($labels !== ["Moduły","Początek","Usługi","Blog","Oferta"]) { $fail("Saved top-level navigation order differs"); }
+        if (($navigation_blocks[1]["attrs"]["url"] ?? null) !== "/#welcome") { $fail("Saved label URL change differs"); }
+        $submenu = $navigation_blocks[2] ?? null;
+        if (($submenu["blockName"] ?? null) !== "core/navigation-submenu" || ($submenu["attrs"]["label"] ?? null) !== "Usługi" || count($submenu["innerBlocks"] ?? []) !== 1 || (($submenu["innerBlocks"][0]["attrs"]["label"] ?? null) !== "Sample Page")) { $fail("Saved submenu differs"); }
+        $offer = $navigation_blocks[4] ?? null;
+        if (($offer["blockName"] ?? null) !== "core/navigation-link" || ($offer["attrs"]["label"] ?? null) !== "Oferta" || ((int) ($offer["attrs"]["id"] ?? 0)) !== 2) { $fail("Saved page link differs"); }
+    }
+}
+$user = get_user_by("login","theme-navigation-editor");
+if (!$user instanceof WP_User || $user->roles !== ["editor"] || !$user->has_cap("edit_theme_options") || get_role("editor")->has_cap("edit_theme_options")) { $fail("Disposable capability boundary changed"); }
+echo "navigation-persistence-db-ok";'
+  wp_cmd eval "$navigation_persistence_contract" | grep -Fx 'navigation-persistence-db-ok'
+  "${COMPOSE[@]}" restart wordpress
+  "${COMPOSE[@]}" up --detach --wait wordpress
+  wp_cmd theme activate "$alternate_theme"
+  wp_cmd theme activate gama-software
+  wp_cmd eval "$navigation_persistence_contract" | grep -Fx 'navigation-persistence-db-ok'
+  installed_theme_hashes_after="$(theme_file_hashes)"
+  if [[ "$installed_theme_hashes_before" != "$installed_theme_hashes_after" ]]; then
+    echo 'Installed theme hashes changed during the navigation lifecycle.' >&2
+    diff -u \
+      <(printf '%s\n' "$installed_theme_hashes_before") \
+      <(printf '%s\n' "$installed_theme_hashes_after") >&2 || true
+    exit 1
+  fi
+  if [[ "$installed_theme_hashes_after" != "$archive_theme_hashes" ]]; then
+    echo 'Installed theme hashes no longer match the ZIP after navigation.' >&2
+    diff -u \
+      <(printf '%s\n' "$archive_theme_hashes") \
+      <(printf '%s\n' "$installed_theme_hashes_after") >&2 || true
+    exit 1
+  fi
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=navigation-persisted browser "${PLAYWRIGHT_TEST[@]}" --grep @navigation-persisted
+
+  front_page_override_id="$(wp_cmd eval '$template = get_block_template("gama-software//front-page", "wp_template"); if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true || $template->slug !== "front-page" || $template->theme !== "gama-software" || !is_int($template->wp_id) || $template->wp_id < 1) { fwrite(STDERR, "Services test did not leave the expected disposable front-page override." . PHP_EOL); exit(1); } echo $template->wp_id;' | grep -E '^[0-9]+$')"
+  front_page_ids_php="[$front_page_override_id]"
+  front_page_targets_php="[['theme'=>'gama-software','slug'=>'front-page','type'=>'wp_template']]"
+  front_page_helper_prefix="define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $front_page_ids_php); define('GAMA_THEME_RESET_TARGETS', $front_page_targets_php);"
+  wp_cmd eval "$front_page_helper_prefix$helper_body" | grep -Fx 'test-only-theme-overrides-reset'
+  wp_cmd eval '$template = get_block_template("gama-software//front-page", "wp_template"); if (!$template instanceof WP_Block_Template || $template->source !== "theme" || $template->has_theme_file !== true || $template->slug !== "front-page" || $template->theme !== "gama-software" || str_contains((string) $template->content, "Karta przeniesiona na początek przez redaktora")) { fwrite(STDERR, "Services front-page override was not reset to the installed theme file." . PHP_EOL); exit(1); } echo "services-front-page-override-reset";' | grep -Fx 'services-front-page-override-reset'
+
+  original_hashes="$(theme_template_hashes)"
+  "${COMPOSE[@]}" exec -T wordpress sh -ec 'mkdir /tmp/gama-specific-templates; find /var/www/html/wp-content/themes/gama-software/templates -type f ! -name index.html -exec mv {} /tmp/gama-specific-templates/ \;'
+  index_fallback_status=0
+  index_fallback_output="$(wp_cmd eval '$response = wp_remote_get("http://wordpress/"); $code = is_wp_error($response) ? 0 : wp_remote_retrieve_response_code($response); $body = is_wp_error($response) ? "" : wp_remote_retrieve_body($response); preg_match("/gama-template--([a-z-]+)/", $body, $matches); echo "index-fallback-observed:" . $code . ":" . ($matches[1] ?? "none") . PHP_EOL; if (is_wp_error($response) || $code !== 200 || !str_contains($body, "gama-template--index")) { exit(1); } echo "index-fallback-ok";')" || index_fallback_status=$?
+  printf '%s\n' "$index_fallback_output"
+  [[ "$index_fallback_status" -eq 0 ]] || exit "$index_fallback_status"
+  grep -Fx 'index-fallback-ok' <<<"$index_fallback_output"
+  wp_cmd eval "$offline_update_eval" | grep -Fx 'offline-update-transients-ok'
+  install_offline_request_guard
+  wp_cmd theme install /package/gama-software.zip --force
+  prime_offline_theme_update_cache
+  remove_offline_request_guard
+  restored_hashes="$(theme_template_hashes)"
+  if [[ "$original_hashes" != "$restored_hashes" ]]; then
+    echo 'Installed template hashes do not match after ZIP restoration.' >&2
+    diff -u \
+      <(printf '%s\n' "$original_hashes") \
+      <(printf '%s\n' "$restored_hashes") >&2 || true
+    exit 1
+  fi
+
+  "${COMPOSE[@]}" run --rm --no-deps --env GAMA_PLAYWRIGHT_RUN=hero browser "${PLAYWRIGHT_TEST[@]}" --grep @hero
+  hero_persistence_contract='$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$template = get_block_template("gama-software//front-page", "wp_template");
+if (!$template instanceof WP_Block_Template || $template->source !== "custom" || $template->has_theme_file !== true) { $fail("Saved Hero front-page template binding differs"); }
+$content = (string) $template->content;
+foreach (["Gama Software dla redaktora", "Edytowalny opis Hero bez wdrożenia kodu.", "Przejdź do oferty", "href=\"/#services-editor\""] as $required) { if (!str_contains($content, $required)) { $fail("Saved Hero template misses " . $required); } }
+echo "hero-persistence-db-ok";'
+  wp_cmd eval "$hero_persistence_contract" | grep -Fx 'hero-persistence-db-ok'
+
+  "${COMPOSE[@]}" run --rm --no-deps --entrypoint sh browser -ec 'for run in open save reset public global-styles-editor-choices global-styles-front-snapshots global-styles-editor-snapshots global-styles-focus global-styles-admin-persistence global-styles-dpr2 services modules blog contact-section content navigation-initial navigation-save navigation-persisted hero; do test -f "/artifacts/$run/report/index.html"; test -f "/artifacts/$run/test-results/.last-run.json"; done; find /artifacts -type f -print | sort'
+  debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
+  runtime_output="$("${COMPOSE[@]}" logs --no-color)"
+  if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output$runtime_output"; then printf '%s\n' "$debug_output$runtime_output" >&2; exit 1; fi
+  echo "ZIP-only theme lifecycle passed for $zip_path in $project_name."
+  exit 0
+fi
+
+original_theme="$(wp_cmd theme list --status=active --field=name | tail -n 1)"
+alternate_theme="$(first_inactive_core_theme)"
+if [[ -z "$original_theme" || -z "$alternate_theme" || "$original_theme" == "$alternate_theme" ]]; then
+  echo "Two installed Core themes are required for the theme-switch contract." >&2
+  exit 1
+fi
+
+wp_cmd plugin install /package/gama-contact.zip
+wp_cmd plugin is-installed gama-contact
+wp_cmd plugin get gama-contact --field=version | grep -Fx "$package_version"
+
+lifecycle_php='require_once ABSPATH . "wp-admin/includes/plugin.php";
+global $wpdb, $wp_filter;
+$fail = static function (string $message): void { fwrite(STDERR, $message . PHP_EOL); exit(1); };
+$snapshot = static function () use ($wpdb): array {
+    return [
+        "posts" => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts}"),
+        "users" => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->users}"),
+        "roles" => wp_json_encode(wp_roles()->roles),
+        "cron" => maybe_serialize(_get_cron_array()),
+    ];
+};
+$before = $snapshot();
+$before_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("gama_contact_") . "%"));
+if ($before_options !== []) { $fail("Unexpected pre-existing gama-contact options"); }
+$mail_calls = 0;
+$activation_mail_probe = static function ($return) use (&$mail_calls) { ++$mail_calls; return true; };
+add_filter("pre_wp_mail", $activation_mail_probe);
+$result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
+if (is_wp_error($result)) { $fail($result->get_error_message()); }
+remove_filter("pre_wp_mail", $activation_mail_probe);
+if ($mail_calls !== 0) { $fail("Plugin attempted to send mail during activation"); }
+if ((string) get_option("gama_contact_schema_version") !== "1") { $fail("Activation did not write schema version 1"); }
+if (!is_plugin_active("gama-contact/gama-contact.php")) { $fail("Plugin is not active"); }
+$main_file = realpath(WP_PLUGIN_DIR . "/gama-contact/gama-contact.php");
+if ($main_file !== WP_PLUGIN_DIR . "/gama-contact/gama-contact.php") { $fail("Plugin main file is not at the exact installed path"); }
+$installed = realpath(WP_PLUGIN_DIR . "/gama-contact") . DIRECTORY_SEPARATOR;
+foreach (["GamaSoftware\\Contact\\Plugin", "GamaSoftware\\Contact\\Lifecycle\\Activator", "GamaSoftware\\Contact\\Lifecycle\\Deactivator", "GamaSoftware\\Contact\\Support\\I18n", "GamaSoftware\\Contact\\Form\\Validator", "GamaSoftware\\Contact\\Form\\FormRenderer", "GamaSoftware\\Contact\\Form\\SubmissionController"] as $class) {
+    $file = realpath((new ReflectionClass($class))->getFileName());
+    if ($file === false || !str_starts_with($file, $installed)) { $fail("Class loaded outside installed ZIP: " . $class); }
+}
+$init_callbacks = 0;
+foreach (($wp_filter["init"]->callbacks ?? []) as $callbacks) {
+    foreach ($callbacks as $callback) {
+        $function = $callback["function"];
+        if (is_array($function) && $function[0] === "GamaSoftware\\Contact\\Support\\I18n" && $function[1] === "load") { ++$init_callbacks; }
+    }
+}
+(new GamaSoftware\Contact\Plugin())->boot();
+$init_callbacks_after = 0;
+foreach (($wp_filter["init"]->callbacks ?? []) as $callbacks) {
+    foreach ($callbacks as $callback) {
+        $function = $callback["function"];
+        if (is_array($function) && $function[0] === "GamaSoftware\\Contact\\Support\\I18n" && $function[1] === "load") { ++$init_callbacks_after; }
+    }
+}
+if ($init_callbacks !== 1 || $init_callbacks_after !== 1) { $fail("Plugin hooks were not registered exactly once"); }
+$blocks = array_filter(WP_Block_Type_Registry::get_instance()->get_all_registered(), static fn ($name) => str_starts_with((string) $name, "gama-software/"), ARRAY_FILTER_USE_KEY);
+if ($blocks !== []) { $fail("Plugin registered an unexpected block"); }
+$routes = array_values(array_filter(array_keys(rest_get_server()->get_routes()), static fn ($route) => str_starts_with((string) $route, "/gama-contact/")));
+if ($routes !== ["/gama-contact/v1", "/gama-contact/v1/messages"]) { $fail("Contact REST routes differ"); }
+GamaSoftware\Contact\Form\FormRenderer::register();
+global $shortcode_tags;
+$shortcodes = array_values(array_filter(array_keys($shortcode_tags), static fn ($tag) => str_starts_with((string) $tag, "gama_contact_")));
+if ($shortcodes !== ["gama_contact_form"]) { $fail("Contact shortcode differs"); }
+$form = do_shortcode("[gama_contact_form]");
+foreach (["<form", "name=\"name\"", "name=\"email\"", "name=\"phone\"", "name=\"message\"", "aria-live=\"polite\""] as $required) { if (!str_contains($form, $required)) { $fail("Rendered form misses " . $required); } }
+if (!wp_style_is("gama-contact-form", "enqueued") || !wp_script_is("gama-contact-form", "enqueued")) { $fail("Form assets were not enqueued"); }
+$make_request = static function (array $params, string $address): WP_REST_Request {
+    $_SERVER["REMOTE_ADDR"] = $address;
+    $request = new WP_REST_Request("POST", "/gama-contact/v1/messages");
+    $request->set_header("Origin", home_url("/"));
+    $request->set_header("X-Gama-Contact-Nonce", wp_create_nonce("gama_contact_submit"));
+    $request->set_header("Content-Type", "application/json");
+    $request->set_body(wp_json_encode($params));
+    return $request;
+};
+$valid = ["name"=>"Jan Kowalski", "email"=>"jan@example.test", "phone"=>"+48 500 600 700", "message"=>"GSWEB20 package marker"];
+$invalid = GamaSoftware\Contact\Form\SubmissionController::submit($make_request(["name"=>"Jan", "email"=>"bad", "phone"=>"", "message"=>""], "192.0.2.20"));
+if (!$invalid instanceof WP_REST_Response || $invalid->get_status() !== 422 || array_keys($invalid->get_data()["field_errors"] ?? []) !== ["email","phone","message"]) { $fail("Field validation response differs"); }
+$mail_payload = null;
+$mail_return = true;
+$mail_probe = static function ($return, array $attributes) use (&$mail_calls, &$mail_payload, &$mail_return) { ++$mail_calls; $mail_payload = $attributes; return $mail_return; };
+add_filter("pre_wp_mail", $mail_probe, 20, 2);
+$sent = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid, "192.0.2.21"));
+if (!$sent instanceof WP_REST_Response || $sent->get_status() !== 200 || $mail_calls !== 1 || !str_contains((string) ($mail_payload["message"] ?? ""), "GSWEB20 package marker") || !str_contains(implode("\n", (array) ($mail_payload["headers"] ?? [])), "Reply-To: Jan Kowalski <jan@example.test>")) { $fail("Successful mail delivery differs"); }
+$trap = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid + ["company"=>"bot"], "192.0.2.22"));
+if (!$trap instanceof WP_REST_Response || $trap->get_status() !== 200 || $mail_calls !== 1) { $fail("Honeypot did not absorb submission"); }
+$mail_return = false;
+$transport = GamaSoftware\Contact\Form\SubmissionController::submit($make_request($valid, "192.0.2.23"));
+if (!$transport instanceof WP_Error || $transport->get_error_code() !== "gama_contact_delivery" || ($transport->get_error_data()["status"] ?? null) !== 503 || $mail_calls !== 2) { $fail("Transport failure response differs"); }
+$mail_return = true;
+for ($attempt=1; $attempt<=6; ++$attempt) {
+    $limited = GamaSoftware\Contact\Form\SubmissionController::submit($make_request(["name"=>"", "email"=>"", "phone"=>"", "message"=>""], "192.0.2.24"));
+    if ($attempt <= 5 && (!$limited instanceof WP_REST_Response || $limited->get_status() !== 422)) { $fail("Rate-limit setup response differs"); }
+}
+if (!$limited instanceof WP_Error || $limited->get_error_code() !== "gama_contact_rate_limited" || ($limited->get_error_data()["status"] ?? null) !== 429) { $fail("Rate limit did not reject sixth attempt"); }
+$stored_marker = $wpdb->get_var($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_value LIKE %s LIMIT 1", "%" . $wpdb->esc_like("GSWEB20 package marker") . "%"));
+if ($stored_marker !== null) { $fail("Message content was persisted in options"); }
+remove_filter("pre_wp_mail", $mail_probe, 20);
+$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("_transient_gama_contact_rate_") . "%"));
+$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like("_transient_timeout_gama_contact_rate_") . "%"));
+update_option("gama_contact_schema_version", 77, false);
+deactivate_plugins("gama-contact/gama-contact.php", true);
+if ((string) get_option("gama_contact_schema_version") !== "77") { $fail("Deactivation changed durable data"); }
+$result = activate_plugin("gama-contact/gama-contact.php", "", false, false);
+if (is_wp_error($result) || (string) get_option("gama_contact_schema_version") !== "1") { $fail("Repeated activation was not idempotent"); }
+$after_options = $wpdb->get_col($wpdb->prepare("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_name", $wpdb->esc_like("gama_contact_") . "%"));
+if ($after_options !== ["gama_contact_schema_version"]) { $fail("Plugin created unexpected durable settings or options"); }
+if ($before !== $snapshot()) { $fail("Plugin changed posts, users, roles, or cron"); }
+if ($mail_calls !== 2) { $fail("Plugin mail attempt count differs"); }
+echo "lifecycle-and-side-effects-ok";'
+
+wp_cmd eval "$lifecycle_php" | grep -Fx 'lifecycle-and-side-effects-ok'
+
+wp_cmd theme activate "$alternate_theme"
+wp_cmd plugin is-active gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd theme activate "$original_theme"
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+
+wp_cmd plugin deactivate gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd plugin activate gama-contact
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+wp_cmd plugin deactivate gama-contact
+wp_cmd plugin uninstall gama-contact
+if wp_cmd plugin is-installed gama-contact; then
+  echo "Default uninstall did not remove installed plugin files." >&2
+  exit 1
+fi
+wp_cmd option get gama_contact_schema_version | grep -Fx '1'
+
+debug_output="$("${COMPOSE[@]}" exec -T wordpress sh -ec 'if [ -f /var/www/html/wp-content/debug.log ]; then cat /var/www/html/wp-content/debug.log; fi')"
+runtime_output="$("${COMPOSE[@]}" logs --no-color)"
+if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$debug_output"; then
+  printf '%s\n' "$debug_output" >&2
+  exit 1
+fi
+if grep -Eqi 'PHP (warning|notice|deprecated|fatal)|fatal error|uncaught' <<<"$runtime_output"; then
+  printf '%s\n' "$runtime_output" >&2
+  exit 1
+fi
+
+echo "ZIP-only lifecycle passed for $zip_path in $project_name."

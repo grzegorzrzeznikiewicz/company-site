@@ -1,0 +1,552 @@
+/*
+Theme Name: Gama Software
+Theme URI: https://gamasoftware.com/
+Author: Gama Software
+Author URI: https://gamasoftware.com/
+Description: Production block-theme foundation for the Gama Software website.
+Requires at least: 7.1
+Tested up to: 7.1
+Requires PHP: 8.4
+Version: 0.4.1
+License: GPL v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: gama-software
+Domain Path: /languages
+*/
+
+.wp-site-blocks :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible,
+.editor-styles-wrapper :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+	outline: 3px solid var(--wp--preset--color--accent);
+	outline-offset: 3px;
+	box-shadow: 0 0 0 2px var(--wp--preset--color--base);
+}
+
+.wp-site-blocks :where(img, video),
+.editor-styles-wrapper :where(img, video) {
+	max-width: 100%;
+	height: auto;
+}
+
+.wp-site-blocks :where(iframe, embed, object, .wp-block-embed),
+.editor-styles-wrapper :where(iframe, embed, object, .wp-block-embed) {
+	max-width: 100%;
+}
+
+.wp-site-blocks :where(p, a, li, figcaption, pre, code, .wp-block-embed),
+.editor-styles-wrapper :where(p, a, li, figcaption, pre, code, .wp-block-embed) {
+	overflow-wrap: anywhere;
+}
+
+html {
+	scroll-padding-top: 7rem;
+}
+
+.wp-site-blocks :where([id]) {
+	scroll-margin-top: 7rem;
+}
+
+.gama-site-header {
+	position: sticky;
+	top: 0;
+	z-index: 99999;
+	background-color: var(--wp--preset--color--base);
+	border-bottom: 1px solid var(--wp--preset--color--border-subtle);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.admin-bar .gama-site-header {
+	top: 32px;
+}
+
+.gama-site-header__surface,
+.gama-site-header__inner {
+	width: 100%;
+}
+
+.gama-site-header__surface,
+.gama-site-footer__surface {
+	padding-top: var(--wp--preset--spacing--md);
+	padding-bottom: var(--wp--preset--spacing--md);
+}
+
+.gama-site-header__surface .wp-block-site-logo img,
+.gama-site-footer__surface .wp-block-site-logo img {
+	display: block;
+	width: 5rem;
+	height: 5rem;
+	object-fit: contain;
+}
+
+.gama-site-footer__surface .wp-block-site-logo img {
+	width: 4rem;
+	height: 4rem;
+}
+
+.gama-hero {
+	padding-top: clamp(3.5rem, 7vw, 8rem);
+	padding-bottom: clamp(5rem, 7vw, 8rem);
+}
+
+.gama-hero__content {
+	display: grid;
+	max-width: 48rem;
+	margin-right: auto;
+	margin-left: auto;
+	gap: 1.5rem;
+	justify-items: center;
+}
+
+.gama-hero__content > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-hero__lead {
+	max-width: 42rem;
+}
+
+.gama-hero .wp-block-buttons {
+	justify-content: center;
+}
+
+.gama-hero .wp-block-button__link {
+	padding: .75rem 2rem;
+}
+
+.wp-block-button:not(.is-style-outline) .wp-block-button__link {
+	color: var(--wp--preset--color--base) !important;
+}
+
+.gama-services {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-services__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xxl);
+}
+
+.gama-services__content > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-services__grid {
+	width: 100%;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-service-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--md);
+	align-content: start;
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-service-card > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-service-card__icon {
+	display: grid;
+	width: 3rem;
+	height: 3rem;
+	margin: 0 !important;
+	padding: .75rem;
+	place-items: center;
+	border-radius: var(--wp--custom--radius--icon);
+	background-color: var(--wp--preset--color--accent-soft);
+}
+
+.gama-service-card__icon img {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
+.gama-service-card:focus-within,
+.gama-service-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-3);
+}
+
+.gama-service-card .wp-block-button {
+	margin-top: auto;
+}
+
+.gama-modules {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-modules__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xxl);
+}
+
+.gama-modules__content > *,
+.gama-modules__intro > *,
+.gama-modules__action > *,
+.gama-module-card > *,
+.gama-module-card__header > *,
+.gama-module-card__header > .wp-block-group > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-modules__intro,
+.gama-modules__action {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--md);
+}
+
+.gama-modules__grid {
+	width: 100%;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-module-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--lg);
+	align-content: start;
+	border: 1px solid var(--wp--preset--color--border-subtle);
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.gama-module-card__header,
+.gama-module-card__header > .wp-block-group {
+	min-width: 0;
+}
+
+.gama-module-card__header > .wp-block-group {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xs);
+}
+
+.gama-module-card__icon {
+	display: grid;
+	flex: 0 0 2.5rem;
+	width: 2.5rem;
+	height: 2.5rem;
+	margin: 0 !important;
+	padding: .5rem;
+	place-items: center;
+	border-radius: var(--wp--custom--radius--icon);
+	background-color: var(--wp--preset--color--accent-soft);
+}
+
+.gama-module-card__icon img {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
+.gama-module-card__features {
+	display: flex;
+	flex-direction: column;
+	padding-left: 1.25rem;
+	gap: var(--wp--preset--spacing--xs);
+}
+
+.gama-module-card:focus-within,
+.gama-module-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-blog-index,
+.gama-template--single {
+	padding-top: clamp(3rem, 6vw, 6rem);
+	padding-bottom: clamp(4rem, 7vw, 7rem);
+}
+
+.gama-blog-index,
+.gama-blog-latest__content,
+.gama-blog-query,
+.gama-article {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-blog-index > *,
+.gama-blog-latest__content > *,
+.gama-blog-query > *,
+.gama-post-card > *,
+.gama-blog-empty > *,
+.gama-article > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-blog-latest {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-post-grid {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)) !important;
+	gap: var(--wp--preset--spacing--xl);
+}
+
+.gama-post-card {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 100%;
+	padding: var(--wp--preset--spacing--xl);
+	gap: var(--wp--preset--spacing--md);
+	border: 1px solid var(--wp--preset--color--border-subtle);
+	border-radius: var(--wp--custom--radius--card);
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.gama-post-card:focus-within,
+.gama-post-card:hover {
+	box-shadow: var(--wp--preset--shadow--elevation-2);
+}
+
+.gama-post-card .wp-block-post-featured-image {
+	overflow: hidden;
+	margin: calc(var(--wp--preset--spacing--xl) * -1) calc(var(--wp--preset--spacing--xl) * -1) 0;
+	border-radius: var(--wp--custom--radius--card) var(--wp--custom--radius--card) 0 0;
+}
+
+.gama-post-card .wp-block-post-featured-image img {
+	display: block;
+	width: 100%;
+	object-fit: cover;
+}
+
+.gama-post-card__category,
+.gama-article__meta {
+	color: var(--wp--preset--color--text-muted);
+	font-size: var(--wp--preset--font-size--small);
+}
+
+.gama-blog-empty {
+	max-width: 48rem;
+	margin-right: auto;
+	margin-left: auto;
+	padding: clamp(2rem, 5vw, 4rem);
+	border-radius: var(--wp--custom--radius--card);
+}
+
+.gama-blog-empty > p:first-child {
+	line-height: 1;
+}
+
+.gama-article {
+	max-width: 52rem;
+}
+
+.gama-article__navigation {
+	padding-top: var(--wp--preset--spacing--lg);
+	border-top: 1px solid var(--wp--preset--color--border-subtle);
+}
+
+.gama-contact {
+	padding-top: clamp(4rem, 7vw, 5rem);
+	padding-bottom: clamp(4rem, 7vw, 5rem);
+}
+
+.gama-contact__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wp--preset--spacing--lg);
+}
+
+.gama-contact__form-slot > .wp-block-shortcode {
+	display: none;
+}
+
+.gama-contact__form-slot:has(.gama-contact-form) > .gama-contact__form-placeholder {
+	display: none;
+}
+
+.gama-contact__form-slot:has(.gama-contact-form) > .wp-block-shortcode {
+	display: block;
+}
+
+.gama-contact__content > *,
+.gama-contact__form-slot > * {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.gama-contact__card {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 42rem;
+	margin-right: auto;
+	margin-left: auto;
+	padding: 2rem;
+	border-radius: .5rem;
+	box-shadow: var(--wp--preset--shadow--elevation-1);
+}
+
+.gama-contact__form-slot {
+	min-width: 0;
+}
+
+.gama-contact .gama-contact-form__grid {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.gama-contact .gama-contact-form__field {
+	gap: .75rem;
+}
+
+.gama-contact .gama-contact-form label {
+	font-size: .875rem;
+	font-weight: 500;
+	line-height: 1;
+}
+
+.gama-contact .gama-contact-form input,
+.gama-contact .gama-contact-form textarea {
+	padding: .25rem .75rem;
+	border-color: transparent;
+	background-color: #f3f3f5;
+	color: var(--wp--preset--color--text-strong);
+	font-size: 1rem;
+	line-height: 1.5rem;
+}
+
+.gama-contact .gama-contact-form input {
+	height: 2.25rem;
+}
+
+.gama-contact .gama-contact-form textarea {
+	min-height: 4rem;
+	padding-top: .5rem;
+	padding-bottom: .5rem;
+	field-sizing: content;
+	resize: none;
+}
+
+.gama-contact .gama-contact-form [aria-invalid="true"] {
+	border-color: #b42318;
+}
+
+.gama-contact .gama-contact-form [type="submit"] {
+	min-height: 2.5rem;
+	padding: .5rem 1.5rem;
+	border: 0;
+	border-radius: .375rem;
+	font-size: .875rem;
+	font-weight: 500;
+	line-height: 1.5rem;
+}
+
+@media (min-width: 768px) {
+	.gama-contact__card {
+		padding: 3rem;
+	}
+
+	.gama-contact .gama-contact-form__grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.gama-contact .gama-contact-form input,
+	.gama-contact .gama-contact-form textarea {
+		font-size: .875rem;
+	}
+}
+
+.gama-site-footer__inner,
+.gama-footer-navigation,
+.gama-footer-navigation .wp-block-navigation__container {
+	max-width: 100%;
+	flex-wrap: wrap;
+}
+
+.gama-footer-navigation .wp-block-navigation-item,
+.gama-footer-navigation .wp-block-navigation-item__content {
+	max-width: 100%;
+	white-space: normal;
+}
+
+@media (max-width: 782px) {
+	.admin-bar .gama-site-header {
+		top: 46px;
+	}
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+	.gama-primary-navigation.wp-block-navigation .wp-block-navigation__responsive-container:not(.is-menu-open) {
+		display: none;
+		position: fixed;
+	}
+
+	.gama-primary-navigation.wp-block-navigation .wp-block-navigation__responsive-container-open:not(.always-shown) {
+		display: flex;
+	}
+}
+
+.has-small-font-size {
+	line-height: 1.25rem;
+}
+
+.has-body-font-size {
+	line-height: 1.5rem;
+}
+
+.has-button-font-size,
+.has-lead-font-size {
+	line-height: 1.75rem;
+}
+
+.has-heading-3-font-size {
+	line-height: 2rem;
+}
+
+.has-heading-2-font-size {
+	line-height: 2.5rem;
+}
+
+.has-display-font-size,
+.has-display-large-font-size {
+	line-height: 1;
+}
+
+@media (min-width: 768px) {
+	body,
+	.editor-styles-wrapper {
+		--wp--preset--font-size--display: 3.75rem;
+		--wp--preset--font-size--lead: 1.5rem;
+		--wp--style--root--padding-right: 1.5rem;
+		--wp--style--root--padding-left: 1.5rem;
+	}
+
+	.gama-hero {
+		padding-top: clamp(5rem, 8vw, 8rem);
+		padding-bottom: clamp(5rem, 7vw, 8rem);
+	}
+
+	.has-lead-font-size {
+		line-height: 2rem;
+	}
+}
+
+@media (min-width: 1024px) {
+	body,
+	.editor-styles-wrapper {
+		--wp--style--root--padding-right: 2rem;
+		--wp--style--root--padding-left: 2rem;
+	}
+}

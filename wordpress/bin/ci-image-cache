@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOSITORY_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+CACHE_ROOT="${GAMA_CI_CACHE_ROOT:-$ROOT_DIR/.cache/ci-images}"
+action="${1:-}"
+profile="${2:-}"
+
+if [[ "$action" != 'restore' && "$action" != 'save' ]] \
+  || [[ "$profile" != 'source' && "$profile" != 'browser' ]] \
+  || [[ "$#" -ne 2 ]]; then
+  echo "Usage: $0 <restore|save> <source|browser>" >&2
+  exit 64
+fi
+
+cache_directory="$CACHE_ROOT/$profile"
+mkdir -p "$cache_directory"
+
+restore_image() {
+  local archive="$1"
+  if [[ -f "$archive" && ! -L "$archive" ]]; then
+    docker load --input "$archive" >/dev/null
+    echo "Restored QA image cache: $(basename "$archive")"
+  fi
+}
+
+save_image() {
+  local image="$1"
+  local archive="$2"
+  local partial="$archive.partial"
+
+  docker image inspect "$image" >/dev/null
+  unlink "$partial" 2>/dev/null || true
+  if ! docker save --output "$partial" "$image"; then
+    unlink "$partial" 2>/dev/null || true
+    return 1
+  fi
+  mv "$partial" "$archive"
+  echo "Saved QA image cache: $(basename "$archive")"
+}
+
+if [[ "$action" == 'restore' ]]; then
+  case "$profile" in
+    source)
+      restore_image "$cache_directory/php-qa.tar"
+      restore_image "$cache_directory/assets-qa.tar"
+      ;;
+    browser)
+      if [[ -f "$cache_directory/browser-qa.tar" && ! -L "$cache_directory/browser-qa.tar" ]]; then
+        restore_image "$cache_directory/browser-qa.tar"
+      else
+        docker build \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          --file "$ROOT_DIR/qa/browser.Dockerfile" \
+          --tag 'gama-wordpress-browser:ci-cache' \
+          "$REPOSITORY_ROOT" >/dev/null
+        echo 'WordPress browser QA cache miss; built the pinned cold image.'
+      fi
+      ;;
+  esac
+  exit
+fi
+
+case "$profile" in
+  source)
+    save_image 'gama-theme-qa:gsweb12' "$cache_directory/php-qa.tar"
+    save_image 'gama-wordpress-assets-qa:gsweb25' "$cache_directory/assets-qa.tar"
+    ;;
+  browser)
+    docker build \
+      --cache-from 'gama-wordpress-browser:ci-cache' \
+      --build-arg BUILDKIT_INLINE_CACHE=1 \
+      --file "$ROOT_DIR/qa/browser.Dockerfile" \
+      --tag 'gama-wordpress-browser:ci-cache' \
+      "$REPOSITORY_ROOT" >/dev/null
+    save_image 'gama-wordpress-browser:ci-cache' "$cache_directory/browser-qa.tar"
+    ;;
+esac

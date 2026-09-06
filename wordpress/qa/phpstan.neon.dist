@@ -1,0 +1,18 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 5
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    paths:
+        - /workspace/theme/gama-software
+        - /workspace/plugins/gama-contact
+        - /workspace/plugins/gama-local-mailpit
+        - /workspace/plugins/gama-mail-transport
+        - /workspace/plugins/gama-security
+        - /workspace/plugins/gama-seo
+    tmpDir: /tmp/phpstan
+    treatPhpDocTypesAsCertain: false
+    parallel:
+        maximumNumberOfProcesses: 1

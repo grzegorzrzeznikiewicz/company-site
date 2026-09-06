@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+"$ROOT_DIR/tests/theme-source-contract.sh"
+"$ROOT_DIR/tests/theme-structure-contract.sh"
+"$ROOT_DIR/tests/theme-header-footer-contract.sh"
+"$ROOT_DIR/tests/theme-hero-contract.sh"
+"$ROOT_DIR/tests/theme-services-contract.sh"
+"$ROOT_DIR/tests/theme-modules-contract.sh"
+"$ROOT_DIR/tests/theme-blog-contract.sh"
+"$ROOT_DIR/tests/theme-contact-contract.sh"
+"$ROOT_DIR/tests/theme-content-contract.sh"
+"$ROOT_DIR/tests/theme-functions-contract.sh"
+"$ROOT_DIR/tests/theme-json-contract.sh"
+"$ROOT_DIR/tests/theme-global-styles-contract.sh"
+"$ROOT_DIR/tests/theme-i18n-contract.sh"
+"$ROOT_DIR/tests/theme-package-contract.sh"
+"$ROOT_DIR/tests/theme-package-compose-contract.sh"
+"$ROOT_DIR/tests/theme-browser-contract.sh"
+"$ROOT_DIR/tests/theme-test-package-input-contract.sh"
+"$ROOT_DIR/tests/theme-test-package-isolation-contract.sh"

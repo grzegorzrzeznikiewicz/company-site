@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "$#" -ne 10 || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' ]]; then
+  echo 'Usage: wordpress/bin/rollback-production --project gama-wp-production --env-file <absolute-path> --image <previous-immutable-image> --http-port 8080 --confirm-image <previous-immutable-image>' >&2
+  exit 64
+fi
+if [[ "$2" != 'gama-wp-production' ]]; then
+  echo 'Production code rollback is limited to the stable namespace.' >&2
+  exit 64
+fi
+
+echo 'Rolling application code back while retaining the production database and uploads.'
+exec "$ROOT_DIR/bin/deploy-production" "$@"

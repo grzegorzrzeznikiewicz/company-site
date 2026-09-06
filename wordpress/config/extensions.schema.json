@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gama-software.com/schemas/wordpress/extensions.schema.json",
+  "title": "Gama Software WordPress external extensions lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "extensions"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "extensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "slug",
+          "version",
+          "source",
+          "sha256",
+          "license",
+          "requires",
+          "purpose",
+          "decision"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["plugin", "theme"]
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requires": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["wordpress", "php"],
+            "properties": {
+              "wordpress": {
+                "type": "string",
+                "minLength": 1
+              },
+              "php": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "string",
+            "pattern": "^GSWEB-[0-9]+$"
+          }
+        }
+      }
+    }
+  }
+}
