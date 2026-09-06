@@ -28,11 +28,15 @@ test('actual collector rejects missing INP and detects layout shift and slow tru
     assert.equal(controls.slowInput.valid, true);
     assert.ok(controls.slowInput.metrics.INP.value >= 200);
     assert.ok(controls.slowInput.interactions.trustedClicks >= 1);
+    assert.deepEqual(controls.recoveryLoss.bindingMetrics.sort(), ['CLS', 'INP', 'LCP']);
+    assert.deepEqual(controls.recoveryLoss.finalization.recoveredMetrics.sort(), ['CLS', 'LCP']);
+    assert.equal(controls.recoveryLoss.valid, false);
+    assert.match(controls.recoveryLoss.errors.join('\n'), /INP was not recovered after finalization/);
     for (const sample of [controls.layoutShift, controls.slowInput]) {
       assert.equal(sample.support.secureContext, true);
       assert.equal(sample.finalization.pagehide, true);
       assert.equal(typeof sample.finalization.visibilityHidden, 'boolean');
-      assert.deepEqual(sample.finalization.retainedMetrics.sort(), [
+      assert.deepEqual(sample.finalization.recoveredMetrics.sort(), [
         'CLS',
         'INP',
         'LCP',

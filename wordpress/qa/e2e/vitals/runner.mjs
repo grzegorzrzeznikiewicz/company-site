@@ -80,11 +80,13 @@ function validateMeasurementConfig(config) {
 async function runMeasurement(configPath, outputPath, phase = 'all') {
   const config = readJson(configPath);
   validateMeasurementConfig(config);
+  const startedAt = new Date().toISOString();
   const staticServer = await startStaticServer({ root: config.baselineRoot, port: 4173 });
   const browser = await launchChromium();
   const samples = [];
   try {
     for (const item of selectMeasurementPlan(phase)) {
+      const sampleStartedAt = new Date().toISOString();
       const isBaseline = item.target === 'baseline';
       const paths = {
         home: '/',
@@ -135,6 +137,8 @@ async function runMeasurement(configPath, outputPath, phase = 'all') {
         samples.push({
           formatVersion: 1,
           ...provenance,
+          startedAt: error.startedAt ?? sampleStartedAt,
+          completedAt: error.completedAt ?? new Date().toISOString(),
           valid: false,
           collectionError: error.message,
           errors: [`collection failed: ${error.message}`],
@@ -148,7 +152,8 @@ async function runMeasurement(configPath, outputPath, phase = 'all') {
 
   const document = {
     formatVersion: 1,
-    collectedAt: new Date().toISOString(),
+    startedAt,
+    completedAt: new Date().toISOString(),
     library: {
       name: 'web-vitals',
       version: '6.2.1',
@@ -170,16 +175,41 @@ async function runMeasurement(configPath, outputPath, phase = 'all') {
 function mergeMeasurements(firstPath, secondPath, outputPath) {
   const first = readJson(firstPath);
   const second = readJson(secondPath);
+  const windows = [
+    { name: 'home', startedAt: first.startedAt, completedAt: first.completedAt },
+    {
+      name: 'wordpress-only',
+      startedAt: second.startedAt,
+      completedAt: second.completedAt,
+    },
+  ];
+  const windowErrors = windows.flatMap((window, index) => {
+    const start = Date.parse(window.startedAt ?? '');
+    const completion = Date.parse(window.completedAt ?? '');
+    const errors = [];
+    if (!Number.isFinite(start)) errors.push(`${window.name}: startedAt must be an ISO timestamp`);
+    if (!Number.isFinite(completion)) {
+      errors.push(`${window.name}: completedAt must be an ISO timestamp`);
+    }
+    if (Number.isFinite(start) && Number.isFinite(completion) && completion < start) {
+      errors.push(`${window.name}: completedAt must not precede startedAt`);
+    }
+    if (index > 0 && Number.isFinite(start) && start < Date.parse(windows[index - 1].completedAt)) {
+      errors.push(`${window.name}: phase must not precede the prior phase`);
+    }
+    return errors;
+  });
   const document = {
     formatVersion: 1,
-    collectedAt: first.collectedAt,
-    completedAt: second.collectedAt,
+    startedAt: first.startedAt,
+    completedAt: second.completedAt,
+    phases: windows,
     library: first.library,
     plan: measurementPlan(),
     samples: [...(first.samples ?? []), ...(second.samples ?? [])],
   };
   writeFileSync(outputPath, `${JSON.stringify(document, null, 2)}\n`);
-  const errors = validateDocument(document);
+  const errors = [...windowErrors, ...validateDocument(document)];
   if (document.samples.length !== 40) errors.unshift('document: expected exactly 40 samples');
   if (errors.length > 0) {
     const error = new Error(errors.join('\n'));
@@ -247,6 +277,20 @@ async function runControls(path) {
         },
       }),
     );
+    const recoveryLoss = collectionResult(
+      await collectPage({
+        ...common,
+        route: 'recovery-loss',
+        url: `${controlBaseUrl}/control-slow.html`,
+        finalizeUrl: `${controlBaseUrl}/__gama-vitals-finalize-partial.html`,
+        sample: 1,
+        order: ++order,
+        journey: async (page) => {
+          await page.locator('#control').click();
+          await page.locator('#done').waitFor();
+        },
+      }),
+    );
     writeFileSync(
       path,
       `${JSON.stringify(
@@ -256,6 +300,7 @@ async function runControls(path) {
           missingMetric,
           layoutShift,
           slowInput,
+          recoveryLoss,
         },
         null,
         2,

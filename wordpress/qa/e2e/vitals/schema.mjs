@@ -32,6 +32,23 @@ export function validateSample(sample) {
     `${label}: order must be a positive integer`,
     errors,
   );
+  const startedAt = Date.parse(sample.startedAt ?? '');
+  const completedAt = Date.parse(sample.completedAt ?? '');
+  assert(
+    Number.isFinite(startedAt) && new Date(startedAt).toISOString() === sample.startedAt,
+    `${label}: startedAt must be an ISO timestamp`,
+    errors,
+  );
+  assert(
+    Number.isFinite(completedAt) && new Date(completedAt).toISOString() === sample.completedAt,
+    `${label}: completedAt must be an ISO timestamp`,
+    errors,
+  );
+  assert(
+    !Number.isFinite(startedAt) || !Number.isFinite(completedAt) || completedAt >= startedAt,
+    `${label}: completedAt must not precede startedAt`,
+    errors,
+  );
   assert(
     /^[a-f0-9]{40}$/.test(sample.sourceRevision ?? ''),
     `${label}: sourceRevision must be a commit SHA`,
@@ -127,10 +144,18 @@ export function validateSample(sample) {
     errors,
   );
   assert(finalization.pagehide === true, `${label}: pagehide finalization is missing`, errors);
+  assert(Array.isArray(sample.recoveredEvents), `${label}: recoveredEvents must be an array`, errors);
   for (const name of Object.keys(METRICS)) {
     assert(
-      finalization.retainedMetrics?.includes(name) === true,
-      `${label}: ${name} was not retained across finalization`,
+      finalization.recoveredMetrics?.includes(name) === true,
+      `${label}: ${name} was not recovered after finalization`,
+      errors,
+    );
+    assert(
+      sample.recoveredEvents?.some(
+        (event) => event.kind === 'metric' && event.metric?.name === name,
+      ) === true,
+      `${label}: ${name} is not present in recoveredEvents`,
       errors,
     );
   }
@@ -146,7 +171,23 @@ export function validateDocument(document) {
   if (!Array.isArray(document?.samples) || document.samples.length === 0) {
     return ['document: samples must be a non-empty array'];
   }
-  return document.samples.flatMap(validateSample);
+  const errors = document.samples.flatMap(validateSample);
+  for (let index = 1; index < document.samples.length; index += 1) {
+    const previous = document.samples[index - 1];
+    const current = document.samples[index];
+    const priorCompletion = Date.parse(previous.completedAt ?? '');
+    const currentStart = Date.parse(current.startedAt ?? '');
+    if (
+      Number.isFinite(priorCompletion) &&
+      Number.isFinite(currentStart) &&
+      currentStart < priorCompletion
+    ) {
+      errors.push(
+        `sample order ${current.order} must not start before order ${previous.order} completed`,
+      );
+    }
+  }
+  return errors;
 }
 
 function distribution(values, unit) {

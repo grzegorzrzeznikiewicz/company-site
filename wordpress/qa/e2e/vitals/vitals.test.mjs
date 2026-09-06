@@ -27,6 +27,8 @@ function sample(overrides = {}) {
     viewport: { name: 'desktop', width: 1440, height: 900 },
     sample: 1,
     order: 1,
+    startedAt: '2026-09-06T13:48:45.000Z',
+    completedAt: '2026-09-06T13:48:46.000Z',
     sourceRevision: 'c26e19699c7a66a15e0854cf3bb4fce342bf2e2c',
     browserImage: `sha256:${'a'.repeat(64)}`,
     serverImage: `sha256:${'b'.repeat(64)}`,
@@ -59,9 +61,12 @@ function sample(overrides = {}) {
       mechanism: 'same-origin-navigation',
       visibilityHidden: true,
       pagehide: true,
-      retainedMetrics: ['LCP', 'CLS', 'INP'],
+      recoveredMetrics: ['LCP', 'CLS', 'INP'],
       callbacksAfterLifecycle: [],
     },
+    bindingMetrics: ['LCP', 'CLS', 'INP'],
+    bindingEvents: ['LCP', 'CLS', 'INP'].map((name) => ({ kind: 'metric', metric: { name } })),
+    recoveredEvents: ['LCP', 'CLS', 'INP'].map((name) => ({ kind: 'metric', metric: { name } })),
     metrics: {
       LCP: metric('LCP', 1000),
       CLS: metric('CLS', 0),
@@ -111,6 +116,128 @@ test('validator accepts genuinely reported CLS and INP zero values', () => {
   }
 });
 
+test('validator rejects missing or inverted sample collection timestamps', () => {
+  const fixture = mkdtempSync(join(tmpdir(), 'gama-vitals-test.'));
+  try {
+    const missingInput = join(fixture, 'missing-time.json');
+    const invertedInput = join(fixture, 'inverted-time.json');
+    const missing = sample();
+    delete missing.startedAt;
+    writeFileSync(missingInput, JSON.stringify({ samples: [missing] }));
+    writeFileSync(
+      invertedInput,
+      JSON.stringify({
+        samples: [
+          sample({
+            startedAt: '2026-09-06T13:48:47.000Z',
+            completedAt: '2026-09-06T13:48:46.000Z',
+          }),
+        ],
+      }),
+    );
+
+    const missingResult = run(['validate', missingInput]);
+    const invertedResult = run(['validate', invertedInput]);
+
+    assert.equal(missingResult.status, 2);
+    assert.match(missingResult.stderr, /startedAt must be an ISO timestamp/);
+    assert.equal(invertedResult.status, 2);
+    assert.match(invertedResult.stderr, /completedAt must not precede startedAt/);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test('merged collection span uses explicit phase start and completion', () => {
+  const fixture = mkdtempSync(join(tmpdir(), 'gama-vitals-test.'));
+  try {
+    const home = join(fixture, 'home.json');
+    const wordpressOnly = join(fixture, 'wordpress-only.json');
+    const output = join(fixture, 'merged.json');
+    const homeStartedAt = '2026-09-06T13:48:40.000Z';
+    const homeCompletedAt = '2026-09-06T13:49:03.000Z';
+    const wordpressStartedAt = '2026-09-06T13:49:04.000Z';
+    const wordpressCompletedAt = '2026-09-06T13:49:16.000Z';
+    writeFileSync(
+      home,
+      JSON.stringify({
+        startedAt: homeStartedAt,
+        completedAt: homeCompletedAt,
+        samples: Array.from({ length: 20 }, (_, index) =>
+          sample({
+            sample: index + 1,
+            order: index + 1,
+            startedAt: new Date(Date.parse(homeStartedAt) + index * 500).toISOString(),
+            completedAt: new Date(Date.parse(homeStartedAt) + index * 500 + 250).toISOString(),
+          }),
+        ),
+      }),
+    );
+    writeFileSync(
+      wordpressOnly,
+      JSON.stringify({
+        startedAt: wordpressStartedAt,
+        completedAt: wordpressCompletedAt,
+        samples: Array.from({ length: 20 }, (_, index) =>
+          sample({
+            sample: index + 21,
+            order: index + 21,
+            startedAt: new Date(Date.parse(wordpressStartedAt) + index * 500).toISOString(),
+            completedAt: new Date(
+              Date.parse(wordpressStartedAt) + index * 500 + 250,
+            ).toISOString(),
+          }),
+        ),
+      }),
+    );
+
+    const result = run(['merge', home, wordpressOnly, output]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const merged = JSON.parse(readFileSync(output, 'utf8'));
+    assert.equal(merged.startedAt, homeStartedAt);
+    assert.equal(merged.completedAt, wordpressCompletedAt);
+    assert.deepEqual(merged.phases, [
+      { name: 'home', startedAt: homeStartedAt, completedAt: homeCompletedAt },
+      {
+        name: 'wordpress-only',
+        startedAt: wordpressStartedAt,
+        completedAt: wordpressCompletedAt,
+      },
+    ]);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test('validator rejects sample timing that overlaps the prior sequential sample', () => {
+  const fixture = mkdtempSync(join(tmpdir(), 'gama-vitals-test.'));
+  try {
+    const input = join(fixture, 'overlap.json');
+    writeFileSync(
+      input,
+      JSON.stringify({
+        samples: [
+          sample(),
+          sample({
+            sample: 2,
+            order: 2,
+            startedAt: '2026-09-06T13:48:45.500Z',
+            completedAt: '2026-09-06T13:48:46.500Z',
+          }),
+        ],
+      }),
+    );
+
+    const result = run(['validate', input]);
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /sample order 2 must not start before order 1 completed/);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test('validator requires target-specific immutable image provenance', () => {
   const fixture = mkdtempSync(join(tmpdir(), 'gama-vitals-test.'));
   try {
@@ -153,6 +280,10 @@ test('report calculation records hand-derived median and min/max', () => {
           sample({
             sample: index + 1,
             order: index + 1,
+            startedAt: new Date(Date.parse('2026-09-06T13:48:45.000Z') + index * 2_000).toISOString(),
+            completedAt: new Date(
+              Date.parse('2026-09-06T13:48:45.000Z') + index * 2_000 + 1_000,
+            ).toISOString(),
             metrics: {
               LCP: metric('LCP', value),
               CLS: metric('CLS', cls[index]),

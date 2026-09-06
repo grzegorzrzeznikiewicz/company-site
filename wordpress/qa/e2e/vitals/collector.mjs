@@ -113,6 +113,7 @@ export async function collectPage({
   journey,
   finalizeUrl = new URL('/__gama-vitals-finalize.html', url).href,
 }) {
+  const startedAt = new Date().toISOString();
   const events = [];
   const httpFailures = [];
   const consoleFailures = [];
@@ -127,6 +128,7 @@ export async function collectPage({
   await context.addInitScript({ content: `${webVitalsSource}\n${bootstrapSource}` });
   const page = await context.newPage();
   let collectingDiagnostics = true;
+  let persistedEvents = [];
   page.on('console', (message) => {
     if (collectingDiagnostics && message.type() === 'error') {
       consoleFailures.push(`console: ${message.text()}`);
@@ -163,30 +165,25 @@ export async function collectPage({
     }
     collectingDiagnostics = false;
     await page.goto(finalizeUrl, { waitUntil: 'load' });
-    const persistedEvents = await page.evaluate(() => {
+    persistedEvents = await page.evaluate(() => {
       try {
         return JSON.parse(sessionStorage.getItem('__GAMA_VITALS__') ?? '[]');
       } catch {
         return [];
       }
     });
-    for (const event of persistedEvents) {
-      if (
-        !events.some(
-          (candidate) => candidate.href === event.href && candidate.sequence === event.sequence,
-        )
-      ) {
-        events.push(event);
-      }
-    }
   } catch (error) {
     error.collectorEvents = events;
+    error.startedAt = startedAt;
+    error.completedAt = new Date().toISOString();
     throw error;
   } finally {
     await context.close();
   }
 
-  const targetEvents = events.filter((event) => event.href === url);
+  const targetBindingEvents = events.filter((event) => event.href === url);
+  const targetRecoveredEvents = persistedEvents.filter((event) => event.href === url);
+  const targetEvents = targetRecoveredEvents;
   const supportEvent = targetEvents.find((event) => event.kind === 'support');
   const lifecycleEvents = targetEvents.filter((event) => event.kind === 'lifecycle');
   const firstLifecycleIndex = targetEvents.findIndex((event) => event.kind === 'lifecycle');
@@ -201,7 +198,10 @@ export async function collectPage({
     const index = targetEvents.lastIndexOf(metricEvents[name]);
     return firstLifecycleIndex >= 0 && index > firstLifecycleIndex;
   });
-  const retainedMetrics = ['LCP', 'CLS', 'INP'].filter((name) => metricEvents[name]);
+  const recoveredMetrics = ['LCP', 'CLS', 'INP'].filter((name) => metricEvents[name]);
+  const bindingMetrics = ['LCP', 'CLS', 'INP'].filter((name) =>
+    targetBindingEvents.some((event) => event.kind === 'metric' && event.metric.name === name),
+  );
   const result = {
     formatVersion: 1,
     target,
@@ -210,6 +210,8 @@ export async function collectPage({
     viewport,
     sample,
     order,
+    startedAt,
+    completedAt: new Date().toISOString(),
     sourceRevision,
     browserImage,
     serverImage,
@@ -241,7 +243,7 @@ export async function collectPage({
         (event) => event.name === 'visibilitychange' && event.value === 'hidden',
       ),
       pagehide: lifecycleEvents.some((event) => event.name === 'pagehide'),
-      retainedMetrics,
+      recoveredMetrics,
       callbacksAfterLifecycle,
     },
     metrics: Object.fromEntries(
@@ -249,6 +251,9 @@ export async function collectPage({
         .map(([name, event]) => [name, metricRecord(name, event)])
         .filter(([, metric]) => metric !== undefined),
     ),
+    bindingMetrics,
+    bindingEvents: targetBindingEvents,
+    recoveredEvents: targetRecoveredEvents,
     collectorEvents: events,
     httpFailures,
     consoleFailures,

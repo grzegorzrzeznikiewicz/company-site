@@ -13,6 +13,14 @@ const TYPES = {
 
 const CONTROL_PAGES = {
   '/__gama-vitals-finalize.html': '<!doctype html><meta charset="utf-8"><title>Finalize metrics</title>',
+  '/__gama-vitals-finalize-partial.html': `<!doctype html><meta charset="utf-8"><title>Partial finalize control</title>
+    <script>
+      const events = JSON.parse(sessionStorage.getItem('__GAMA_VITALS__') ?? '[]');
+      const originalHref = events.find((event) => event.href !== location.href)?.href;
+      sessionStorage.setItem('__GAMA_VITALS__', JSON.stringify(events.filter((event) =>
+        !(event.href === originalHref && event.kind === 'metric' && event.metric.name === 'INP')
+      )))
+    </script>`,
   '/control-missing.html': `<!doctype html>
     <meta charset="utf-8"><title>Missing INP control</title>
     <main><h1>Missing input control</h1><p>No interaction is performed.</p></main>`,
