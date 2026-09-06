@@ -96,6 +96,29 @@ proof of a deployment to the public staging/production server. All four legacy
 jobs passed in
 [run 34021197062](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34021197062).
 
+## Data-persistence evidence correction — 2026-09-06
+
+The later cold Linux run
+[34024401212](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34024401212)
+passed the expanded source, package and release jobs, but failed the full-restore
+assertion after its clean runtime passed. An isolated reproduction identified
+the exact cause: `wp post list --search` returned all pages, so the restore test
+selected the wrong ID. Two staging rollback assertions used the same unsupported
+query argument and accepted any numeric page ID.
+
+Consequently, historical staging/restore outcomes throughout this document must
+**not** be treated as current exact database-marker persistence acceptance.
+Their separate immutable-image, upload-hash,
+browser and mail checks are not invalidated by this query defect. Commit
+`643230e689a416e88312c2e7d052edd23cbd04c0` replaces the three affected checks with
+lookups of the originally created ID and exact comparisons of its ID, title and
+content. A new reviewed, complete remote run must verify both full restore and
+candidate/rollback persistence before this evidence gap can be closed.
+
+The cold-run timings, cache-creation evidence and remaining acceptance conditions
+are recorded in [GSWEB-25](GSWEB-25-ci-gates.md). This correction grants no public
+staging acceptance and does not change the **NO-GO** decision.
+
 ## Historical verified evidence
 
 The following is historical evidence for the earlier revisions, not proof that
