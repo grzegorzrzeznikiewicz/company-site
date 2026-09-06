@@ -3,10 +3,11 @@
 ## Runtime inventory
 
 The reviewed baseline is WordPress 7.1 on PHP 8.4. The only active extensions
-are the first-party `gama-contact` 0.3.1, `gama-local-mailpit` 0.1.0,
+are the first-party `gama-contact` 0.3.2, `gama-local-mailpit` 0.1.0,
 `gama-mail-transport` 0.1.0, `gama-security` 0.1.1 and `gama-seo` 0.1.0
 plugins, plus the first-party
-`gama-software` 0.4.0 theme. All use GPL-2.0-or-later and have no paid runtime
+`gama-software` 0.4.1 theme. These versions were checked against package metadata
+and the local WP-CLI inventory on 2026-09-06. All use GPL-2.0-or-later and have no paid runtime
 dependency. The Mailpit transport is active only in non-production environments
 and is explicitly deactivated by a production bootstrap. The production SMTP
 transport reads its host, port, credentials and encryption only from runtime
@@ -61,9 +62,14 @@ environment and are never exported with content or committed.
    contact delivery and SEO checks.
 4. Deploy the exact checked artifact to staging, record its checksum and obtain
    the release approval required by Gate C.
-5. Deploy the same immutable artifact to production using the pipeline. Verify
-   health, logs and smoke tests. Roll back the artifact and restore the captured
-   database/uploads backup if the release gate fails.
+5. Only after Gate C and fresh owner approval for the deployment window, deploy
+   the same immutable artifact to production using the pipeline. Verify health,
+   logs and smoke tests. A code rollback must retain the current database and
+   uploads. Do not automatically restore their pre-release backup: that can
+   discard legitimate writes. Data recovery requires a separate owner decision
+   and a verified restore into a fresh replacement namespace, followed by an
+   approved traffic switch; see [the backup/restore procedure](GSWEB-24-backup-restore.md)
+   and [the cutover runbook](GSWEB-28-staging-acceptance.md).
 
 Security updates are expedited through the same gates; bypassing the artifact
 or restore checks is not an accepted emergency procedure.

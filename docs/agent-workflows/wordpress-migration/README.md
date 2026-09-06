@@ -8,6 +8,8 @@ ustalają wspólne zasady architektoniczne oraz sposób pracy.
 ## Zawartość
 
 - [`specification.md`](specification.md) — decyzje obowiązujące całą migrację.
+- [`GSWEB-8-acceptance-audit.md`](GSWEB-8-acceptance-audit.md) — datowany audyt
+  kryteriów i brakujących dowodów z 2026-09-06; zielony CI nie oznacza zakończenia epiki.
 - [`GSWEB-9-baseline.md`](GSWEB-9-baseline.md) — zatwierdzany punkt startowy,
   inwentarz obecnej strony i dowody jakości.
 - [`execution-plan.md`](execution-plan.md) — kolejność GSWEB-9–GSWEB-30,
