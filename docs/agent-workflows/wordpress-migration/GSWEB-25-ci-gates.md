@@ -217,8 +217,43 @@ Release Regression at 5 minutes 32 seconds. These are historical measurements,
 not claims about the expanded workflow. A first run of each new key is expected
 to be cold. A later hit should avoid downloading/installing QA dependencies and
 reuse Docker layers, but Docker context validation and every quality/package
-check still run. No post-change cold or warm remote duration has been measured;
-the controller will append final published-run evidence.
+check still run.
+
+### Expanded workflow: first cold Linux run
+
+[GitHub run `34024401212`](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34024401212)
+tested PR head `2d26cbd79bbe806621644185257ddcc024795381` through merge revision
+`4715aaa4b67e7304fd8ebc264d115ea319c1ebea` on 2026-09-06. Both new QA cache
+keys were absent on the fresh runners:
+
+| Job                 | Wall time            | Result                                                                                                               |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Source and Build    | 1 minute 2 seconds   | Passed, including all new lint, PHP static-analysis, audit and negative-fixture gates.                               |
+| Package Lifecycle   | 6 minutes 26 seconds | Passed for the downloaded Contact 0.3.2 and theme 0.4.1 packages.                                                    |
+| Runtime and Restore | 5 minutes 3 seconds  | Failed in the isolated full-restore check; the clean-runtime step passed.                                            |
+| Release Regression  | 5 minutes 54 seconds | Passed: 2 browser regression and 13 acceptance tests, staging code rollback and isolated production-model rehearsal. |
+
+These are job outcomes, not final data-persistence acceptance. A subsequent
+isolated Linux reproduction found that `wp post list --search` passed an
+unsupported search key to `WP_Query`, returned every page and made the restore
+assertion select the wrong ID. Two staging rollback assertions use the same
+argument and can accept an unrelated page. Both affected scripts require a
+targeted correction and fresh exact-ID/content persistence verification.
+
+The source QA cache was saved at 09:22:05 UTC and the browser QA cache at
+09:28:01 UTC, both under `refs/pull/8/merge`. Cache keys were respectively
+`Linux-wordpress-source-qa-v1-e291787a79e561784b97b2286888f772c1617f800eb0643264b3045ae99aff1d`
+and
+`Linux-wordpress-browser-qa-v1-9f22322a4e17a5ee953b75f6b4b6116eccd6cdf2d3b79e5c65b2ad9f83fa4938`.
+This proves cold creation and persistence, not warm reuse. The next fresh-runner
+execution must verify cache restoration and actual dependency-layer reuse.
+
+All four legacy jobs passed in
+[run `34024401192`](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34024401192)
+for the same head. The WordPress workflow remains **failed overall** until the
+full-restore failure is diagnosed, corrected and retested. These isolated CI
+results neither accept the public staging host nor authorize Gate C or a
+production deployment.
 
 ## Legacy preservation and required checks
 
