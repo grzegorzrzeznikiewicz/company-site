@@ -25,6 +25,11 @@ The candidate must pass all of the following before Gate C:
 
 ## Editing instructions
 
+The illustrated [blog editor guide](GSWEB-28-editor-blog-guide.md) covers
+drafts, preview, scheduled publication, updates and withdrawal. Its local
+[dated test evidence](GSWEB-18-editor-journey-2026-09-06.md) is not a substitute
+for the same journey and a working scheduler on the approved staging host.
+
 1. Sign in at `/wp-login.php`. Editors use **Appearance → Editor** for the
    header, navigation, footer, Hero, services, modules and contact section.
 2. Use **Posts** to create, publish, update or return an article to draft. Use
@@ -43,13 +48,13 @@ The candidate must pass all of the following before Gate C:
 
 ### Ownership and required inputs
 
-| Responsibility | Owner at Gate C | Required input |
-| --- | --- | --- |
-| Product/content acceptance | Grzegorz Rzeźnikiewicz | staging and known-deviation approval |
-| Release execution and evidence | repository release operator | successful CI SHA and immutable image digest |
+| Responsibility                   | Owner at Gate C                              | Required input                                          |
+| -------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| Product/content acceptance       | Grzegorz Rzeźnikiewicz                       | staging and known-deviation approval                    |
+| Release execution and evidence   | repository release operator                  | successful CI SHA and immutable image digest            |
 | Production host, TLS and routing | infrastructure operator named for the window | host access, certificate paths, proxy/DNS change method |
-| Backup and restore | infrastructure operator named for the window | off-host destination and latest verified restore point |
-| Stabilization decision | Grzegorz Rzeźnikiewicz with release operator | duration, metrics and rollback authority |
+| Backup and restore               | infrastructure operator named for the window | off-host destination and latest verified restore point  |
+| Stabilization decision           | Grzegorz Rzeźnikiewicz with release operator | duration, metrics and rollback authority                |
 
 The infrastructure operator, exact deployment window and stabilization duration
 must be recorded in the Gate C decision. They are intentionally not guessed by
