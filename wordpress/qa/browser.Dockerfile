@@ -33,6 +33,7 @@ RUN npm ci --ignore-scripts
 COPY wordpress/qa/e2e/playwright.config.ts ./
 COPY wordpress/qa/e2e/timeout-policy.tsconfig.json ./
 COPY wordpress/qa/e2e/specs ./specs
+COPY wordpress/qa/e2e/vitals ./vitals
 COPY wordpress/tests/release-https-trust.sh /usr/local/bin/gama-release-https-trust
 RUN mv ./specs/support/release-tls-probe.cjs ./release-tls-probe.mjs \
     && chmod 0755 /usr/local/bin/gama-release-https-trust

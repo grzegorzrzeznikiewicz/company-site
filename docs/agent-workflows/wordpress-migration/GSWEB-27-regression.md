@@ -191,3 +191,6 @@ errors. It is local Linux Playwright evidence, not native Safari, CI or public
 staging acceptance. GSWEB-27 still requires the separately owned CWV/Lighthouse
 baseline and budgets, assistive-technology/native-browser evidence, CI
 retention, and owner/public-staging approval.
+
+Local CWV diagnostic collected 2026-09-06:
+[GSWEB-27-vitals-2026-09-06.md](./GSWEB-27-vitals-2026-09-06.md).
