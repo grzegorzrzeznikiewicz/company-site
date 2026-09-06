@@ -54,7 +54,7 @@ base_source="$fixture/base-source"
 mkdir "$base_source"
 git -C "$ROOT_DIR/.." archive "$base_commit" | tar -x -C "$base_source"
 base_tag="gama-wordpress:rollback-base-$base_commit"
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --file "$base_source/wordpress/runtime/Dockerfile" \
   --build-arg "GAMA_GIT_SHA=$base_commit" \
   --build-arg 'GAMA_RELEASE_MARKER=rollback-base' \

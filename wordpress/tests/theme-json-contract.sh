@@ -11,7 +11,7 @@ trap 'find "$fixture_dir" -type f -delete; find "$fixture_dir" -depth -type d -e
 grep -Fq '"$schema": "http://json-schema.org/draft-07/schema#"' "$SCHEMA_DIR/wp-7.1-theme.json"
 grep -Fq '"$schema": "https://schemas.wp.org/wp/7.1/theme.json"' "$THEME_JSON"
 
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --tag gama-theme-qa:gsweb12 --file "$ROOT_DIR/qa/Dockerfile" "$ROOT_DIR/.."
 docker run --rm --network none \
   --volume "$ROOT_DIR/theme/gama-software:/theme:ro" \

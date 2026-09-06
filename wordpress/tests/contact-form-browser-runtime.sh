@@ -31,7 +31,7 @@ mailpit_container="$("${COMPOSE[@]}" ps -q mailpit)"
 network="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$wordpress_container" | head -n 1)"
 [[ -n "$network" ]]
 
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --file "$ROOT_DIR/qa/browser.Dockerfile" \
   --tag "$IMAGE" \
   "$REPOSITORY_ROOT"

@@ -30,7 +30,7 @@ else
   tag="gama-wordpress:sha-$git_sha"
   manifest="$ROOT_DIR/dist/gama-wordpress-sha-$git_sha.manifest.txt"
 fi
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --file "$ROOT_DIR/runtime/Dockerfile" \
   --build-arg "GAMA_GIT_SHA=$git_sha" \
   --build-arg "GAMA_RELEASE_MARKER=$marker" \

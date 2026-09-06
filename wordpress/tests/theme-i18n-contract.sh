@@ -30,7 +30,7 @@ generate_pot() {
 }
 
 (cd "$ROOT_DIR/qa/schema" && shasum -a 256 -c wp-7.1-theme-i18n.json.sha256)
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --tag gama-theme-qa:gsweb12 --file "$ROOT_DIR/qa/Dockerfile" "$ROOT_DIR/.." >/dev/null
 generate_pot "$fixture_dir/first"
 generate_pot "$fixture_dir/second"

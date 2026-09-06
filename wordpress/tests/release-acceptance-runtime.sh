@@ -36,7 +36,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DOCKER_CONFIG="${DOCKER_CONFIG:-/private/tmp/codex-wp-docker-config}" docker build \
+docker build \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
 docker volume create --label gama.contract=acceptance-browser "$volume" >/dev/null
 docker run --rm \
