@@ -6,21 +6,22 @@ REPOSITORY_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 dockerfile="$ROOT_DIR/qa/browser.Dockerfile"
 probe="$ROOT_DIR/qa/e2e/specs/support/release-tls-probe.cjs"
 runtime="$ROOT_DIR/tests/release-https-runtime.sh"
+cleanup_runtime="$ROOT_DIR/tests/release-https-cleanup-runtime.sh"
 compose="$ROOT_DIR/tests/release-https-compose.yaml"
 trust="$ROOT_DIR/tests/release-https-trust.sh"
 regression_runtime="$ROOT_DIR/tests/release-regression-runtime.sh"
 
-for file in "$dockerfile" "$probe" "$runtime" "$compose" "$trust" "$regression_runtime"; do
+for file in "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; do
   if [[ ! -f "$file" ]]; then
     echo "Required HTTPS release helper is missing: $file" >&2
     exit 1
   fi
 done
-[[ -x "$runtime" && -x "$trust" ]]
+[[ -x "$runtime" && -x "$cleanup_runtime" && -x "$trust" ]]
 
-bash -n "$runtime" "$trust" "$regression_runtime"
+bash -n "$runtime" "$cleanup_runtime" "$trust" "$regression_runtime"
 node --input-type=module --check <"$probe"
-if grep -Eq '(^|[[:space:]])(mapfile|readarray)([[:space:]]|$)' "$runtime" "$trust"; then
+if grep -Eq '(^|[[:space:]])(mapfile|readarray)([[:space:]]|$)' "$runtime" "$cleanup_runtime" "$trust"; then
   echo 'HTTPS helpers must remain compatible with the repository host Bash 3.2.' >&2
   exit 1
 fi
@@ -88,7 +89,12 @@ grep -Fq 'option get home' "$runtime"
 grep -Fq 'option get siteurl' "$runtime"
 grep -Fq 'option update home' "$runtime"
 grep -Fq 'option update siteurl' "$runtime"
-grep -Fq 'trap cleanup EXIT INT TERM' "$runtime"
+grep -Fq 'trap '\''cleanup "$?"'\'' EXIT' "$runtime"
+grep -Fq 'trap '\''cleanup 130'\'' INT' "$runtime"
+grep -Fq 'trap '\''cleanup 143'\'' TERM' "$runtime"
+grep -Fq 'run_signal_case int INT 130' "$cleanup_runtime"
+grep -Fq 'run_signal_case term TERM 143' "$cleanup_runtime"
+grep -Fq 'run_exit_case' "$cleanup_runtime"
 grep -Fq 'release-https-runtime.sh' "$regression_runtime"
 if grep -Fq -- '--env WP_BASE_URL=http://wordpress' "$regression_runtime"; then
   echo 'Release regression still invokes the matrix over HTTP.' >&2
@@ -109,12 +115,12 @@ for directive in \
 done
 
 if grep -Eqi 'ignoreHTTPSErrors|ignore-certificate-errors|disable-web-security|unsafely-treat-insecure-origin-as-secure|NODE_TLS_REJECT_UNAUTHORIZED' \
-  "$dockerfile" "$probe" "$runtime" "$compose" "$trust" "$regression_runtime"; then
+  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; then
   echo 'HTTPS release helpers contain a certificate or browser-security bypass.' >&2
   exit 1
 fi
 if grep -Eqi 'security add-trusted-cert|certutil.+(/Users/|\$HOME|~/)|docker (system )?prune|runtime-smoke.+--clean' \
-  "$dockerfile" "$probe" "$runtime" "$compose" "$trust" "$regression_runtime"; then
+  "$dockerfile" "$probe" "$runtime" "$cleanup_runtime" "$compose" "$trust" "$regression_runtime"; then
   echo 'HTTPS release helpers can mutate host trust or broad Docker/runtime state.' >&2
   exit 1
 fi

@@ -144,9 +144,16 @@ Full rehearsal evidence:
 
 Success and injected-failure cleanup checks restored the exact disposable
 `home` and `siteurl` values, removed the sidecar and browser trust volume, and
-deleted the generated CA/private-key fixture. The browser archive contains the
-public certificate fingerprints and probe results, but no private-key file or
-PEM private-key marker.
+deleted the generated CA/private-key fixture. A focused review then identified
+that a shared signal/exit trap could incorrectly return 0 after cancellation.
+The corrected actual helper returned 130 for real `INT`, 143 for real `TERM`
+and 97 for the retained injected failure, with the same cleanup invariants in
+all three cases. That focused evidence is retained at
+`/tmp/gsweb27-https-cleanup-green-dbadc8a.8eHBcv`; its `SHA256SUMS` file has
+SHA-256
+`2306cbff1b847e882a4b7823ef02d29738ca453a01874e641a3580b4c1799b88`.
+The browser archive contains the public certificate fingerprints and probe
+results, but no private-key file or PEM private-key marker.
 
 This closes only the HTTP-environment explanation for the prior WebKit console
 errors. It is local Linux Playwright evidence, not native Safari, CI or public

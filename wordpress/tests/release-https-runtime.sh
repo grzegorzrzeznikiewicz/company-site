@@ -69,7 +69,7 @@ store_probe_evidence() {
 }
 
 cleanup() {
-  local status=$?
+  local status="$1"
   local cleanup_status=0
   trap - EXIT INT TERM
   set +e
@@ -99,7 +99,9 @@ cleanup() {
   fi
   exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup "$?"' EXIT
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 printf '%s\n' \
   '<VirtualHost *:443>' \
@@ -174,6 +176,28 @@ sidecar_container="$(
 [[ "$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$sidecar_container")" == null ]]
 sidecar_ip="$(docker inspect --format "{{(index .NetworkSettings.Networks \"$network\").IPAddress}}" "$sidecar_container")"
 [[ "$sidecar_ip" =~ ^[0-9a-fA-F:.]+$ ]]
+
+test_state_file="${GAMA_RELEASE_HTTPS_TEST_STATE_FILE:-}"
+if [[ -n "$test_state_file" ]]; then
+  if [[ "$test_state_file" != /* || -e "$test_state_file" || -L "$test_state_file" || ! -d "$(dirname "$test_state_file")" ]]; then
+    echo 'HTTPS cleanup test state must be a new absolute file in an existing directory.' >&2
+    exit 64
+  fi
+  printf '%s\n' \
+    "fixture=$fixture" \
+    "trust_volume=$trust_volume" \
+    "sidecar_container=$sidecar_container" \
+    >"$test_state_file"
+  chmod 0600 "$test_state_file"
+fi
+
+if [[ "${GAMA_RELEASE_HTTPS_TEST_PAUSE_AFTER_START:-0}" == 1 ]]; then
+  if [[ -z "$test_state_file" ]]; then
+    echo 'HTTPS cleanup test pause requires a state file.' >&2
+    exit 64
+  fi
+  while :; do :; done
+fi
 
 if [[ "${GAMA_RELEASE_HTTPS_TEST_FAIL_AFTER_START:-0}" == 1 ]]; then
   echo 'Injected HTTPS cleanup failure-path probe.' >&2
