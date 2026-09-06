@@ -3,10 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPOSITORY_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+source "$ROOT_DIR/tests/lib/release-evidence.sh"
 project="${GAMA_STAGING_PROJECT:-}"
 artifact_root="${GAMA_RELEASE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}/codex-gsweb28-artifacts}"
 image="gama-wordpress-browser:gsweb28"
 volume="gama-acceptance-browser-artifacts-$$"
+volume_acquired=0
 
 if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
   echo 'GAMA_STAGING_PROJECT must name the active isolated staging namespace.' >&2
@@ -23,16 +25,13 @@ fi
 
 cleanup() {
   local status=$?
-  set +e
-  if docker volume inspect "$volume" >/dev/null 2>&1; then
-    docker run --rm --network none --volume "$volume:/artifacts:ro" --entrypoint tar \
-      wordpress:7.1.0-php8.4-apache -C /artifacts -cf - . >"$archive.partial"
-    if [[ "$?" -eq 0 ]]; then mv "$archive.partial" "$archive"; else unlink "$archive.partial" 2>/dev/null; fi
-    docker volume rm "$volume" >/dev/null 2>&1
-  fi
-  set -e
+  local final_status
   trap - EXIT
-  exit "$status"
+  set +e
+  gama_release_evidence_finalize "$status" "$volume_acquired" "$volume" "$archive"
+  final_status=$?
+  set -e
+  exit "$final_status"
 }
 trap cleanup EXIT
 
@@ -40,7 +39,12 @@ docker build \
   --cache-from 'gama-wordpress-browser:ci-cache' \
   --build-arg BUILDKIT_INLINE_CACHE=1 \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
-docker volume create --label gama.contract=acceptance-browser "$volume" >/dev/null
+if gama_release_evidence_acquire_volume "$volume" gama.contract=acceptance-browser; then
+  volume_acquired=1
+else
+  status=$?
+  exit "$status"
+fi
 docker run --rm \
   --network "$network" \
   --volume "$volume:/artifacts" \

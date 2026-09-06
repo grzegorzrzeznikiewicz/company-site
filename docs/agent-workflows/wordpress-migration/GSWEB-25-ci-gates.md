@@ -67,6 +67,41 @@ open, required checks on `main` still need owner reconciliation, and Gate C
 remains NO-GO until its existing remote, public and owner acceptance conditions
 are satisfied.
 
+## Fail-closed release evidence export
+
+Release regression and acceptance evidence is exported with the already
+adopted Core image
+`wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d`.
+The disposable exporter has no network or published port and mounts only the
+owned artifact volume read-only. Each wrapper refuses a generated volume name
+that already exists and records ownership only after its own create succeeds.
+
+The shared release-evidence boundary preserves an existing nonzero test status
+while still attempting export and owned-volume cleanup. If the test status was
+zero, a missing volume, failed or unreadable tar stream, failed final promotion,
+or incomplete volume removal makes the wrapper fail and is reported on stderr.
+Archive data is first written to a uniquely owned temporary path. The final
+path is reserved without clobbering, so existing files, directories, symlinks,
+and unrelated stale `.partial` paths are preserved; cleanup removes only paths
+and the volume acquired by the current invocation.
+
+`wordpress/tests/release-evidence-export-contract.sh` exercises both real
+wrappers with controlled command-boundary failures and runs in the existing
+Source and Build gate. The separate local Docker contract performs a real
+pinned-image tar export of a disposable volume, verifies its known non-secret
+content, covers a real destination-promotion failure, and proves the named
+containers and volume are absent afterwards:
+
+```bash
+wordpress/tests/release-evidence-export-contract.sh
+wordpress/tests/release-evidence-export-docker-contract.sh
+```
+
+The retained successful CI archives from commit `1eac588` remain valid
+historical evidence; this correction addresses newly reproduced failure paths
+and does not recast those runs. Fresh remote CI for this correction remains the
+controller's post-review publication step and is not claimed by local proof.
+
 ## Source coverage and policy
 
 The asset gate uses Node 24.14.0 by digest and an npm lock containing ESLint

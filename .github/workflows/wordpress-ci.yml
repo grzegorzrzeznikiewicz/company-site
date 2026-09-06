@@ -50,6 +50,7 @@ jobs:
           wordpress/tests/ci-package-input-contract.sh
           wordpress/tests/release-acceptance-contract.sh
           wordpress/tests/release-acceptance-contract-regression.sh
+          wordpress/tests/release-evidence-export-contract.sh
           wordpress/tests/wordpress-ci-contract.sh
           wordpress/tests/ci-failure-contract.sh
 
