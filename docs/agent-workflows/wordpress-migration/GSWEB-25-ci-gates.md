@@ -130,37 +130,68 @@ wordpress/bin/ci-image-cache save source
 
 The package lifecycle job consumes CI artifacts. Its safe local equivalent
 first creates the exact allowlisted packages, then uses disposable Compose
-namespaces:
+namespaces. The explicit host-side artifact directory survives Compose cleanup;
+copy it out before disposing of the machine if the evidence must be retained:
 
 ```bash
+package_artifact_root="$(mktemp -d /tmp/wordpress-browser-artifacts.XXXXXX)"
 wordpress/bin/ci-image-cache restore browser
 SOURCE_DATE_EPOCH=1767225600 wordpress/bin/package plugin gama-contact
 SOURCE_DATE_EPOCH=1767225600 wordpress/bin/package theme gama-software
 wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.2.zip)"
-wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
+GAMA_THEME_ARTIFACT_ROOT="$package_artifact_root" wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
 wordpress/bin/ci-image-cache save browser
 ```
 
 The runtime job's `--clean` and restore operations intentionally target the
-fixed `gama-wordpress` namespace. They are safe only on a separate disposable
-Docker daemon, VM or CI runner, never in another checkout on the shared Docker
-daemon that hosts the preview at `localhost:8090`. The context name below is an
-example that must already point at such a separately provisioned daemon:
+fixed `gama-wordpress` namespace and curl services on `localhost:8090` and
+`localhost:8027`. Run the entire checkout and command sequence **inside** a
+separate disposable Linux VM or CI runner with its own loopback and Docker
+daemon. Never run it from the user's host, in another host checkout, or merely
+through a remote `DOCKER_CONTEXT`: that would split the Docker daemon and bind
+mounts from the host-side `localhost` probes and could still reach the user's
+preview. Inside the disposable guest, use an exit trap to mirror both workflow
+`always()` steps: save the QA cache and then remove the fixed runtime resources
+even when a preceding check fails.
 
 ```bash
-DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/ci-image-cache restore browser
-DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/tests/runtime-smoke.sh --clean
-DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/start
-DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/tests/backup-restore-runtime.sh
-DOCKER_CONTEXT=gama-wordpress-ci-sandbox wordpress/bin/ci-image-cache save browser
+set -euo pipefail
+
+cleanup_runtime() {
+  local command_status=$?
+  local cache_status=0
+  local reset_status=0
+
+  wordpress/bin/ci-image-cache save browser || cache_status=$?
+  wordpress/bin/reset --confirm || reset_status=$?
+
+  if (( command_status != 0 )); then
+    return "$command_status"
+  fi
+  if (( cache_status != 0 )); then
+    return "$cache_status"
+  fi
+  return "$reset_status"
+}
+trap cleanup_runtime EXIT
+
+wordpress/bin/ci-image-cache restore browser
+wordpress/tests/runtime-smoke.sh --clean
+wordpress/bin/start
+wordpress/tests/backup-restore-runtime.sh
 ```
 
 The release regression scripts generate exact disposable staging and guarded
-production-model namespaces and preserve the explicit rollback fixture:
+production-model namespaces and preserve the explicit rollback fixture. Their
+explicit host-side artifact directory survives namespace cleanup; retain or
+upload it before disposing of the machine:
 
 ```bash
+release_artifact_root="$(mktemp -d /tmp/wordpress-release-evidence.XXXXXX)"
+export GAMA_RELEASE_ARTIFACT_ROOT="$release_artifact_root"
+export GAMA_ROLLBACK_BASE_REF=043beee6490664758bdbbff55d7a9cdf9156a398
 wordpress/bin/ci-image-cache restore browser
-GAMA_ROLLBACK_BASE_REF=043beee6490664758bdbbff55d7a9cdf9156a398 wordpress/tests/staging-rollback-runtime.sh
+wordpress/tests/staging-rollback-runtime.sh
 wordpress/tests/production-deployment-runtime.sh
 wordpress/bin/ci-image-cache save browser
 ```
