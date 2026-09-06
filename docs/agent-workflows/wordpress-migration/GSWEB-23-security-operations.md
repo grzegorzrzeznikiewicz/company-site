@@ -35,6 +35,79 @@ retain deployment and account-management duties. The extra Editor permission is
 resolved at request time by `gama-security`; it is not persisted into the
 database and therefore cannot drift across environments.
 
+## Administrator account runbook
+
+Account changes are production data changes. Only a named, authenticated
+Administrator may perform the normal wp-admin steps below. Never use a shared
+account, put a password or reset link in Jira/evidence, or give Administrator to
+a user whose work fits the Editor role.
+
+### Create an account
+
+1. Require an approved ticket naming the person, business purpose, environment,
+   requested role, accountable owner and review/removal date. Search the current
+   user list for the login and email before creating anything.
+2. Use **Users → Add New** over the production HTTPS origin. Create a named
+   account with Editor by default. Administrator requires a separately recorded
+   need and owner approval; never promote merely to work around a denied Editor
+   capability.
+3. Use WordPress's generated strong password. Send an invitation through the
+   configured production mail path only after mail delivery is verified, or
+   provide the credential through the owner's approved out-of-band secret
+   channel. Do not retain the generated password.
+4. Have the person confirm notification and login in the exact approved target.
+   In staging, have an Editor edit only the designated acceptance draft, then
+   verify that plugin/theme installation, settings and user administration stay
+   denied. Re-open the user record and verify the exact role. Record only the
+   ticket, WordPress user ID/login, role, operator, time and verification
+   result.
+
+### Reset or recover access
+
+1. Verify the requester against the account owner through a channel independent
+   of the locked account. Confirm the exact login/email and record the request;
+   never accept only an email or chat message as identity proof.
+2. Prefer WordPress's **Lost your password?** flow when the registered mailbox
+   and production delivery are known to work. Otherwise a different named
+   Administrator may use **Users → Edit → Set New Password** and transfer the
+   generated password through the approved secret channel. Never send it in the
+   ticket or ordinary chat.
+3. The user signs in, replaces any administrator-set password promptly and
+   signs out other sessions from their profile. For suspected compromise,
+   suspend further account work, preserve the security/log evidence and require
+   the incident owner to confirm session invalidation and any role/email changes
+   before closing the ticket.
+4. If no named Administrator can authenticate, stop the normal procedure. A
+   repository document is not break-glass authority: the owner and
+   infrastructure operator must approve a bounded recovery window, confirm a
+   fresh backup, recover only the exact account through an audited host-side
+   procedure, verify login/role, and remove any temporary recovery access.
+
+### Deactivate or remove an account
+
+1. Require owner approval for the exact WordPress user ID and inventory the
+   account's posts/pages before deletion. Confirm a fresh recoverable backup and
+   select a named, active destination user for content ownership. Never select
+   **Delete all content** for production content.
+2. For an immediate departure or suspected compromise, a different named
+   Administrator first blocks the exact account's access using the approved
+   WordPress password/session controls and verifies its old login is rejected.
+   Do not change any unrelated user.
+3. A different named Administrator removes the account under **Users** and
+   chooses **Attribute all content to** the approved destination. Do not delete
+   the last usable Administrator or the account performing the operation. If
+   the reassignment target or ownership is unclear, stop without deleting.
+4. Verify that the old login is rejected, the reassigned content remains
+   published with the intended owner, and the Administrator/Editor matrix still
+   holds. Record IDs, roles, counts, operator, time and result, but no personal
+   secrets or reset material.
+
+The retained disposable Administrator/Editor acceptance evidence demonstrates
+the role matrix and account exercise mechanics only. It does not prove an owner
+account was provisioned, target mail was delivered, host recovery was performed
+or a real account was removed. Each target-specific operation still needs its
+fresh approval and verification.
+
 ## Request and authentication controls
 
 `gama-security` removes the public generator disclosure, returns generic login
@@ -52,6 +125,17 @@ set `X-Forwarded-Proto: https`. Secrets and mail addresses are supplied by the
 environment and are never exported with content or committed.
 
 ## Controlled update procedure
+
+The security owner and designated operator perform this review once every
+calendar month, even when no update is released. The monthly ticket records the
+installed Core, theme and plugin versions, upstream security/update notices,
+the empty-or-reviewed external-extension allowlist, and either the candidate
+Jira tasks or an explicit "no change" result. Every update follows the existing
+pinned-artifact, CI, staging, rollback and approval gates below. This cadence
+does not enable automatic updates or schedule unattended deployment. Missed
+reviews are overdue operational work; they are not silently rolled into the
+next month. Critical security notices start the same procedure immediately
+rather than waiting for the monthly date.
 
 1. Create a Jira subtask and update the pinned version/checksum or first-party
    SemVer in source. Never update a production extension from wp-admin.

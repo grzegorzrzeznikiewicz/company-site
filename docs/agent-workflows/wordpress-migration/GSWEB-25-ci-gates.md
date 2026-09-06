@@ -198,6 +198,7 @@ wordpress/tests/seo-plugin-contract.sh
 wordpress/tests/security-plugin-contract.sh
 wordpress/tests/backup-restore-contract.sh
 wordpress/tests/production-deployment-contract.sh
+wordpress/tests/production-workflow-boundary-contract.sh
 wordpress/tests/theme-contract.sh
 wordpress/tests/plugin-package-contract.sh
 wordpress/tests/ci-package-input-contract.sh

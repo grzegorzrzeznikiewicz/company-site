@@ -14,7 +14,11 @@ records the full Git SHA, exact GHCR digest and staging workflow run ID.
 `.github/workflows/wordpress-production.yml` accepts that SHA, staging run ID
 and the approved UTC window. It rejects a failed or different staging run,
 requires green WordPress quality gates, downloads the evidence and verifies the
-OCI revision label. It never rebuilds the image. The two mutating jobs use
+OCI revision label. The accepted immutable reference is either the documented
+`ghcr.io/<owner>/gama-wordpress:sha-<accepted-sha>@sha256:<digest>` form emitted
+by staging or the untagged repository-at-digest form. A SHA tag must equal the
+approved Git SHA; mutable tags, other SHA tags and malformed digests are
+rejected. Production never rebuilds the image. The two mutating jobs use
 separate protected GitHub environments:
 
 - `wordpress-production` deploys the candidate into an isolated
@@ -63,6 +67,14 @@ off-host path, `PRODUCTION_BACKUP_EXPECTED_SOURCE` to exactly match its audited
 mailbox. Server, SSH and GHCR credentials use the `PRODUCTION_*` secret names in
 the workflow. A mount alone is not acceptance evidence: its source and the
 fresh restore drill remain explicit Gate C records.
+
+The SSH operator may be non-root, but its production provisioning must authorize
+the workflow's explicit `sudo` operations. Root retains ownership of the
+installed tools and hooks (`0750`), candidate/deployment evidence (`0600`) and
+backup directories/files (`0700`/`0600`). Tool, hook and evidence integrity
+checks run through that same privilege boundary; backup verification elevates
+the directory traversal and `sha256sum -c` together. The workflow does not
+broaden those modes or require root SSH login.
 
 The workflow never copies the secret-bearing host `.env` into a release
 directory. Only non-secret release evidence (SHA, immutable image, previous
@@ -125,3 +137,13 @@ Gate C requirements.
 ephemeral Docker namespace: isolated candidate deployment, first stable deploy,
 an authenticated STARTTLS delivery into a trusted local fixture, fail-closed
 invalid SMTP, database/uploads persistence across redeploy and code rollback.
+
+`wordpress/tests/production-workflow-boundary-contract.sh` extracts and executes
+the real staging, production and rollback workflow blocks. Its pinned,
+network-disabled Linux fixture runs the SSH-side blocks as a disposable UID
+2000 operator, crosses a fixture-only authorized elevation boundary for the
+named root reads, and proves direct reads remain denied. It also covers the
+tag-at-digest handoff, malformed/mutable/wrong-SHA negatives, both production
+backup checks, rollback backup/extraction, ownership/mode/symlink failures and
+checksum corruption. This is local workflow evidence, not host provisioning or
+a production deployment.

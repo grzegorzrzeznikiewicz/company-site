@@ -50,9 +50,10 @@ jobs:
           script: |
             set -euo pipefail
             hook=/usr/local/sbin/gama-wordpress-rollback-routing
-            test -f "$hook" && test ! -L "$hook" && test -x "$hook"
-            test "$(stat -c %u "$hook")" -eq 0
-            test -z "$(find "$hook" -perm /022 -print -quit)"
+            sudo test -f "$hook" && sudo test ! -L "$hook" && sudo test -x "$hook"
+            test "$(sudo stat -c %u "$hook")" -eq 0
+            writable_path="$(sudo find "$hook" -perm /022 -print -quit)"
+            test -z "$writable_path"
             sudo "$hook" --target legacy --deployment-run-id "$DEPLOYMENT_RUN_ID" --rollback-run-id "$ROLLBACK_RUN_ID"
 
       - name: Back up and roll application code back
@@ -75,11 +76,15 @@ jobs:
             set -euo pipefail
             target=/srv/gama-wordpress-production
             deployment="$target/deployments/$DEPLOYMENT_RUN_ID/deployment.env"
-            test -f "$deployment" && test ! -L "$deployment"
+            sudo test -f "$deployment" && sudo test ! -L "$deployment"
+            test "$(sudo stat -c %u "$deployment")" -eq 0
+            writable_path="$(sudo find "$deployment" -perm /022 -print -quit)"
+            test -z "$writable_path"
             for tool in backup deploy-production rollback-production; do
-              test -f "$target/bin/$tool" && test ! -L "$target/bin/$tool" && test -x "$target/bin/$tool"
-              test "$(stat -c %u "$target/bin/$tool")" -eq 0
-              test -z "$(find "$target/bin/$tool" -perm /022 -print -quit)"
+              sudo test -f "$target/bin/$tool" && sudo test ! -L "$target/bin/$tool" && sudo test -x "$target/bin/$tool"
+              test "$(sudo stat -c %u "$target/bin/$tool")" -eq 0
+              writable_path="$(sudo find "$target/bin/$tool" -perm /022 -print -quit)"
+              test -z "$writable_path"
             done
             case "$PRODUCTION_BACKUP_ROOT" in /*) ;; *) exit 64;; esac
             test -d "$PRODUCTION_BACKUP_ROOT"
@@ -91,8 +96,8 @@ jobs:
             [[ "$(sudo docker inspect --format '{{.State.Health.Status}}' "$current_container")" == healthy ]]
             rollback_backup="$PRODUCTION_BACKUP_ROOT/wordpress-prerollback-$ROLLBACK_RUN_ID"
             sudo "$target/bin/backup" --project gama-wp-production "$rollback_backup"
-            (cd "$rollback_backup" && sha256sum -c SHA256SUMS)
-            previous_image="$(sed -n 's/^previous_image=//p' "$deployment")"
+            sudo bash -c 'cd -- "$1" && sha256sum -c SHA256SUMS' bash "$rollback_backup"
+            previous_image="$(sudo sed -n 's/^previous_image=//p' "$deployment")"
             [[ "$previous_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]
             echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             sudo "$target/bin/rollback-production" \

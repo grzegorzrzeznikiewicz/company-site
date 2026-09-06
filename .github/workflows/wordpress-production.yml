@@ -75,7 +75,11 @@ jobs:
           [[ "$(jq -r '.git_sha' "$evidence")" == "$INPUT_GIT_SHA" ]]
           [[ "$(jq -r '.staging_run_id | tostring' "$evidence")" == "$INPUT_STAGING_RUN_ID" ]]
           image="$(jq -r '.image' "$evidence")"
-          [[ "$image" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
+          if [[ "$image" =~ ^ghcr\.io/[a-z0-9._/-]+:sha-([a-f0-9]{40})@sha256:[a-f0-9]{64}$ ]]; then
+            [[ "${BASH_REMATCH[1]}" == "$INPUT_GIT_SHA" ]]
+          else
+            [[ "$image" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
+          fi
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
       - name: Login only to inspect the published image
@@ -250,19 +254,23 @@ jobs:
             [[ -n "$PRODUCTION_BACKUP_EXPECTED_SOURCE" && "$actual_backup_source" == "$PRODUCTION_BACKUP_EXPECTED_SOURCE" ]]
             test -f "$target/.env" && test ! -L "$target/.env"
             for tool in backup deploy-production rollback-production; do
-              test -f "$target/bin/$tool" && test ! -L "$target/bin/$tool" && test -x "$target/bin/$tool"
-              test "$(stat -c %u "$target/bin/$tool")" -eq 0
-              test -z "$(find "$target/bin/$tool" -perm /022 -print -quit)"
+              sudo test -f "$target/bin/$tool" && sudo test ! -L "$target/bin/$tool" && sudo test -x "$target/bin/$tool"
+              test "$(sudo stat -c %u "$target/bin/$tool")" -eq 0
+              writable_path="$(sudo find "$target/bin/$tool" -perm /022 -print -quit)"
+              test -z "$writable_path"
             done
             recovery_hook=/usr/local/sbin/gama-wordpress-rollback-routing
-            test -f "$recovery_hook" && test ! -L "$recovery_hook" && test -x "$recovery_hook"
-            test "$(stat -c %u "$recovery_hook")" -eq 0
-            test -z "$(find "$recovery_hook" -perm /022 -print -quit)"
+            sudo test -f "$recovery_hook" && sudo test ! -L "$recovery_hook" && sudo test -x "$recovery_hook"
+            test "$(sudo stat -c %u "$recovery_hook")" -eq 0
+            writable_path="$(sudo find "$recovery_hook" -perm /022 -print -quit)"
+            test -z "$writable_path"
             candidate_evidence="$target/deployments/$DEPLOYMENT_RUN_ID/candidate.env"
-            test -f "$candidate_evidence" && test ! -L "$candidate_evidence"
-            [[ "$(stat -c %u "$candidate_evidence")" -eq 0 ]]
-            grep -Fxq 'status=passed' "$candidate_evidence"
-            grep -Fxq "image=$WORDPRESS_IMAGE" "$candidate_evidence"
+            sudo test -f "$candidate_evidence" && sudo test ! -L "$candidate_evidence"
+            [[ "$(sudo stat -c %u "$candidate_evidence")" -eq 0 ]]
+            writable_path="$(sudo find "$candidate_evidence" -perm /022 -print -quit)"
+            test -z "$writable_path"
+            sudo grep -Fxq 'status=passed' "$candidate_evidence"
+            sudo grep -Fxq "image=$WORDPRESS_IMAGE" "$candidate_evidence"
             current_container="$(sudo docker ps --filter label=com.docker.compose.project=gama-wp-production --filter label=com.docker.compose.service=wordpress --format '{{.ID}}')"
             all_stable_containers="$(sudo docker ps -a --filter label=com.docker.compose.project=gama-wp-production --format '{{.ID}}')"
             stable_volumes="$(sudo docker volume ls --filter label=com.docker.compose.project=gama-wp-production --format '{{.Name}}')"
@@ -296,7 +304,7 @@ jobs:
               [[ "$previous_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]
               predeploy_backup="$PRODUCTION_BACKUP_ROOT/wordpress-predeploy-$DEPLOYMENT_RUN_ID"
               sudo "$target/bin/backup" --project gama-wp-production "$predeploy_backup"
-              (cd "$predeploy_backup" && sha256sum -c SHA256SUMS)
+              sudo bash -c 'cd -- "$1" && sha256sum -c SHA256SUMS' bash "$predeploy_backup"
             fi
             stable_mutation_started=true
             sudo "$target/bin/deploy-production" \
@@ -309,7 +317,7 @@ jobs:
             grep -Fq 'gama-contact-form' "$target/deployments/$DEPLOYMENT_RUN_ID/pre-cutover.html"
             precutover_backup="$PRODUCTION_BACKUP_ROOT/wordpress-precutover-$DEPLOYMENT_RUN_ID"
             sudo "$target/bin/backup" --project gama-wp-production "$precutover_backup"
-            (cd "$precutover_backup" && sha256sum -c SHA256SUMS)
+            sudo bash -c 'cd -- "$1" && sha256sum -c SHA256SUMS' bash "$precutover_backup"
             evidence_file="$(mktemp)"
             {
               printf 'git_sha=%s\n' "$GAMA_GIT_SHA"
@@ -345,9 +353,10 @@ jobs:
           script: |
             set -euo pipefail
             hook=/usr/local/sbin/gama-wordpress-cutover
-            test -f "$hook" && test ! -L "$hook" && test -x "$hook"
-            test "$(stat -c %u "$hook")" -eq 0
-            test -z "$(find "$hook" -perm /022 -print -quit)"
+            sudo test -f "$hook" && sudo test ! -L "$hook" && sudo test -x "$hook"
+            test "$(sudo stat -c %u "$hook")" -eq 0
+            writable_path="$(sudo find "$hook" -perm /022 -print -quit)"
+            test -z "$writable_path"
             sudo "$hook" --project gama-wp-production --port 8080 --image "$WORDPRESS_IMAGE" --deployment-run-id "$DEPLOYMENT_RUN_ID"
 
       - name: Verify public production after cutover
@@ -377,7 +386,8 @@ jobs:
           script: |
             set -euo pipefail
             hook=/usr/local/sbin/gama-wordpress-rollback-routing
-            test -f "$hook" && test ! -L "$hook" && test -x "$hook"
-            test "$(stat -c %u "$hook")" -eq 0
-            test -z "$(find "$hook" -perm /022 -print -quit)"
+            sudo test -f "$hook" && sudo test ! -L "$hook" && sudo test -x "$hook"
+            test "$(sudo stat -c %u "$hook")" -eq 0
+            writable_path="$(sudo find "$hook" -perm /022 -print -quit)"
+            test -z "$writable_path"
             sudo "$hook" --target legacy --deployment-run-id "$DEPLOYMENT_RUN_ID" --rollback-run-id "automatic-${{ github.run_id }}"
