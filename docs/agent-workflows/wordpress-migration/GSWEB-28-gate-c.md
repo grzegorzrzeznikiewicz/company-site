@@ -61,6 +61,41 @@ This refresh closes the missing _local_ candidate-rehearsal evidence for the
 Contact fix. It does not restore a blanket Gate C approval, substitute for the
 owner's visual/accessibility acceptance, or authorize publication or cutover.
 
+## Remote candidate evidence — 2026-09-06
+
+[WordPress CI run 34021197096](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34021197096)
+tested feature head `968ed8cdf3241743f07b74cbdb840b3c492a2882` through PR merge
+revision `84b0abb5bbe3f41f4b051f6b5c08dabc3591bd6b` on independent Linux runners.
+Source and Build, Package Lifecycle and Release Regression passed. The exact
+contact 0.3.2 and theme 0.4.1 ZIPs installed and passed their lifecycle suites.
+The clean runtime step also passed; the overall Runtime and Restore job failed
+later on the GNU/BSD `stat` permission assertion, not on a site or form failure.
+This is a **partial CI result**, not a full green gate.
+
+The successful release job retained 2/2 regression and 13/13 acceptance results,
+including five Contact viewport screenshots. Direct inspection of the 1440px
+and 320px screenshots confirmed the centered desktop form and single-column
+mobile form without the former collapsed card. This is technical evidence,
+not the owner's outstanding visual acceptance.
+
+- Disposable staging project: `gama-wp-staging-21539-2256`.
+- Candidate image ID:
+  `sha256:8ca874093451439a78c8c37202117548fe702e85141bd793cd1f6912f0295e92`.
+- Previous image ID after code rollback:
+  `sha256:f943a48ba720606a37d5774b97a69dc2c10c16ece14aaf96afabe650ecf11097`.
+- Release-evidence artifact digest:
+  `sha256:cd528e141b04a2866e874b19992c6a6b02a28e8541cbbe4e320b07ca2c4932f6`.
+- Acceptance archive SHA-256:
+  `00ba7c70de4a4b47bfe8a6c2a0ef2b9fcb7af7c4e7e83cd528a30cc9991cd47e`.
+- Regression archive SHA-256:
+  `930c5ee0e1912c7284d105648e03639e12ca4f1d5dd680351824ba7aedb4d5e6`.
+
+The job also passed its isolated production-model deployment, encrypted SMTP,
+persistence and code rollback. Neither image ID is a published GHCR release or
+proof of a deployment to the public staging/production server. All four legacy
+jobs passed in
+[run 34021197062](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34021197062).
+
 ## Historical verified evidence
 
 The following is historical evidence for the earlier revisions, not proof that
@@ -135,6 +170,22 @@ promotion of that digest to public staging has been recorded. Required sequence:
 2. Publish the immutable registry image and record its digest.
 3. Deploy exactly that digest to the public staging namespace.
 4. Execute and retain acceptance evidence against that deployment.
+
+A fresh comparison with the actual GSWEB-25 criteria found further missing
+controls: isolated JS/CSS lint, complete first-party PHP standards/static analysis,
+explicit dependency-audit gates, immutable CI action pins, persistent QA caching
+and complete timing/local-reproduction documentation. Commit `f797d5a` adds these
+controls within GSWEB-25. The controller repeated the full Source and Build
+command sequence after that commit: exit 0, including all 25 production PHP
+files, one JavaScript file, two CSS files, three dependency audits and controlled
+failure fixtures. Contact's mechanical PHP formatting changes its candidate ZIP
+SHA-256 to `da8975851aa4dcfc612f14406e72e3417377055553f9a63bafe2354fba250cb6`;
+the theme ZIP remains `cd5bf95f680abf6ada77cffd2d2aa53d95fba5aaf45e83097482ce2a847cf6ad`.
+Both are still pre-release, commit-qualified CI candidates, not a new published
+production release. Independent review, a complete remote run and cold/warm
+cache evidence remain required before this follow-up can be accepted. Use the
+latest PR results and Jira evidence for their subsequent status; passing the
+earlier, narrower workflow alone cannot close GSWEB-25.
 
 ### P1 — public staging infrastructure
 
