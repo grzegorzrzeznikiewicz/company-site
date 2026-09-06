@@ -26,6 +26,47 @@ invalid package build input and a high-confidence token fixture each stop their
 gate. Fixtures live only in temporary storage; the token is assembled rather
 than committed or printed.
 
+## 2026-09-06 acceptance and collection guard correction
+
+The published green jobs for commit `1398f41` remain historical evidence, but
+they did not execute two already-required guards. The release acceptance
+contract also compared the case of its technical-verdict marker even though the
+approved Gate C document deliberately says `Historical technical verdict` and
+still contains both `VERDICT: NO-GO` and `remote CI`. The correction makes only
+that marker comparison case-insensitive. The NO-GO and remote-CI requirements
+remain exact, blocking assertions.
+
+The Source and Build contract block now runs both the real acceptance contract
+and its isolated five-case regression fixture. The release regression runtime
+now runs the existing matrix collection contract inside the browser image, with
+networking disabled, immediately after building that pinned image and before
+the HTTPS/browser run. The collection contract executes Playwright discovery;
+it requires Chromium and WebKit across desktop, tablet and phone (six release
+cases) and the unchanged 39 non-release cases.
+
+Exact focused local proof from the corrected revision:
+
+```bash
+wordpress/tests/release-acceptance-contract-regression.sh
+wordpress/tests/release-acceptance-contract.sh
+wordpress/tests/wordpress-ci-contract.sh
+docker run --rm --network none --entrypoint node gama-wordpress-browser:gsweb27 \
+  ./specs/support/release-matrix-contract.cjs
+```
+
+The acceptance fixture is behavioral: it invokes the real contract and accepts
+both lowercase and capitalized historical markers while rejecting a missing
+technical-verdict marker, missing `VERDICT: NO-GO` or missing `remote CI`. The
+CI wiring mutations are static and reject either omitted call. A runtime
+mutation of the collected Playwright JSON was also checked in the pinned image;
+removing one browser/viewport case was rejected by the real validator.
+
+Fresh remote CI still has to execute the corrected revision. The historical
+runs do not prove this new wiring, the public staging/user-preview gate remains
+open, required checks on `main` still need owner reconciliation, and Gate C
+remains NO-GO until its existing remote, public and owner acceptance conditions
+are satisfied.
+
 ## Source coverage and policy
 
 The asset gate uses Node 24.14.0 by digest and an npm lock containing ESLint
@@ -119,6 +160,8 @@ wordpress/tests/production-deployment-contract.sh
 wordpress/tests/theme-contract.sh
 wordpress/tests/plugin-package-contract.sh
 wordpress/tests/ci-package-input-contract.sh
+wordpress/tests/release-acceptance-contract.sh
+wordpress/tests/release-acceptance-contract-regression.sh
 wordpress/tests/wordpress-ci-contract.sh
 wordpress/tests/ci-failure-contract.sh
 wordpress/tests/wordpress-assets-quality.sh

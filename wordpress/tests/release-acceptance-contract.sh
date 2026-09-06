@@ -27,7 +27,7 @@ grep -Fq 'Gate C' "$runbook"
 grep -Fq 'NO-GO' "$runbook"
 grep -Fq 'production' "$runbook"
 grep -Fq 'VERDICT: NO-GO' "$gate_report"
-grep -Fq 'Technical verdict' "$gate_report"
+grep -Fiq 'technical verdict' "$gate_report"
 grep -Fq 'remote CI' "$gate_report"
 
 echo 'GSWEB-28 immutable staging acceptance contract passed.'

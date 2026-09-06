@@ -40,6 +40,8 @@ docker build \
   --cache-from 'gama-wordpress-browser:ci-cache' \
   --build-arg BUILDKIT_INLINE_CACHE=1 \
   --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
+docker run --rm --network none --entrypoint node "$image" \
+  ./specs/support/release-matrix-contract.cjs
 docker volume create --label gama.contract=release-browser "$volume" >/dev/null
 GAMA_STAGING_PROJECT="$project" \
   GAMA_RELEASE_BROWSER_IMAGE="$image" \
