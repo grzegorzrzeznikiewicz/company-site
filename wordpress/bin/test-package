@@ -448,7 +448,7 @@ if ($contains_modules_pattern($front_page_blocks) || !is_array($front_page_modul
 echo "installed-theme-parse-and-provenance-ok";'
   wp_cmd eval "$installed_contract" | grep -Fx 'installed-theme-parse-and-provenance-ok'
 
-  navigation_runtime_body="$(sed '/^<\?php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/assert-theme-navigation-runtime.php")"
+  navigation_runtime_body="$(sed '/^<[?]php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/assert-theme-navigation-runtime.php")"
   navigation_runtime_status=0
   navigation_runtime_output="$(wp_cmd eval "$navigation_runtime_body")" || navigation_runtime_status=$?
   printf '%s\n' "$navigation_runtime_output"
@@ -708,7 +708,7 @@ echo $page_id . "," . $single_id;')"
   [[ "$pair_b_ids" =~ ^[0-9]+,[0-9]+$ ]]
   sentinel="gsweb12-${RANDOM}-${RANDOM}"
   wp_cmd option update gama_theme_test_sentinel "$sentinel"
-  helper_body="$(sed '/^<\?php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/reset-theme-overrides.php")"
+  helper_body="$(sed '/^<[?]php$/d; /^declare(strict_types=1);$/d' "$ROOT_DIR/tests/reset-theme-overrides.php")"
   ids_php="[${pair_b_ids/,/, }]"
   targets_php="[['theme'=>'gama-software','slug'=>'page','type'=>'wp_template'],['theme'=>'gama-software','slug'=>'single','type'=>'wp_template']]"
   helper_prefix="define('GAMA_THEME_RESET_CONFIRM', true); define('GAMA_THEME_RESET_PROJECT', '$project_name'); define('GAMA_THEME_RESET_SENTINEL', '$sentinel'); define('GAMA_THEME_RESET_IDS', $ids_php); define('GAMA_THEME_RESET_TARGETS', $targets_php);"

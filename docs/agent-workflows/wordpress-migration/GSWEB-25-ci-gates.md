@@ -46,6 +46,11 @@ exposed machine-specific assumptions that local macOS checks did not detect:
 - Legacy ESLint excludes the isolated `wordpress/` project, just as it excludes
   `backend/`. Its React rules remain unchanged; WordPress has its own quality
   and browser gates.
+- The PHP fixture loader matches the opening tag with a POSIX character class
+  instead of the BSD-only interpretation of `\?`. HTTP-header assertions
+  normalize CRLF before matching, avoiding different GNU/BSD handling of `\r`.
+  The original Linux failures were reproduced; transformed PHP parses with
+  both sed implementations and the real headers pass on GNU grep.
 - Release regression fetches full history and uses the explicit previous
   WordPress revision `043beee6490664758bdbbff55d7a9cdf9156a398` as its rehearsal
   baseline. A shallow checkout cannot resolve `HEAD^`, and the first parent of

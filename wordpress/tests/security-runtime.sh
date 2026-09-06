@@ -32,11 +32,11 @@ wp_delete_post(\$navigation_id, true);
 echo 'editor-capability-matrix-ok';
 " | grep -Fx 'editor-capability-matrix-ok'
 
-headers="$(curl --silent --show-error --dump-header - --output /dev/null "$runtime_url/")"
-grep -Eiq '^X-Content-Type-Options: nosniff\r?$' <<<"$headers"
-grep -Eiq '^X-Frame-Options: SAMEORIGIN\r?$' <<<"$headers"
-grep -Eiq '^Referrer-Policy: strict-origin-when-cross-origin\r?$' <<<"$headers"
-grep -Eiq '^Permissions-Policy: camera=\(\), geolocation=\(\), microphone=\(\)\r?$' <<<"$headers"
+headers="$(curl --silent --show-error --dump-header - --output /dev/null "$runtime_url/" | tr -d '\r')"
+grep -Eiq '^X-Content-Type-Options: nosniff$' <<<"$headers"
+grep -Eiq '^X-Frame-Options: SAMEORIGIN$' <<<"$headers"
+grep -Eiq '^Referrer-Policy: strict-origin-when-cross-origin$' <<<"$headers"
+grep -Eiq '^Permissions-Policy: camera=\(\), geolocation=\(\), microphone=\(\)$' <<<"$headers"
 if grep -Eiq '^Strict-Transport-Security:' <<<"$headers"; then
   echo 'Local HTTP must not emit HSTS.' >&2
   exit 1

@@ -32,7 +32,8 @@ grep -Fxq 'Disallow: /' "$robots_file"
 redirect_headers="$fixture_dir/sitemap-redirect.headers"
 redirect_status="$(curl --silent --show-error --output /dev/null --dump-header "$redirect_headers" --write-out '%{http_code}' "$runtime_url/sitemap.xml")"
 [[ "$redirect_status" == 301 ]]
-grep -Eiq '^Location: .*/wp-sitemap\.xml\r?$' "$redirect_headers"
+redirect_header_lines="$(tr -d '\r' < "$redirect_headers")"
+grep -Eiq '^Location: .*/wp-sitemap\.xml$' <<<"$redirect_header_lines"
 
 sitemap_file="$fixture_dir/sitemap.xml"
 sitemap_status="$(curl --silent --show-error --output "$sitemap_file" --write-out '%{http_code}' "$runtime_url/wp-sitemap.xml")"

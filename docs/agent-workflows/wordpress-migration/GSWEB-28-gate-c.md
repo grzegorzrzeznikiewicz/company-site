@@ -7,7 +7,8 @@
   `6f0d11f3020afd4ad332afb90487d016e6353de6`: **APPROVE, superseded by the
   Contact defect reported on 2026-09-05**. It is not approval of that UI or of
   the corrected release candidate.
-- Review date: 2026-09-04; defect follow-up: 2026-09-05
+- Review date: 2026-09-04; defect follow-up: 2026-09-05; remote CI/infrastructure
+  follow-up: 2026-09-06
 - Reviewed environment: isolated local deployment-model rehearsals plus a
   read-only probe of `staging.gama-software.com`
 - P0: none
@@ -115,11 +116,22 @@ and field geometry plus explicit loaded-stylesheet assertions; see
 
 ### P1 — remote CI and promotable artifact
 
-The branch/commit is not present in the remote repository. There is no green
-`WordPress Quality Gates` run, published SHA-named registry digest or proof that
-the same digest was promoted to staging. Required sequence:
+The owner authorized publication on 2026-09-06. `feature/GSWEB-9` is now pushed
+and [PR #8](https://github.com/grzegorzrzeznikiewicz/company-site/pull/8) is open
+against `main`; neither a merge nor a production deployment has occurred.
+The first remote runs exposed Linux portability defects, corrected with
+independent review in `0ae31a7` and `06571b7`.
+[WordPress CI run 34020621325](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34020621325)
+passed Source and Build and Release Regression (2 regression checks, 13
+acceptance checks, staging rollback and isolated production-model rehearsal).
+Its package and runtime jobs exposed additional BSD/GNU text-processing
+differences, reproduced and corrected in the follow-up. All four legacy jobs
+passed in [run 34020621326](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34020621326).
+Use the PR's latest check results as the authoritative full-run status; this
+historical partial run is not a complete WordPress gate. No registry digest or
+promotion of that digest to public staging has been recorded. Required sequence:
 
-1. Push the reviewed branch and run the complete WordPress CI workflow.
+1. Complete the WordPress CI workflow for the published, reviewed revision.
 2. Publish the immutable registry image and record its digest.
 3. Deploy exactly that digest to the public staging namespace.
 4. Execute and retain acceptance evidence against that deployment.
@@ -128,10 +140,29 @@ the same digest was promoted to staging. Required sequence:
 
 The `staging.gama-software.com` endpoint is not an acceptable staging environment.
 The previous probe identified a certificate for `blog.gama-software.com`; the
-fresh 2026-09-05 10:33 UTC probe still fails hostname verification (curl exit
+fresh 2026-09-06 07:57 UTC probe still fails hostname verification (curl exit
 60). HTTP returns 200 without redirecting to HTTPS. No certificate warning was
 bypassed. Infrastructure must configure the correct certificate, routing and
 release namespace before the real acceptance run.
+
+The 2026-09-06 read-only GitHub audit also found:
+
+- no repository environments, including the required `wordpress-staging` and
+  protected production/cutover/rollback environments;
+- no `STAGING_*` or `PRODUCTION_*` secrets. The existing `SERVER_*`, `SSH_*`
+  and `PROD_*` names belong to the legacy pipeline and were not repurposed;
+- no required status-check names on `main`, despite strict status-check mode;
+- only legacy workflows and WordPress CI registered. The manual WordPress
+  deployment workflows remain on the feature branch, not the default branch.
+
+Staging needs the confirmed host/user/SSH port, GitHub environment secrets
+`STAGING_SERVER_HOST`, `STAGING_SERVER_USER`, `STAGING_SSH_PRIVATE_KEY`,
+`STAGING_SSH_PORT`, `STAGING_GHCR_USERNAME`, `STAGING_GHCR_TOKEN`, and the
+host-owned `/srv/gama-wordpress-staging/.env`. Do not place their values in Git,
+Jira or review comments. The owner has been asked to identify the target host.
+Workflow registration must be coordinated with integration: legacy CI can
+trigger the existing production deploy after a successful run on `main`, so a
+merge is not an infrastructure-neutral way to enable the new workflows.
 
 ### P1 — production inputs and owners
 

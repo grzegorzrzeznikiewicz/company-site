@@ -109,11 +109,17 @@ fresh destructive approval for an exact inventory.
 
 ## Current execution status
 
-The pipeline and contracts are implemented locally. No production workflow has
-been pushed or run, no real SMTP message has been sent, and no traffic or data
-has been changed. Remote CI, protected-environment configuration, staging
+The pipeline and contracts are implemented and were published on
+`feature/GSWEB-9` in [PR #8](https://github.com/grzegorzrzeznikiewicz/company-site/pull/8)
+on 2026-09-06 with owner approval. They have not been merged into `main` or run
+against production; no real SMTP message has been sent, and no traffic or
+production data has been changed. Remote CI is recorded on the PR; the first
+Linux release-regression job passed its isolated production-model rehearsal,
+which is not a real production deployment. The read-only
+GitHub audit found no protected WordPress deployment environments or their
+`STAGING_*` / `PRODUCTION_*` secrets. Environment configuration, public staging
 acceptance, production host inputs and a fresh deployment-window approval remain
-external Gate C requirements.
+Gate C requirements.
 
 `wordpress/tests/production-deployment-runtime.sh` separately proves on an
 ephemeral Docker namespace: isolated candidate deployment, first stable deploy,
