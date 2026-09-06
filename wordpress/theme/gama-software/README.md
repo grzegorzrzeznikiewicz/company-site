@@ -19,6 +19,79 @@ in independent plugins. Build the deterministic distribution artifact with:
 wordpress/bin/package theme gama-software
 ```
 
+## Local and disposable activation
+
+The repository's local runtime mounts the theme source read-only and
+`wordpress/bin/start` activates `gama-software` idempotently. Do not install a
+ZIP over that source-mounted directory. Verify the local state with:
+
+```sh
+wordpress/bin/wp theme is-active gama-software
+wordpress/bin/wp theme get gama-software --field=version
+```
+
+To exercise the actual package without the owner's port-8090 preview, build it
+and run the unique-namespace lifecycle. The lifecycle uses a disposable
+no-host-port Compose project and removes its containers, volumes, network and
+local image after collecting test artifacts:
+
+```sh
+wordpress/bin/package theme gama-software
+wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip
+```
+
+For a separate disposable WordPress installation where the built ZIP is
+available to WP-CLI, install, activate and verify it with:
+
+```sh
+wp theme install /absolute/path/to/gama-software-0.4.1.zip
+wp theme activate gama-software
+wp theme is-active gama-software
+wp theme get gama-software --field=version
+```
+
+Do not use those standalone commands to write into production or the
+repository's read-only Compose mounts.
+
+## Reverting one saved template or template part
+
+When an editor saves a theme template or template part, WordPress forks that
+target into a `wp_template` or `wp_template_part` database record. The saved
+database override takes precedence over the matching file in the active theme.
+Consequently, installing a newer theme ZIP updates the theme file but does not
+overwrite that target's saved customization; the override continues to render.
+
+Revert only an exact target whose saved customization the owner has approved
+discarding:
+
+1. Record whether the target is a template or template part and its exact name.
+   Back it up with the environment's approved WordPress export/backup process,
+   and confirm the backup can restore that exact target.
+2. Obtain explicit owner confirmation for that named target. Reverting discards
+   its saved database customization and reveals the current theme-file version.
+3. In **Appearance → Editor**, open the exact item under **Design → Templates**
+   or, for Header/Footer template parts, **Design → Patterns → Manage my
+   patterns**.
+4. With that target open, use the Settings sidebar's **Template → Actions →
+   Reset** action and confirm the reset. Labels can vary by WordPress version or
+   interface language. If the targeted Reset action is unavailable, stop and
+   verify that the item is a custom override backed by a theme file; do not
+   substitute SQL or bulk deletion.
+5. Reopen the named target and its affected public route to verify the current
+   file-backed design is visible.
+
+This targeted Site Editor reset removes only the selected template or
+template-part override. It preserves other templates and parts, pages, posts,
+media, navigation entities and Global Styles. It is fundamentally different
+from `wordpress/bin/reset --confirm`, which destroys the local Compose
+database, uploads and Core volumes, and from the destructive clean-runtime
+smoke mode. Never use either all-site reset on the owner's preview. The
+repository's `wordpress/tests/reset-theme-overrides.php` helper is destructive,
+test-only and guarded for generated disposable theme-package namespaces; it is
+not an operator procedure and must never be run against the preview. Do not use
+blanket SQL, direct `wp_template`/`wp_template_part` post deletion, bootstrap,
+or an all-site reset to revert an editor target.
+
 ## Editing the header, menus and footer
 
 In WordPress, open **Appearance → Editor**. Use **Design → Navigation** to

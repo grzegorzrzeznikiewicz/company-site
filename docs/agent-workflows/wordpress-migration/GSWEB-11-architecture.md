@@ -9,25 +9,36 @@ the independent GSWEB-12 brief re-review returned no findings. The exact
 toolchain, schema integrity and ZIP-only browser decisions are recorded in
 [`GSWEB-12-gate-a.md`](GSWEB-12-gate-a.md).
 
+That approval is a historical decision about the initial boundary and does not
+describe the packages as they exist today. At Gate A, `gama-contact` 0.1.0 was
+a behavior-free lifecycle scaffold and `gama-software` was the GSWEB-10 runtime
+scaffold. The current source contains the `gama-contact` 0.3.2 contact behavior
+and the `gama-software` 0.4.1 production-theme foundation. The current commands,
+allowlists and lifecycle below supersede the scaffold examples without changing
+the approved ownership boundary.
+
 ## Versioned package layout
 
 - `wordpress/theme/gama-software` is the first-party block-theme source.
 - `wordpress/plugins/<slug>` is one independently installable first-party
-  plugin per durable capability. `gama-contact` is the first scaffold.
+  plugin per durable capability. `gama-contact` is the first such plugin.
 - `wordpress/config` contains the versioned external-extension inventory and
   its schema.
 - `wordpress/bin` contains the supported build, validation, and isolated
   package-test commands; `wordpress/tests` contains their contracts.
 - `wordpress/dist` is ignored local build output and is never a source input.
 
-Both local Compose services mount the `gama-software`, `gama-local-mailpit`,
-and `gama-contact` leaves individually and read-only. Their `themes` and
-`plugins` parents remain writable so the official image can initialize Core.
+Both local Compose services mount six first-party leaves individually and
+read-only: the `gama-software` theme and the `gama-local-mailpit`,
+`gama-mail-transport`, `gama-contact`, `gama-seo`, and `gama-security` plugins.
+Their `themes` and `plugins` parents remain writable so the official image can
+initialize Core. Package lifecycle tests do not use these source mounts: they
+install one canonical ZIP into a generated disposable Compose project.
 
-The existing `gama-software` theme is only the GSWEB-10 runtime scaffold. It is
-not a production theme package, and GSWEB-11 neither packages nor expands it.
-GSWEB-12 owns its production metadata, complete licence, documentation,
-templates, parts, patterns, quality checks, and packaging.
+GSWEB-12 subsequently expanded the initial theme scaffold into the current
+`gama-software` 0.4.1 theme package, with production metadata, the complete
+licence, documentation, templates, parts, patterns, quality checks, and
+packaging. The ownership decision remains unchanged.
 
 ## Ownership and runtime classification
 
@@ -35,7 +46,7 @@ The theme owns templates, template parts, patterns, Global Styles, and
 presentation assets. A feature belongs in a plugin when it must survive a
 theme change or owns mail, integration calls, endpoints, cron, capabilities,
 durable content, options, schema, or migrations. The contact form and delivery
-therefore remain plugin work for GSWEB-20. The scaffold adds none of them.
+therefore live in `gama-contact`, independently of the active theme.
 
 | Asset | Classification | Policy |
 | --- | --- | --- |
@@ -49,7 +60,7 @@ therefore remain plugin work for GSWEB-20. The scaffold adds none of them.
 ## Package identity and dependencies
 
 The plugin directory, slug, and text domain are `gama-contact`; version is
-`0.1.0`; package identifier is `gama-software/gama-contact`; namespace is
+`0.3.2`; package identifier is `gama-software/gama-contact`; namespace is
 `GamaSoftware\Contact`. Global identifiers/options/hooks use `gama_contact_`,
 constants use `GAMA_CONTACT_`, future blocks use `gama-software/*`, and future
 REST routes use `gama-contact/v1`. It requires WordPress 7.1 and PHP 8.4 and is
@@ -60,7 +71,8 @@ runtime dependency is actually used, commit `composer.lock`, and use
 `composer install` in CI/builds. Add `package.json` only when a JS/CSS build is
 actually used, commit `package-lock.json`, and use `npm ci`. Never commit or
 package `node_modules`; do not package `vendor` for a dependency-free runtime.
-No manifest exists in the initial scaffold because it needs neither ecosystem.
+Neither current package has a dependency manifest because neither consumes
+either ecosystem.
 
 External WordPress extensions use
 `wordpress/config/extensions.lock.json`, validated against the closed Draft
@@ -74,46 +86,67 @@ schema and supports only the keywords the repository schema actually uses.
 
 ## Lifecycle and release contract
 
-Activation and migrations are forward-only and idempotent. Version 0.1.0 owns
-exactly `gama_contact_schema_version=1`. Theme switches and deactivation
-preserve it. Default uninstall removes installed files and preserves durable
-data. Permanent deletion is intentionally absent; a future implementation
-requires an explicit Administrator choice, capability and nonce checks, an
-exact data inventory, multisite handling, and an integration test.
+Activation and migrations are forward-only and idempotent. Version 0.3.2 owns
+exactly `gama_contact_schema_version=1`. Activation sets that value, while
+deactivation and theme switches preserve it. Reactivation is idempotent.
+Default uninstall removes installed files and preserves the durable option.
+Permanent deletion is intentionally absent; a future implementation requires
+an explicit Administrator choice, capability and nonce checks, an exact data
+inventory, multisite handling, and an integration test. The plugin resolves
+all PHP, asset and translation locations from its installed main-file path, so
+the ZIP is portable and never depends on a checkout path.
 
-The only supported build entry point is:
+The supported build entry points are:
 
 ```sh
 wordpress/bin/package plugin gama-contact
+wordpress/bin/package theme gama-software
 ```
 
 It accepts only the allowlisted type/slug, validates metadata and source paths,
 rejects symlinks, unexpected material and secret-like content, and writes one
 top-level `gama-contact/` directory into
-`wordpress/dist/gama-contact-0.1.0.zip`. The sorted manifest and ZIP checksum
+`wordpress/dist/gama-contact-0.3.2.zip`. The sorted manifest and ZIP checksum
 sit beside it. One validated `SOURCE_DATE_EPOCH` controls every ZIP timestamp;
 when omitted it is derived from Git. File order and modes are fixed, making
 unchanged builds byte-identical without changing tracked sources.
 
+The current plugin allowlist is `CHANGELOG.md`, `LICENSE`, `README.md`,
+`readme.txt`, `gama-contact.php`, `uninstall.php`, the two files under `assets/`,
+`languages/gama-contact.pot`, the four files under `src/Form/`, the three files
+under `src/Lifecycle/`, `src/Plugin.php`, and `src/Support/I18n.php`. The current
+theme allowlist is `CHANGELOG.md`, `LICENSE`, `README.md`, `style.css`,
+`functions.php`, `theme.json`, `languages/gama-software.pot`, the logo and four
+icons under `assets/`, `parts/header.html`, `parts/footer.html`, the eight HTML
+files under `templates/`, and the six PHP files under `patterns/`. Any
+additional file, including a new translation PO/MO, must first be intentionally
+reviewed and added to the positive allowlist and its package contract.
+
 The real acceptance command is:
 
 ```sh
-wordpress/bin/test-package wordpress/dist/gama-contact-0.1.0.zip
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip
+wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip
 ```
 
-It accepts only the regular, non-symlink artifact at the canonical
-`wordpress/dist/gama-contact-0.1.0.zip` path. It uses a generated
-`gama-package-*` Compose project with disposable, project-scoped volumes, no
-ports, no checkout source mounts, and the exact GSWEB-10
-WordPress/PHP/WP-CLI/MariaDB images. Before startup it rejects any container,
-volume, or network already carrying that exact project label. It installs only
-the ZIP on clean Core, switches between installed Core themes, exercises
-repeated lifecycle and preservation, proves class files load only below the
-installed plugin path, checks the behavior-free boundary, scans debug/container
-logs, and removes only the generated project. Cleanup treats every residue-query
-failure as a failure while preserving the original lifecycle failure status. It
-never calls the `gama-wordpress` wrappers or touches their containers or
-volumes.
+It accepts only a matching regular, non-symlink artifact directly under
+`wordpress/dist`. It uses a unique generated `gama-package-*` project for the
+plugin or `gama-theme-package-*` for the theme, with disposable project-scoped
+volumes, no host ports, no checkout source mounts, and the pinned
+WordPress/PHP/WP-CLI/MariaDB inputs. Before startup it rejects resources already
+carrying the exact generated project label.
+
+The plugin lifecycle installs only the ZIP on clean Core, activates it,
+exercises the form boundary, switches between installed Core themes, repeats
+deactivation/reactivation, verifies option preservation and installed-only
+class paths, then confirms default uninstall removes files but preserves the
+schema option. The theme lifecycle installs only its ZIP, verifies installed
+files against the archive, exercises Site Editor save and targeted revert,
+theme switching, rendering and browser contracts, and restores the ZIP without
+overwriting database-backed content. Both scan debug/container logs. Cleanup
+removes and queries only the generated namespace; any residue-query failure is
+a failure, while the original lifecycle failure status is preserved. Neither
+path calls the `gama-wordpress` wrappers or touches their containers or volumes.
 
 Artifacts are local and ignored. Building or testing does not authorize an
 upload, release, WordPress.org publication, external attachment, or any other
