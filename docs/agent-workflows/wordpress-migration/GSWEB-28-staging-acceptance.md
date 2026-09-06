@@ -25,6 +25,11 @@ The candidate must pass all of the following before Gate C:
 
 ## Editing instructions
 
+The illustrated [site editor guide](GSWEB-28-editor-site-guide.md) covers
+Front Page, Hero/CTA, service cards, shared menu/footer and frontend checks.
+Its [full local candidate checkpoint](GSWEB-28-editor-site-journey-2026-09-06.md)
+does not replace independent owner acceptance on the approved staging host.
+
 The illustrated [blog editor guide](GSWEB-28-editor-blog-guide.md) covers
 drafts, preview, scheduled publication, updates and withdrawal. Its local
 [dated test evidence](GSWEB-18-editor-journey-2026-09-06.md) is not a substitute
