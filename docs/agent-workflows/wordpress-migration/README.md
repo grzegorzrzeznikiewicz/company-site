@@ -5,6 +5,23 @@ Ten katalog opisuje spójny sposób realizacji epika
 agentowych. Jira jest źródłem wymagań i statusu, a dokumenty w repozytorium
 ustalają wspólne zasady architektoniczne oraz sposób pracy.
 
+## Aktualizacja decyzji właściciela — 2026-09-06/07
+
+Obowiązuje praca na jednej gałęzi `feature/GSWEB-9`, środowisko lokalne
+i produkcja, **bez osobnego stagingu**. Kolejne standardowe wydania mają
+być automatyczne po zatwierdzonym PR, merge do `main` i przejściu bramek.
+Pierwszy cutover oraz usunięcie starego stosu nadal wymagają osobnych zgód.
+Te decyzje zastępują sprzeczne wymagania stagingu, osobnych gałęzi i ręcznej
+akceptacji każdego wydania w starszych dokumentach oraz poniższych pierwotnych
+rekomendacjach organizacji pracy.
+
+Kod w `19a348d` nadal implementuje poprzedni ręczny proces ze stagingiem.
+[Nowa specyfikacja](../../superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md)
+czeka na przegląd szczegółów przez właściciela; nie jest jeszcze wdrożeniem
+nowego pipeline'u ani decyzją GO. [Dokumentacja Confluence](confluence/README.md)
+rozdziela aktualną politykę od historycznych dowodów implementacji; dział GSWEB
+opublikowano w przestrzeni BP wskazanej przez właściciela.
+
 ## Zawartość
 
 - [`specification.md`](specification.md) — decyzje obowiązujące całą migrację.
