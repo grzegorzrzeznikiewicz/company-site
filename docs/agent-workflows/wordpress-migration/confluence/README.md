@@ -47,6 +47,34 @@ W GSWEB-8 zapisano komentarz **Dokumentacja Confluence — 2026-09-07**
 z odnośnikiem do działu i rozróżnieniem dokumentacji, projektu pipeline'u
 oraz wdrożenia. Nie zmieniono statusów zgłoszeń ani konfiguracji produkcji.
 
+## Synchronizacja wymagań Jira — 2026-09-07
+
+Po publikacji dokumentacji zaktualizowano opisy poniższych zgłoszeń we
+właściwej instancji Gama Software. Zmiany przenoszą już zaakceptowane decyzje
+właściciela do wymagań; nie są odbiorem implementacji nowego pipeline'u.
+
+| Zgłoszenie | Zapisana korekta | Status po ponownym otwarciu |
+| --- | --- | --- |
+| [GSWEB-8](https://gamasoftware.atlassian.net/browse/GSWEB-8) | Jeden branch `feature/GSWEB-9` z `main@c26e196`, zachowane stashe, brak stagingu, zgodność strony i rozdzielenie zgód na wydania. | W toku |
+| [GSWEB-25](https://gamasoftware.atlassian.net/browse/GSWEB-25) | Bramki lokalne/CI oraz dowód tożsamości testowanego artefaktu; zachowanie kontroli legacy nie oznacza równoległych, konfliktujących deploymentów. | Testowanie |
+| [GSWEB-26](https://gamasoftware.atlassian.net/browse/GSWEB-26) | Ten sam testowany artefakt trafia do produkcji bez stagingu; zachowane backup, rollback i osobna zgoda na pierwszy cutover. | Testowanie |
+| [GSWEB-28](https://gamasoftware.atlassian.net/browse/GSWEB-28) | Tytuł i opis wskazują odbiór lokalnie/CI; zachowane scenariusze redaktora, zgodność strony i niezależna próba runbooka. | Testowanie |
+| [GSWEB-29](https://gamasoftware.atlassian.net/browse/GSWEB-29) | Pierwsze przełączenie z osobną zgodą; kolejne standardowe wydania automatyczne po zatwierdzonym PR i merge, z koordynacją legacy. | W toku |
+
+Przed zapisem porównano łącznie 113 pierwotnych akapitów po 11 celowych
+korektach sprzecznych zapisów: żadnego nie pominięto. Dodano datowane
+uzupełnienia i odnośniki do opublikowanych rozdziałów Confluence. Zmieniono
+także tytuł GSWEB-28 na „WP: Przeprowadzić próbę migracji i odbiór edycji
+treści lokalnie i w CI”. Po ponownym otwarciu wszystkich pięciu zgłoszeń
+potwierdzono pojedynczy zapis decyzji w każdym opisie oraz brak otwartych
+edytorów. Statusów, przypisań i estymacji nie zmieniano; wcześniejsze
+komentarze pozostawiono jako historię poprzedniego modelu.
+
+Szczegółowa [specyfikacja nowego workflow](../../../superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md)
+nadal czeka na przegląd właściciela. Nie zmieniono kodu pipeline'u, nie
+wykonano merge, publikacji obrazu ani operacji produkcyjnej. Nie uruchamiano
+ponownie testów runtime z powodu zmian w opisach i dokumentacji.
+
 ## Zasady aktualizacji
 
 - Jira przechowuje wymagania, status i decyzje dotyczące zgłoszeń.
