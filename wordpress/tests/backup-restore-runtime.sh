@@ -25,9 +25,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
-build_output="$("$ROOT_DIR/bin/build-release" --test-dirty backup-restore-source)"
-source_image="$(sed -n 's/^Image ID: //p' <<<"$build_output")"
-[[ "$source_image" =~ ^sha256:[a-f0-9]{64}$ ]]
+# This image is only the disposable full-restore fixture, not a promotable
+# release candidate. The release job separately builds and seals its one image.
+source_sha="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+if [[ ! "$source_sha" =~ ^[a-f0-9]{40}$ ]]; then
+  echo 'Restore fixture requires a full Git revision.' >&2
+  exit 1
+fi
+docker build --platform linux/amd64 \
+  --file "$ROOT_DIR/runtime/Dockerfile" \
+  --build-arg "GAMA_GIT_SHA=$source_sha" \
+  --build-arg 'GAMA_RELEASE_MARKER=backup-restore-fixture' \
+  --iidfile "$fixture/source-image-id" "$ROOT_DIR/.."
+source_image="$(cat "$fixture/source-image-id")"
+if [[ ! "$source_image" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+  echo 'Restore fixture build did not return an immutable image ID.' >&2
+  exit 1
+fi
 printf '%s\n' \
   "WORDPRESS_IMAGE=$source_image" \
   'WORDPRESS_HTTP_PORT=' \
