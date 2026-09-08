@@ -2,6 +2,7 @@
 import json
 import os
 import signal
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -357,6 +358,27 @@ print(json.dumps(out))
         self.assertLess(time.monotonic()-started, 1)
 
     def test_real_backup_helper_and_findmnt_boundary_produce_verified_checksum_inventory(self):
+        # A CI checkout belongs to the runner, not the production root account.
+        # Install exact helper bytes into this test's private root-owned tree;
+        # never chown the checkout or bypass HostOps' real protection checks.
+        source_root = Path(__file__).resolve().parents[2]
+        installed_root = self.root/'installed-wordpress'
+        for name in ('bin/deploy-production', 'bin/rollback-production',
+                     'bin/backup', 'deploy/compose.yaml'):
+            target = installed_root/name
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copyfile(source_root/name, target)
+            target.chmod(0o700 if name.startswith('bin/') else 0o600)
+        self.config['wordpress_root'] = str(installed_root)
+        helper = installed_root/'bin/backup'
+        for owner, mode in ((1001, 0o700), (0, 0o720)):
+            with self.subTest(untrusted_owner=owner, mode=oct(mode)):
+                os.chown(helper, owner, 0)
+                helper.chmod(mode)
+                with self.assertRaises(ReleaseValidationError):
+                    self.ops._repo()
+        os.chown(helper, 0, 0)
+        helper.chmod(0o700)
         backup_root = self.root/'backup'; backup_root.mkdir()
         findmnt = self.root/'findmnt'
         findmnt.write_text('#!/usr/bin/python3\nimport sys\na=sys.argv[1:]\n'
@@ -380,7 +402,7 @@ print(json.dumps({'binding_sha256':hashlib.sha256(json.dumps(b,sort_keys=True,se
 ''')
         proof.chmod(0o700)
         self.config.update(findmnt=str(findmnt),backup_root=str(backup_root),backup_source='fixture:/backup',
-                           wordpress_root=str(Path(__file__).resolve().parents[2]),backup_adapter=str(proof),
+                           backup_adapter=str(proof),
                            minimum_retention_days=14,restore_max_age_seconds=3600)
         self.ops.request = request()
         result = self.ops.backup('wordpress','run-101')
