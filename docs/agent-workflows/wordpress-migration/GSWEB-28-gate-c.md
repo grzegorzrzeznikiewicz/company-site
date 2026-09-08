@@ -1,5 +1,38 @@
 # Gate C — production readiness review
 
+## Current decision update — 2026-09-08
+
+**VERDICT: NO-GO.** The owner has accepted the detailed local + production
+release design, with no staging server. No second approval of that design is
+pending. Historical public-staging prerequisites below are superseded, not
+current blockers.
+
+The no-staging implementation is in final verification. Tasks 1–6 (manifest,
+transport, single candidate, source validation/publisher, host and workflows) passed
+independent task reviews; the latest isolated Linux release-unit result is
+170/170, warnings=error. Scoped review of the combined final fixes confirmed
+all eleven findings addressed, with no new Critical or Important breakage
+identified in the fix diff. Exact new full Linux CI remains incomplete.
+Both real current rehearsal consumers
+were freshly rerun: 6 browser regression and 13 acceptance tests, TLS/SMTP
+and data-preserving broken-PHP code recovery passed. Each consumer also
+refused five deliberate content/media corruption or deletion cases and checked
+exact restoration before its receipt. These local ARM
+development receipts are not a clean amd64 CI artifact or a registry release.
+
+Before GO, confirm the real host/architecture/access, accepted content and
+Contact behavior, accessibility/legal/performance acceptance, TLS/routing,
+controlled SMTP recipient and actual delivery, encrypted off-host backup with
+retention/alarms and a current restore drill. Configure and test the agreed
+branch/environment protections, mode coordination and recovery authority.
+The first cutover then needs fresh approval of its exact version, operators
+and active window. None of these operational actions occurred during the
+local implementation. GSWEB-30 stays separately gated after stabilization.
+
+The dated sections below retain their original commits and results; they do
+not establish readiness of this uncommitted change. Current local evidence is
+summarized in [Confluence chapter 04 source](confluence/04-jakosc-i-odbior.md).
+
 ## Decision
 
 - **VERDICT: NO-GO**

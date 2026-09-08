@@ -1,7 +1,12 @@
 # Utrzymanie, bezpieczeństwo, backup i rollback
 
-Dokumentacja: 2026-09-07. Opisuje zasady i istniejące narzędzia; nie potwierdza
-skonfigurowania tych usług na produkcji.
+Dokumentacja: 2026-09-08. Opisuje zaakceptowane zasady i narzędzia;
+nie potwierdza skonfigurowania usług na produkcji.
+Transakcja hosta przeszła niezależny przegląd,
+podobnie jak integracja workflow. Niezależna recenzja poprawek końcowego
+przeglądu całości potwierdziła usunięcie wszystkich 11 usterek; w ich zakresie
+nie wykryto nowych problemów Critical/Important. Pełny CI i odbiór operacyjny
+pozostają otwarte.
 
 ## Role i sekrety
 
@@ -74,11 +79,50 @@ powiadamia właściciela o rzeczywistym wyniku i pozostawia zgłoszenie incydent
 otwarte do wyjaśnienia przyczyny. Progi alarmów, odpowiedzialne osoby i czas
 stabilizacji wymagają uzgodnienia przed pierwszym cutoverem.
 
+## Blokada wydań i bezpieczne odzyskiwanie
+
+Docelowy koordynator trzyma jedną blokadę hosta przez całe wdrożenie
+i weryfikację. Dotyczy to również wdrożeń oraz rollbacku starego stosu.
+Tryb jest sprawdzany przed uprawnieniami w workflow i ponownie po uzyskaniu
+blokady na hoście; brak albo wartość inna niż off, legacy, wordpress
+oznacza odmowę. Samo wcześniejsze sprawdzenie przez SSH nie wystarcza.
+
+Chroniony katalog /srv/gama-wordpress-production/control przechowuje
+zaakceptowaną wersję, zamiar operacji i incydent. Utrata odpowiedzi SSH
+nie dowodzi, że operacja się nie zaczęła. Przerwana operacja pozostaje
+blokująca; przed jej rozliczeniem trzeba sprawdzić również procesy potomne
+i nierozliczone operacje silnika Docker. Samo zamknięcie klienta Docker
+nie dowodzi, że instalator w kontenerze zakończył pracę. Niepewne zakończenie
+blokuje kolejną zmianę i odzyskiwanie. Błąd kontroli zdrowia po potwierdzonym
+zakończeniu zmian nadal może uruchomić kontrolowany rollback.
+Nie ma automatycznego kasowania dziennika ani wygodnego obejścia blokady.
+
+Historia wykonanych operacji starego stosu jest zapisywana osobno w
+legacy-completed.json. Ponowienie starszego identyfikatora nie może ponownie
+wdrożyć starszej wersji ani nadpisać nowszego dziennika. Ten sam identyfikator
+z inną zawartością jest odrzucany. Uszkodzona lub zbyt duża historia blokuje
+działanie; nie wolno usuwać jej jako sposobu na obejście odmowy.
+
+Awaryjny powrót do poprzedniego obrazu zachowuje bieżące dane i nie wymaga
+działającego wadliwego PHP ani wykonania nowej kopii. Powrót routingu
+odwołuje się do konkretnej zapisanej operacji cutoveru. Ręczne odzyskiwanie
+wymaga osobnej, świeżej zgody związanej z operacją, wersją, operatorami
+i oknem; przygotowanie tekstu zgody nie jest jej udzieleniem.
+
+Nieudana ręczna próba zachowuje pierwotny cel odzyskiwania i historię błędów.
+Po zwykłym niepowodzeniu można wykonać nową, świeżo zatwierdzoną operację
+dotyczącą tego samego celu, obrazu i zasobów. Nie dotyczy to stanu przerwanego,
+w którym zakończenie poprzednich zmian pozostaje niepewne.
+
+Nawet udane odzyskanie usługi nie zmienia nieudanego wydania w sukces
+i nie zamyka automatycznie incydentu. Te zasady są weryfikowane w kodzie;
+lokalny model nie jest dowodem gotowości rzeczywistej infrastruktury.
+
 ## Źródła
 
 - [Narzędzia backupu i odtworzenia](https://github.com/grzegorzrzeznikiewicz/company-site/blob/19a348dea7451b1b9780e336724731a9155321fe/docs/agent-workflows/wordpress-migration/GSWEB-24-backup-restore.md).
 - [Role, konta i przeglądy aktualizacji](https://github.com/grzegorzrzeznikiewicz/company-site/blob/19a348dea7451b1b9780e336724731a9155321fe/docs/agent-workflows/wordpress-migration/GSWEB-23-security-operations.md).
-- [Obecna implementacja rollbacku](https://github.com/grzegorzrzeznikiewicz/company-site/blob/19a348dea7451b1b9780e336724731a9155321fe/docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
+- [Historyczna implementacja rollbacku przed przebudową bez stagingu](https://github.com/grzegorzrzeznikiewicz/company-site/blob/19a348dea7451b1b9780e336724731a9155321fe/docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
 
 Wymagania stagingowe starszych źródeł nie obowiązują w nowym modelu.
 Produkcji i jej uprawnień nie zmieniono podczas przygotowania tej dokumentacji.

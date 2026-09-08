@@ -5,7 +5,7 @@ Ten katalog opisuje spójny sposób realizacji epika
 agentowych. Jira jest źródłem wymagań i statusu, a dokumenty w repozytorium
 ustalają wspólne zasady architektoniczne oraz sposób pracy.
 
-## Aktualizacja decyzji właściciela — 2026-09-06/07
+## Aktualizacja decyzji właściciela — 2026-09-06/08
 
 Obowiązuje praca na jednej gałęzi `feature/GSWEB-9`, środowisko lokalne
 i produkcja, **bez osobnego stagingu**. Kolejne standardowe wydania mają
@@ -15,12 +15,26 @@ Te decyzje zastępują sprzeczne wymagania stagingu, osobnych gałęzi i ręczne
 akceptacji każdego wydania w starszych dokumentach oraz poniższych pierwotnych
 rekomendacjach organizacji pracy.
 
-Kod w `19a348d` nadal implementuje poprzedni ręczny proces ze stagingiem.
+Kod w `19a348d` implementował poprzedni ręczny proces ze stagingiem.
 [Nowa specyfikacja](../../superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md)
-czeka na przegląd szczegółów przez właściciela; nie jest jeszcze wdrożeniem
-nowego pipeline'u ani decyzją GO. [Dokumentacja Confluence](confluence/README.md)
+została zaakceptowana przez właściciela 2026-09-07 odpowiedzią „Tak”.
+[Plan implementacji](../../superpowers/plans/2026-09-07-wordpress-no-staging-release.md)
+jest realizowany lokalnie, bez nowych commitów, pushowania ani worktree.
+Akceptacja specyfikacji nie jest wdrożeniem nowego pipeline'u ani decyzją GO.
+[Dokumentacja Confluence](confluence/README.md)
 rozdziela aktualną politykę od historycznych dowodów implementacji; dział GSWEB
 opublikowano w przestrzeni BP wskazanej przez właściciela.
+
+Stan częściowy 2026-09-08: manifest, bezpieczny transport, jeden kandydat
+dla dwóch prób, walidacja pochodzenia/publikator, transakcja hosta i workflow
+przeszły przeglądy zadań 1–6. Świeża izolowana próba na Linuksie zakończyła
+się wynikiem 170/170 testów jednostkowych. Powtórzono także obie rzeczywiste
+próby lokalne, z 6 testami regresji, 13 akceptacyjnymi i zachowaniem danych
+przy rollbacku. Każda próba wykryła pięć celowych uszkodzeń lub usunięć danych
+testowych. Niezależna recenzja poprawek potwierdziła usunięcie wszystkich
+11 usterek; w ich zakresie nie wykryto nowych problemów Critical/Important.
+To nie jest nowy pełny CI,
+publikacja obrazu ani wdrożenie produkcyjne; Gate C pozostaje NO-GO.
 
 ## Zawartość
 
@@ -39,40 +53,26 @@ opublikowano w przestrzeni BP wskazanej przez właściciela.
   zgłoszenia Jira.
 - [`prompts/02-ticket-reviewer.md`](prompts/02-ticket-reviewer.md) — niezależna
   recenzja wykonanej pracy.
-- [`prompts/03-gate-review.md`](prompts/03-gate-review.md) — odbiór etapu,
-  stagingu lub przełączenia produkcyjnego.
+- [`prompts/03-gate-review.md`](prompts/03-gate-review.md) — pierwotny szablon
+  odbioru etapu; jego wymagania stagingu zastępuje powyższa decyzja.
 
-## Rekomendowane użycie
+## Obowiązujący sposób realizacji
 
-Każde zgłoszenie powinno być realizowane w osobnym zadaniu Codex, na osobnej
-gałęzi lub w osobnym worktree. Nie uruchamiaj od razu wszystkich zgłoszeń.
-Zadanie zależne powinno wystartować dopiero po scaleniu i zweryfikowaniu zmian,
-na których się opiera.
+Całą zaakceptowaną migrację prowadzimy w rzeczywistym katalogu projektu,
+na `feature/GSWEB-9`. Nie tworzymy dodatkowych worktree, commitów ani pushy.
+Zakończenie zadania nie upoważnia do publikacji lub merge.
 
-1. Otwórz nowe zadanie Codex w tym projekcie.
-2. Wklej prompt uruchamiający z kluczem Jira:
+1. Wykonuj kolejny zależny etap zatwierdzonego planu, zachowując dotychczasowe
+   lokalne zmiany i dowody ich pochodzenia.
+2. Do każdego etapu dołącz testy zachowania oraz niezależny przegląd jego
+   pełnego zakresu, także nowych niezacommitowanych plików.
+3. Popraw istotne uwagi i zweryfikuj poprawkę przed rozpoczęciem zależnego etapu.
+4. Na końcu przeprowadź wspólny przegląd całości oraz aktualizację Jira
+   i Confluence zgodną z rzeczywistymi wynikami.
 
-   ```text
-   Zrealizuj GSWEB-9. Pracuj zgodnie z
-   docs/agent-workflows/wordpress-migration/prompts/01-ticket-worker.md.
-   ```
-
-3. Po zakończeniu otwórz osobne zadanie recenzenckie:
-
-   ```text
-   Zrecenzuj realizację GSWEB-9 zgodnie z
-   docs/agent-workflows/wordpress-migration/prompts/02-ticket-reviewer.md.
-   Porównaj gałąź wykonawczą z jej zatwierdzoną gałęzią bazową.
-   ```
-
-4. Popraw wykryte problemy w zadaniu wykonawczym, ponów recenzję i dopiero
-   potem scal zmianę.
-5. Upewnij się, że Jira odzwierciedla rzeczywisty stan oraz dowody wykonania.
-6. Uruchom następne zgłoszenie według `execution-plan.md`.
-
-Jeżeli chcesz prowadzić epik ręcznie krok po kroku, korzystaj bezpośrednio z
-`launch-sequence.md`. Każde polecenie wskazuje właściwy prompt procesowy, więc
-agent otrzymuje pełną procedurę bez kopiowania jej do rozmowy.
+`launch-sequence.md` i pierwotne prompty pozostają materiałem historycznym
+dotyczącym podziału zgłoszeń. Nie są zgodą na worktree, merge, staging,
+produkcję ani zmianę obowiązujących ograniczeń właściciela.
 
 ## Wybór następnego zadania
 
@@ -84,12 +84,12 @@ docs/agent-workflows/wordpress-migration/prompts/00-orchestrator.md.
 Nie implementuj go, dopóki nie potwierdzę wyboru.
 ```
 
-## Zasada jednego zgłoszenia
+## Zasada kontrolowanego zakresu
 
-Jedno zadanie Codex realizuje jedno zgłoszenie Jira. Wyjątkiem jest recenzja
-bramki, która sprawdza cały zakończony etap, ale nie implementuje nowych funkcji.
-Jeżeli podczas pracy zostanie odkryty nowy zakres, agent opisuje go i proponuje
-osobne zgłoszenie zamiast rozszerzać bieżące zadanie.
+Właściciel zlecił realizację całego epika w jednym ciągu. Poszczególne zadania
+Jira nadal mają oddzielne kryteria i dowody; przegląd jednego etapu nie zamyka
+automatycznie pozostałych. Nowy zakres poza zatwierdzoną migracją wymaga
+osobnego ustalenia zamiast cichego rozszerzania prac.
 
 ## Bezpieczny start
 

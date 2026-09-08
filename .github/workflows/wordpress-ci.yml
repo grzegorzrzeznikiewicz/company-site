@@ -183,14 +183,38 @@ jobs:
       - name: Load cached WordPress browser QA image
         run: wordpress/bin/ci-image-cache restore browser
 
-      - name: Rehearse immutable staging and rollback
+      - name: Build rehearse and seal one candidate
         env:
+          GAMA_RELEASE_WORKFLOW_ID: '351411087'
+          GAMA_RELEASE_WORKFLOW_PATH: .github/workflows/wordpress-ci.yml
           GAMA_RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-release-evidence
           # A real, pre-contact-fix WordPress revision; the PR merge parent is legacy-only.
           GAMA_ROLLBACK_BASE_REF: 043beee6490664758bdbbff55d7a9cdf9156a398
         run: |
+          set -euo pipefail
+          python3 wordpress/release/candidate.py build --output "$RUNNER_TEMP/candidate"
+          export GAMA_RELEASE_IMAGE_ID="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/candidate/candidate.json"))["image_id"])')"
+          export GAMA_RELEASE_GIT_SHA="$GITHUB_SHA"
+          export GAMA_RELEASE_RUN_ID="$GITHUB_RUN_ID"
+          export GAMA_RELEASE_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT"
+          export GAMA_RELEASE_RECEIPT_DIR="$RUNNER_TEMP/receipts"
+          (umask 077; mkdir -- "$GAMA_RELEASE_RECEIPT_DIR")
           wordpress/tests/staging-rollback-runtime.sh
           wordpress/tests/production-deployment-runtime.sh
+          python3 wordpress/release/candidate.py seal \
+            --candidate "$RUNNER_TEMP/candidate/candidate.json" \
+            --receipts "$RUNNER_TEMP/receipts" --output "$RUNNER_TEMP/release"
+
+      - name: Upload sealed release transport
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordpress-release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/release/image.tar
+            ${{ runner.temp }}/release/release.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Persist WordPress browser QA image cache
         if: ${{ always() }}

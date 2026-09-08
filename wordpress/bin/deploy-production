@@ -3,8 +3,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ "$#" -ne 10 || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' ]]; then
-  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8080> --confirm-image <immutable-image>' >&2
+mutation_only=0
+if [[ "$#" -gt 0 && "${!#}" == '--mutation-only' ]]; then
+  mutation_only=1
+  set -- "${@:1:$#-1}"
+fi
+bootstrap=0
+if [[ "$#" -gt 0 && "${!#}" == '--bootstrap' ]]; then
+  bootstrap=1
+  set -- "${@:1:$#-1}"
+fi
+
+if [[ ( "$#" -ne 10 && "$#" -ne 12 ) || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' || ( "$#" -eq 12 && "${11}" != '--rehearsal-fixture' ) ]]; then
+  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8080> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--mutation-only]' >&2
   exit 64
 fi
 
@@ -13,6 +24,37 @@ env_file="$4"
 image="$6"
 http_port="$8"
 confirmed_image="${10}"
+rehearsal_fixture=''
+if [[ "$#" -eq 12 ]]; then
+  rehearsal_fixture="${12}"
+fi
+
+if [[ -n "$rehearsal_fixture" && "$project" == 'gama-wp-production' ]]; then
+  echo 'The stable production namespace refuses the rehearsal fixture boundary.' >&2
+  exit 64
+fi
+
+if [[ -n "$rehearsal_fixture" ]]; then
+  if [[ ! "$project" =~ ^gama-wp-production-candidate-test-([a-z0-9][a-z0-9-]{7,39})$ ]]; then
+    echo 'A rehearsal fixture requires a unique gama-wp-production-candidate-test-<token> namespace.' >&2
+    exit 64
+  fi
+  rehearsal_token="${BASH_REMATCH[1]}"
+  ownership_file="$rehearsal_fixture/.gama-production-rehearsal-owner"
+  ca_file="$rehearsal_fixture/ca.crt"
+  php_ca_file="$rehearsal_fixture/openssl-ca.ini"
+  if [[ "$rehearsal_fixture" != /* || ! -d "$rehearsal_fixture" || -L "$rehearsal_fixture" \
+    || ! -f "$ownership_file" || -L "$ownership_file" \
+    || ! -f "$ca_file" || -L "$ca_file" \
+    || ! -f "$php_ca_file" || -L "$php_ca_file" ]]; then
+    echo 'The rehearsal fixture must be an absolute owned directory with regular CA files.' >&2
+    exit 64
+  fi
+  if [[ "$(cat "$ownership_file")" != "$rehearsal_token" ]]; then
+    echo 'The rehearsal fixture ownership token does not match its namespace.' >&2
+    exit 64
+  fi
+fi
 
 if [[ "$project" != 'gama-wp-production' && ! "$project" =~ ^gama-wp-production-candidate-[a-z0-9][a-z0-9-]{2,60}$ ]]; then
   echo 'Production project must be stable or an isolated gama-wp-production-candidate-<id> namespace.' >&2
@@ -91,20 +133,47 @@ else
 fi
 
 COMPOSE=(docker compose --project-name "$project" --env-file "$env_file" --file "$ROOT_DIR/deploy/compose.yaml")
+if [[ -n "$rehearsal_fixture" ]]; then
+  export GAMA_PRODUCTION_REHEARSAL_FIXTURE="$rehearsal_fixture"
+  COMPOSE+=(--file "$ROOT_DIR/tests/production-rehearsal.override.yaml")
+fi
 if [[ "$image" == *@sha256:* ]]; then
   "${COMPOSE[@]}" pull wordpress install bootstrap
-else
-  docker image inspect "$image" >/dev/null
 fi
-"${COMPOSE[@]}" up --detach db uploads-init
-"${COMPOSE[@]}" stop wordpress >/dev/null 2>&1 || true
+resolved_image="$(docker image inspect --format '{{.Id}}' "$image")"
+if [[ ! "$resolved_image" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+  echo 'WORDPRESS_IMAGE did not resolve to an immutable local image ID.' >&2
+  exit 1
+fi
+if [[ "$image" != *@sha256:* && "$resolved_image" != "$confirmed_image" ]]; then
+  echo 'WORDPRESS_IMAGE does not resolve to the confirmed local image ID.' >&2
+  exit 1
+fi
+if [[ "$bootstrap" -eq 1 ]]; then
+  "${COMPOSE[@]}" up --detach db uploads-init
+fi
+"${COMPOSE[@]}" stop wordpress
 "${COMPOSE[@]}" run --rm --no-deps install
-"${COMPOSE[@]}" up --detach --wait wordpress
-"${COMPOSE[@]}" run --rm bootstrap
+if [[ "$mutation_only" == 1 ]]; then
+  "${COMPOSE[@]}" up --detach --no-deps wordpress
+else
+  "${COMPOSE[@]}" up --detach --wait --no-deps wordpress
+fi
+if [[ "$bootstrap" -eq 1 ]]; then
+  "${COMPOSE[@]}" run --rm bootstrap
+fi
+
+if [[ "$mutation_only" == 1 ]]; then
+  # HostOps verifies health and identity separately after conclusive success.
+  exit 0
+fi
 
 wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
-running_image="$(docker inspect --format '{{.Config.Image}}' "$wordpress_container")"
-[[ "$running_image" == "$image" ]]
+running_image="$(docker inspect --format '{{.Image}}' "$wordpress_container")"
+if [[ "$running_image" != "$resolved_image" ]]; then
+  echo 'Running production container image does not match resolved WORDPRESS_IMAGE.' >&2
+  exit 1
+fi
 
 echo "Production candidate deployed behind the existing routing: $image"
 echo "Namespace: $project"

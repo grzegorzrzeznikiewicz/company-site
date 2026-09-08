@@ -9,70 +9,18 @@ rollback_workflow="$REPOSITORY_ROOT/.github/workflows/wordpress-production-rollb
 deploy="$ROOT_DIR/bin/deploy-production"
 rollback="$ROOT_DIR/bin/rollback-production"
 
-for file in "$staging_workflow" "$production_workflow" "$rollback_workflow" "$deploy" "$rollback"; do
+for file in "$production_workflow" "$rollback_workflow" "$deploy" "$rollback"; do
   [[ -f "$file" ]]
 done
-
-grep -Fq 'wordpress-staging-release-${{ inputs.git_sha }}' "$staging_workflow"
-grep -Fq 'actions/upload-artifact@' "$staging_workflow"
-grep -Fq 'staging-release.json' "$staging_workflow"
-
-grep -Fq 'name: WordPress Production Deployment' "$production_workflow"
-grep -Fq 'workflow_dispatch:' "$production_workflow"
-grep -Fq 'staging_run_id:' "$production_workflow"
-grep -Fq "gh run view" "$production_workflow"
-grep -Fq "gh run download" "$production_workflow"
-grep -Fq 'WordPress Staging Deployment|success' "$production_workflow"
-grep -Fq 'environment: wordpress-production' "$production_workflow"
-grep -Fq 'environment: wordpress-production-cutover' "$production_workflow"
-grep -Fq 'gama-wp-production-candidate-' "$production_workflow"
-grep -Fq 'cleanup_candidate' "$production_workflow"
-grep -Fq 'name: Remove isolated candidate resources' "$production_workflow"
-grep -Fq 'candidate.env' "$production_workflow"
-grep -Fq 'down --volumes --remove-orphans' "$production_workflow"
-grep -Fq 'No running production WordPress exists, but its namespace is not empty' "$production_workflow"
-grep -Fq 'PRODUCTION_BACKUP_ROOT' "$production_workflow"
-grep -Fq 'PRODUCTION_BACKUP_EXPECTED_SOURCE' "$production_workflow"
-grep -Fq 'PRODUCTION_SMOKE_RECIPIENT' "$production_workflow"
-grep -Fq 'wordpress/bin/backup' "$production_workflow"
-grep -Fq 'wp_mail' "$production_workflow"
-grep -Fq '/usr/local/sbin/gama-wordpress-cutover' "$production_workflow"
-grep -Fq 'recover_stable_on_error' "$production_workflow"
-grep -Fq 'if: ${{ failure() }}' "$production_workflow"
-grep -Fq '/usr/local/sbin/gama-wordpress-rollback-routing' "$production_workflow"
-grep -Fq 'gama-wp-production' "$production_workflow"
-grep -Fq 'deploy-production' "$production_workflow"
-if grep -Eq 'docker/build-push-action|docker build|build-release' "$production_workflow"; then
-  echo 'Production must promote the staging-tested image without rebuilding it.' >&2
-  exit 1
-fi
-if grep -Eq 'uses:[[:space:]]+[^[:space:]]+@(v[0-9]|main|master)([[:space:]#]|$)' "$production_workflow" "$rollback_workflow"; then
-  echo 'Production workflows must pin third-party actions to full commit SHAs.' >&2
-  exit 1
-fi
-if grep -Fq 'cp "$target/.env"' "$production_workflow" "$rollback_workflow"; then
-  echo 'Production workflows must not duplicate the secret-bearing host env file.' >&2
-  exit 1
-fi
-if grep -Eq '^  (push|pull_request|schedule):' "$production_workflow" "$rollback_workflow"; then
-  echo 'Production deployment and rollback must remain manual-only workflows.' >&2
-  exit 1
-fi
-if grep -Eq -- "--project-name gama-wp-production([ \"']|$).*(down|rm).*(--volumes|-v)|docker volume rm|rm -rf" "$production_workflow"; then
-  echo 'Production deployment must not remove stable persistent data.' >&2
-  exit 1
-fi
-
-grep -Fq 'name: WordPress Production Rollback' "$rollback_workflow"
-grep -Fq 'workflow_dispatch:' "$rollback_workflow"
-grep -Fq 'environment: wordpress-production-rollback' "$rollback_workflow"
-grep -Fq 'rollback-production' "$rollback_workflow"
-grep -Fq '/usr/local/sbin/gama-wordpress-rollback-routing' "$rollback_workflow"
-grep -Fq '"$target/bin/backup"' "$rollback_workflow"
-if grep -Eq 'docker compose[^\n]*(down|rm).*(--volumes|-v)|docker volume rm|rm -rf' "$rollback_workflow"; then
-  echo 'Production rollback must preserve database and uploads.' >&2
-  exit 1
-fi
+[[ ! -e "$staging_workflow" ]]
+# Workflow trust/permission/dependency checks run through the pinned YAML parser
+# in wordpress-ci-contract.sh; extracted shell and host boundaries run separately.
+for workflow in "$production_workflow" "$rollback_workflow"; do
+  if grep -Eq 'docker/build-push-action|docker build|build-release|gama-wp-production-candidate-|docker volume rm|rm -rf' "$workflow"; then
+    echo 'Production entry points must consume verified artifacts and preserve runtime data.' >&2
+    exit 1
+  fi
+done
 
 grep -Fq 'gama-wp-production' "$deploy"
 grep -Fq 'gama-wp-production-candidate-' "$deploy"

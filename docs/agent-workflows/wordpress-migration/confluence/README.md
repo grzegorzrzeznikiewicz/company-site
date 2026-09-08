@@ -70,10 +70,42 @@ potwierdzono pojedynczy zapis decyzji w każdym opisie oraz brak otwartych
 edytorów. Statusów, przypisań i estymacji nie zmieniano; wcześniejsze
 komentarze pozostawiono jako historię poprzedniego modelu.
 
-Szczegółowa [specyfikacja nowego workflow](../../../superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md)
-nadal czeka na przegląd właściciela. Nie zmieniono kodu pipeline'u, nie
+Na zakończenie tej synchronizacji szczegółowa
+[specyfikacja nowego workflow](../../../superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md)
+czekała na przegląd właściciela. W ramach synchronizacji nie zmieniono kodu pipeline'u, nie
 wykonano merge, publikacji obrazu ani operacji produkcyjnej. Nie uruchamiano
 ponownie testów runtime z powodu zmian w opisach i dokumentacji.
+
+## Akceptacja specyfikacji i rozpoczęcie implementacji — 2026-09-07
+
+Późniejsza odpowiedź właściciela „Tak” zatwierdziła szczegółową specyfikację.
+Rozpoczęto [plan implementacji](../../../superpowers/plans/2026-09-07-wordpress-no-staging-release.md)
+na `feature/GSWEB-9`, bez commitów, pushowania i dodatkowych worktree.
+W rozdziale Confluence „Wydania produkcyjne bez stagingu” zaktualizowano
+status oraz zapis decyzji i potwierdzono opublikowany widok. Zachowano
+24 akapity, nagłówki, listy, tytuł i odnośniki; nie zmieniano uprawnień.
+Pierwszy cutover, publikacja obrazu i uruchomienie produkcyjne nie zostały wykonane.
+
+## Aktualizacja wyników i ponowna publikacja — 2026-09-08
+
+Rozdział [Testy, audyt i odbiór migracji](04-jakosc-i-odbior.md) uzupełniono
+lokalnie o świeże próby źródeł, dokładnych ZIP-ów i obrazu developerskiego.
+Oddzielono je od historycznego CI oraz wskazano ograniczenie emulacji amd64
+i późniejszą świeżą próbę obu rzeczywistych konsumentów po poprawkach helperów.
+Lokalnie zaktualizowano również [Utrzymanie](05-utrzymanie.md) o blokadę
+hosta, rozliczanie incydentów i zgodę na odzyskiwanie. Aktualizacje rozdziałów
+03, 04 i 05 **opublikowano ponownie w Confluence** przez rozszerzenie Chrome
+w profilu Gama Software. W opublikowanych widokach potwierdzono wszystkie
+144 oczekiwane fragmenty treści i 11 odnośników. Niezależne porównanie
+znormalizowanej treści z lokalnymi źródłami potwierdziło zgodność trzech rozdziałów.
+Historyczne adresy, tytuły i dowody pozostają bez zmian.
+
+W [GSWEB-8](https://gamasoftware.atlassian.net/browse/GSWEB-8) zapisano i odczytano
+pojedynczy komentarz „Aktualizacja implementacji i dokumentacji — 2026-09-08”.
+Aktualizuje on historyczne informacje o oczekującej specyfikacji i implementacji,
+bez zmiany statusów zgłoszeń. Lokalna implementacja i niezależny przegląd są
+zakończone; pełny CI nowej wersji, odbiór operacyjny i produkcja pozostają otwarte.
+Gate C nadal NO-GO. Nie wykonano commitów, pushowania, merge ani wdrożenia.
 
 ## Zasady aktualizacji
 
@@ -88,13 +120,15 @@ ponownie testów runtime z powodu zmian w opisach i dokumentacji.
 
 ## Aktualność źródeł
 
-Kod odniesienia: `19a348dea7451b1b9780e336724731a9155321fe`.
+Kod odniesienia historycznej publikacji: `19a348dea7451b1b9780e336724731a9155321fe`.
 Metadane PR #8 odczytano 2026-09-07: otwarty, bez merge, `main` nadal
 `c26e19699c7a66a15e0854cf3bb4fce342bf2e2c`.
-Wyniki testów i zestawienie statusów dzieci dotyczą potwierdzeń z 2026-09-06;
-sam odczyt dokumentacji nie oznacza ponownego uruchomienia testów.
+Historyczne wyniki CI dotyczą potwierdzeń z 2026-09-06. Nowe wyniki lokalne
+dotyczą niezacommitowanej implementacji nad `87cab81a06057142463c82201e8cbabe7d2593a1`;
+opisano je osobno w rozdziale 04. Publikacja dokumentacji nie jest nowym CI.
 
 Decyzja właściciela z 2026-09-06 o braku stagingu i automatycznych kolejnych
 wydaniach zastępuje sprzeczne wymagania wcześniejszych runbooków. Nie oznacza
-jednak, że ich workflow zostały już przebudowane. Niniejszy pakiet dokumentacji
-nie nadaje Gate C ani Gate D statusu GO.
+jednak ich wdrożenia: workflow przebudowano i sprawdzono lokalnie, lecz nie
+opublikowano nowej wersji źródeł. Niniejszy pakiet dokumentacji nie nadaje
+Gate C ani Gate D statusu GO.

@@ -1,7 +1,36 @@
 # GSWEB-25 — CI and quality gates
 
-`.github/workflows/wordpress-ci.yml` adds four named checks without changing
-or deleting the React/Symfony workflows:
+## Current no-staging implementation status — 2026-09-08
+
+The detailed no-staging design was accepted on 2026-09-07. The four named
+WordPress gates below remain mandatory; the new flow must additionally build
+one release candidate, exercise both real rehearsal consumers against that
+same image and seal their exact run/attempt-bound receipts. The independently
+reviewed producer, manifest, transport, source/publisher and host modules exist
+locally. Their new workflow wiring passed its task review; combined final-review
+fixes passed local tests and scoped independent review. All eleven findings
+were addressed, with no new Critical or Important breakage identified in the
+fix diff. No new full remote CI or registry publication is claimed.
+
+Controller verification of the amended release modules passed 170/170 tests
+on a pinned native Linux Python3.12 fixture, with warnings treated as errors.
+This isolated process/HTTP/archive proof is not the four complete CI jobs or
+production evidence. Fresh unchanged-input source QA and exact theme/contact
+ZIP lifecycle results are recorded separately in
+[the acceptance evidence chapter](confluence/04-jakosc-i-odbior.md).
+
+`staging-rollback-runtime.sh` is a historical name for a disposable test
+fixture, not a required remote staging service. Staging-host acceptance in
+the dated historical evidence below has been superseded by the owner's
+local + production decision. The fixed-namespace runtime gate remains unsafe
+on the owner's preview daemon and must run inside an isolated Linux runner.
+Gate C remains NO-GO pending exact new CI and operational/owner acceptance.
+
+## Existing gates and historical evidence
+
+`.github/workflows/wordpress-ci.yml` retains four named checks without changing
+or deleting the React/Symfony quality workflow. Legacy deployment and rollback
+entry points are now guarded separately by the shared mode/lock contract:
 
 - **WordPress Source and Build** validates extension policy and static
   contracts, lints every first-party runtime JS/CSS asset, checks all
@@ -266,20 +295,37 @@ wordpress/bin/start
 wordpress/tests/backup-restore-runtime.sh
 ```
 
-The release regression scripts generate exact disposable staging and guarded
-production-model namespaces and preserve the explicit rollback fixture. Their
-explicit host-side artifact directory survives namespace cleanup; retain or
-upload it before disposing of the machine:
+The two release scripts now require a candidate produced once by
+`wordpress/bin/build-release`; running them without identity inputs refuses
+before Docker. They generate uniquely owned disposable regression/production-
+model namespaces, never a remote staging server. Retain their receipts and
+browser artifacts outside the temporary fixture directory.
 
-```bash
-release_artifact_root="$(mktemp -d /tmp/wordpress-release-evidence.XXXXXX)"
-export GAMA_RELEASE_ARTIFACT_ROOT="$release_artifact_root"
-export GAMA_ROLLBACK_BASE_REF=043beee6490664758bdbbff55d7a9cdf9156a398
-wordpress/bin/ci-image-cache restore browser
-wordpress/tests/staging-rollback-runtime.sh
-wordpress/tests/production-deployment-runtime.sh
-wordpress/bin/ci-image-cache save browser
-```
+Both consumers require the SAME `GAMA_RELEASE_IMAGE_ID`,
+`GAMA_RELEASE_GIT_SHA`, `GAMA_RELEASE_RUN_ID` and
+`GAMA_RELEASE_RUN_ATTEMPT` from that candidate's JSON. Set
+`GAMA_RELEASE_RECEIPT_DIR` to a new existing absolute private directory and
+`GAMA_RELEASE_ARTIFACT_ROOT` to a retained evidence directory. Do not invent
+CI provenance or overwrite previous receipts. The reviewed rollback baseline
+`GAMA_ROLLBACK_BASE_REF=043beee6490664758bdbbff55d7a9cdf9156a398` must exist
+in the checkout; CI needs its actual history.
+
+A dirty local build must explicitly use `--test-dirty <safe-marker>` and
+`--output <new-directory>`. Only that development path may select
+`--development-platform linux/arm64`; both consumers then require the matching
+`GAMA_RELEASE_DEVELOPMENT_PLATFORM=linux/arm64`. Its receipts remain local
+development evidence and sealing it as a release is refused. Never fabricate
+a clean checkout or Git commit to bypass that distinction.
+
+The CI build/receipt/seal command wiring is complete locally, pending whole-change acceptance and an actual remote CI run.
+The completed root local command and full output are retained under the
+implementation plan's final-fix-root-regression-runtime.log and
+final-fix-root-production-runtime.log, together with matching receipts and
+independently verified cleanup. No publication of those local images occurred.
+Both actual consumers refused five deliberate owned-fixture data-loss cases
+and verified exact restoration before writing their receipts. Existing bootstrap,
+Compose and certificate warnings are retained; expected deleted-post refusals
+are negative-test evidence, not hidden failed suite results.
 
 ## Historical duration evidence
 

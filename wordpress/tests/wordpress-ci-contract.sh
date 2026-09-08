@@ -101,4 +101,115 @@ for legacy in ci.yml deploy.yml rollback.yml; do
 done
 [[ -f "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
 
+# Parse real YAML using the existing lock-pinned assets QA dependency. This is
+# required by the source gate and also checks deliberate broken graph fixtures.
+assets_image='gama-wordpress-assets-qa:gsweb25'
+docker build --tag "$assets_image" --file "$REPOSITORY_ROOT/wordpress/qa/assets.Dockerfile" "$REPOSITORY_ROOT" >/dev/null
+docker run --rm -i --network none --read-only \
+  --mount "type=bind,src=$REPOSITORY_ROOT/.github/workflows,dst=/workflows,readonly" \
+  --entrypoint node "$assets_image" <<'JS'
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const yaml = require('/qa/node_modules/js-yaml');
+assert.equal(require('/qa/node_modules/js-yaml/package.json').version, '4.3.2');
+const names = ['wordpress-ci.yml', 'wordpress-production.yml', 'wordpress-production-rollback.yml', 'deploy.yml', 'rollback.yml'];
+const files = Object.fromEntries(names.map(name => [name, yaml.load(fs.readFileSync('/workflows/' + name, 'utf8'))]));
+function check(all) {
+  const wp = all['wordpress-production.yml'];
+  const ci = all['wordpress-ci.yml'];
+  const list = value => value === undefined ? [] : Array.isArray(value) ? value : [value];
+  assert.deepEqual(Object.values(ci.jobs).map(job => job.name), [
+    'WordPress Source and Build', 'WordPress Package Lifecycle',
+    'WordPress Runtime and Restore', 'WordPress Release Regression']);
+  assert.equal(ci.permissions.contents, 'read');
+  assert(!JSON.stringify(ci).includes('secrets.'));
+  assert.deepEqual(wp.on.workflow_run, {workflows: ['WordPress Quality Gates'], types: ['completed']});
+  for (const [name, workflow] of Object.entries(all)) {
+    assert(workflow.jobs && workflow.on && workflow.permissions);
+    const jobs = workflow.jobs;
+    const ancestors = (id, seen = new Set()) => {
+      assert(jobs[id], 'missing dependency ' + id);
+      assert(!seen.has(id), 'cyclic dependency ' + id);
+      const next = new Set(seen).add(id);
+      return list(jobs[id].needs).flatMap(parent => [parent, ...ancestors(parent, next)]);
+    };
+    if (name !== 'wordpress-ci.yml') {
+      assert.deepEqual(workflow.concurrency, {group: 'wordpress-production', 'cancel-in-progress': false, queue: 'max'});
+      assert(!Object.values(workflow.permissions).includes('write'));
+    }
+    for (const [id, job] of Object.entries(jobs)) {
+      const chain = ancestors(id);
+      const permissions = job.permissions || workflow.permissions;
+      assert(!('administration' in permissions));
+      const text = JSON.stringify(job);
+      if (name !== 'wordpress-ci.yml' && (text.includes('secrets.') || Object.values(permissions).includes('write'))) {
+        assert(chain.includes(name === 'wordpress-production-rollback.yml' ? 'prepare' : 'guard'));
+      }
+      for (const step of job.steps) {
+        if (step.uses) assert(/^[^@]+@[a-f0-9]{40}$/.test(step.uses), 'mutable action');
+        if ((name === 'wordpress-production.yml' || name === 'wordpress-production-rollback.yml') && step.uses?.startsWith('actions/checkout@')) {
+          assert.equal(step.with.ref, 'refs/heads/main');
+          assert.equal(step.with['persist-credentials'], false);
+        }
+        if (step.uses?.startsWith('appleboy/ssh-action@')) {
+          assert.notEqual(permissions.packages, 'write');
+          assert.equal(step.with.envs, 'RELEASE_REQUEST');
+          assert(!/chmod|\binstall\b|candidate-|docker compose|docker login/.test(step.with.script));
+          assert(step.with.script.includes('/srv/gama-wordpress-production/tools/wordpress/bin/production-'));
+        }
+      }
+    }
+  }
+  assert.deepEqual(list(wp.jobs.validate.needs), ['guard', 'owner-gate']);
+  assert(wp.jobs.validate.if.includes("needs.guard.outputs.operation == 'standard'"));
+  assert(wp.jobs.validate.if.includes('!cancelled()'));
+  assert.deepEqual(list(wp.jobs['owner-gate'].needs), ['guard', 'cutover-request']);
+  assert.equal(Object.values(wp.jobs).filter(job => job.environment === 'wordpress-production-cutover').length, 1);
+  assert.equal(wp.jobs.deploy.environment, 'wordpress-production');
+  assert.equal(wp.jobs.publish.permissions.packages, 'write');
+  assert.equal(wp.jobs.publish.environment, undefined);
+  assert(!/SSH|SMTP|PRODUCTION_SERVER|PROD_MAILER/.test(JSON.stringify(wp.jobs.publish)));
+  assert(!/secrets\./.test(JSON.stringify(wp.jobs['owner-gate'])));
+  for (const [name, operation] of [['deploy.yml', 'deploy'], ['rollback.yml', 'rollback']]) {
+    const guard = all[name].jobs.guard;
+    assert.deepEqual(guard.permissions, {contents: 'read'});
+    assert.equal(guard.steps.length, 2);
+    assert(guard.steps[0].uses.startsWith('actions/checkout@'));
+    assert.equal(guard.steps[0].with.ref, 'refs/heads/main');
+    assert.equal(guard.steps[0].with['persist-credentials'], false);
+    assert.equal(guard.steps[1].run.trim(), 'python3 -m wordpress.release.legacy guard ' + operation);
+    assert(!/secrets\./.test(JSON.stringify(guard)));
+  }
+  assert(list(wp.jobs.publish.needs).includes('validate'));
+  assert(list(wp.jobs.deploy.needs).includes('publish'));
+  assert.equal(all['wordpress-production-rollback.yml'].jobs.recover.environment, 'wordpress-production-rollback');
+  const publisherSteps = wp.jobs.publish.steps;
+  assert(publisherSteps.findIndex(s => s.name === 'Verify exact transport on publisher runner') < publisherSteps.findIndex(s => s.uses?.startsWith('docker/login-action@')));
+  const releaseSteps = ci.jobs['release-regression'].steps;
+  const seal = releaseSteps.findIndex(s => s.name === 'Build rehearse and seal one candidate');
+  const upload = releaseSteps.findIndex(s => s.name === 'Upload sealed release transport');
+  assert(seal >= 0 && upload > seal);
+  assert.equal(releaseSteps[upload].if, undefined);
+  assert.equal(releaseSteps[upload].with.name, 'wordpress-release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}');
+  assert.deepEqual(releaseSteps[upload].with.path.trim().split('\n'), ['${{ runner.temp }}/release/image.tar', '${{ runner.temp }}/release/release.json']);
+}
+check(files);
+for (const mutate of [
+  f => { f['wordpress-production.yml'].jobs.publish.needs = []; },
+  f => { f['wordpress-production.yml'].jobs.publish.env = {SMTP_PASSWORD: '${{ secrets.SMTP_PASSWORD }}'}; },
+  f => { f['wordpress-production.yml'].jobs.validate.steps[0].with.ref = '${{ github.event.workflow_run.head_sha }}'; },
+  f => { f['wordpress-production.yml'].permissions.packages = 'write'; },
+  f => { f['wordpress-production.yml'].jobs.deploy.environment = 'wordpress-production-cutover'; },
+  f => { f['deploy.yml'].jobs.deploy.steps[0].uses = 'actions/checkout@main'; },
+  f => { f['wordpress-ci.yml'].jobs['release-regression'].steps.find(s => s.name === 'Upload sealed release transport').if = '${{ always() }}'; },
+  f => { f['deploy.yml'].jobs.guard.steps[0].with.ref = '${{ github.event.workflow_run.head_sha }}'; },
+  f => { f['rollback.yml'].jobs.guard.steps[1].run = 'python3 -m wordpress.release.legacy guard deploy'; },
+  f => { f['rollback.yml'].jobs.guard.permissions.packages = 'write'; },
+]) {
+  const broken = structuredClone(files); mutate(broken);
+  assert.throws(() => check(broken), 'broken workflow graph accepted');
+}
+console.log('Actual workflow YAML and ten negative permission/dependency fixtures passed.');
+JS
+
 echo 'WordPress CI workflow and legacy-pipeline preservation contract passed.'

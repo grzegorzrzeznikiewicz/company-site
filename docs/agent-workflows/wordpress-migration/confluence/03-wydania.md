@@ -2,9 +2,11 @@
 
 Decyzja właściciela: 2026-09-06, potwierdzona w rozmowie i zapisana w
 [GSWEB-8](https://gamasoftware.atlassian.net/browse/GSWEB-8).
-Dokumentacja: 2026-09-07.
+Dokumentacja: 2026-09-08. Wyniki lokalne nie są potwierdzeniem nowego CI
+ani uruchomienia produkcyjnego.
 
-**Status: model zaakceptowany; dostosowanie pipeline'u jeszcze niewykonane.**
+**Status: model i szczegółowa specyfikacja zaakceptowane; implementacja lokalna
+i niezależna recenzja zakończone, pełny CI i uruchomienie operacyjne pozostają otwarte.**
 Ten dokument zapisuje uzgodnione wymagania. Nie jest potwierdzeniem wdrożenia
 ani zgodą na pierwsze przełączenie produkcji.
 
@@ -46,18 +48,32 @@ Należy odebrać wygląd, treści, działanie Kontaktu, dostępność i treści 
 Samo zaakceptowanie tego modelu nie pozwala wykonać pierwszego cutoveru,
 zmienić DNS/routingu, nadpisać bazy czy usunąć starego stosu.
 
-## Różnica względem obecnego kodu
+## Historia i aktualna przebudowa
 
-W commicie `19a348d` workflow WordPress produkcji jest uruchamiany ręcznie
-i wymaga identyfikatora udanego przebiegu stagingowego. Oddzielny staging
-dostarcza obecnie metadane artefaktu do produkcji. Istnieje też zdalna próba
-kandydata przed przełączeniem. Te zależności wymagają ponownego zaprojektowania
-w ramach nowego modelu; nie wolno przedstawiać ich jako gotowego procesu
-bez stagingu.
+W historycznym commicie `19a348d` workflow produkcji uruchamiano ręcznie
+z identyfikatorem udanego przebiegu stagingowego. Oddzielny staging dostarczał
+metadane artefaktu, istniała też zdalna próba kandydata przed przełączeniem.
+Nie jest to obowiązujący model wydań.
 
-Obecny legacy workflow może uruchomić wdrożenie React/Symfony po zielonym CI
-na `main`. Dlatego merge nie jest neutralnym sposobem zarejestrowania nowych
-workflow. Przełączenie automatyzacji musi zapobiec konkurującym wdrożeniom.
+Lokalna przebudowa na `feature/GSWEB-9` zastępuje te zależności jednym
+obrazem z CI, dwiema próbami tego samego obrazu i niezależną weryfikacją
+jego pochodzenia. Walidator ma odczyt metadanych, publikator zapis do
+rejestru bez SSH/SMTP, a osobne zadanie przekazuje żądanie do chronionego
+koordynatora hosta. Pierwszy cutover i ręczne odzyskiwanie mają własne,
+rzeczywiste bramki zgody. Tekst przygotowany do zatwierdzenia nie jest zgodą.
+
+Kod i workflow pozostają niezacommitowane. Niezależna recenzja poprawek
+końcowego przeglądu potwierdziła usunięcie wszystkich 11 usterek; w ich
+zakresie nie wykryto nowych problemów Critical/Important.
+Nie ma nowego pełnego CI, publikacji obrazu ani wdrożenia na produkcję.
+Usunięcie lokalnego pliku dawnego workflow stagingowego nie oznacza
+usunięcia jakichkolwiek serwerów, danych lub historycznych dowodów.
+
+Opublikowany legacy workflow może uruchomić wdrożenie React/Symfony po
+zielonym CI na `main`. Dlatego merge nie jest neutralnym zapisem nowych
+workflow. Lokalna przebudowa dodaje tryby off/legacy/wordpress, wspólną
+kolejkę i blokadę hosta. Konfiguracja repozytorium oraz hosta musi zostać
+osobno zweryfikowana i zatwierdzona przed włączeniem automatyzacji.
 
 ## Prace do wykonania w epice
 
@@ -73,11 +89,15 @@ Szczegóły implementacji wymagają spójnej specyfikacji, planu zmian, testów
 negatywnych i niezależnego przeglądu. Zmiana dokumentacji sama nie zamyka
 tych zgłoszeń i nie nadaje Gate C statusu GO.
 
-Lokalna specyfikacja szczegółowa jest przygotowana do przeglądu właściciela:
+Właściciel zatwierdził szczegółową specyfikację 2026-09-07 odpowiedzią „Tak”:
 `docs/superpowers/specs/2026-09-07-wordpress-no-staging-release-design.md`.
-Nie jest jeszcze zatwierdzeniem jej szczegółów ani implementacją workflow.
+Realizacja planu została rozpoczęta na `feature/GSWEB-9`. Zmiany pozostają
+lokalne i niezacommitowane, bez pushowania. Akceptacja specyfikacji nie oznacza
+ukończenia implementacji, przejścia nowych testów CI ani zgody na pierwsze
+przełączenie produkcji.
 
 ## Historyczna implementacja
 
 [Pipeline w commicie 19a348d](https://github.com/grzegorzrzeznikiewicz/company-site/blob/19a348dea7451b1b9780e336724731a9155321fe/docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md)
-jest źródłem informacji o obecnym kodzie, nie docelową polityką środowisk.
+opisuje poprzedni proces, nie bieżący niezacommitowany kod ani docelową
+politykę środowisk.

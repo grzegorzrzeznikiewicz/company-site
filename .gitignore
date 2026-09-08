@@ -25,6 +25,7 @@ wordpress/.env
 /wordpress/**/*.log
 /wordpress/**/vendor/
 /wordpress/**/node_modules/
+/wordpress/**/__pycache__/
 /wordpress/**/coverage/
 /wordpress/**/.phpunit.cache/
 /wordpress/**/.phpunit.result.cache

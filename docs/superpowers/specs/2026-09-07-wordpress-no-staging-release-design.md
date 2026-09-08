@@ -2,10 +2,16 @@
 
 Data: 2026-09-07. Zakres: GSWEB-25, 26, 28 i 29, z zachowaniem granicy GSWEB-30.
 
-**Status: specyfikacja do przeglądu właściciela.** Właściciel zaakceptował model
-lokalne + produkcja oraz automatyczne kolejne wydania po zatwierdzonym PR.
-Poniższe szczegóły techniczne nie są jeszcze zaimplementowane ani wdrożone.
+**Status: specyfikacja zaakceptowana przez właściciela 2026-09-07.** Odpowiedź
+„Tak” na pytanie o zatwierdzenie tej specyfikacji odblokowuje plan i implementację.
+Właściciel wcześniej zaakceptował model lokalne + produkcja oraz automatyczne
+kolejne wydania po zatwierdzonym PR. Poniższe szczegóły techniczne nie są jeszcze
+w całości zaimplementowane ani wdrożone.
 Nie wykonano zmiany uprawnień, merge, publikacji obrazu ani cutoveru.
+
+Aktualne zasady workspace: praca w rzeczywistym katalogu projektu, na obecnej
+gałęzi `feature/GSWEB-9`, bez dodatkowych worktree, commitów i pushowania.
+Zmiany implementacji oraz dowody pozostają lokalne i niezacommitowane.
 
 ## 1. Cel i granice
 
