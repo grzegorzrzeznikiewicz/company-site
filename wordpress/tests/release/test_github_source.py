@@ -96,6 +96,25 @@ def event():
             'workflow_run': copy.deepcopy(responses()[ROOT + '/actions/runs/987654321'])}
 
 
+def solo_responses():
+    """Owner merge plus a SHA-bound, owner-recorded independent AI report."""
+    data = responses()
+    owner = {'id': 50638878, 'login': 'grzegorzrzeznikiewicz', 'type': 'User'}
+    data[ROOT + '/branches/main/protection']['required_pull_request_reviews'][
+        'required_approving_review_count'] = 0
+    data[ROOT + '/branches/main/protection']['enforce_admins'] = {'enabled': True}
+    data[ROOT + '/pulls/12'].update(user=owner, merged_by=owner)
+    data[ROOT + '/collaborators/grzegorzrzeznikiewicz/permission'] = {
+        'permission': 'admin', 'user': owner}
+    data[ROOT + '/pulls/12/reviews?per_page=100&page=1'] = [{
+        'id': 778, 'state': 'COMMENTED', 'commit_id': 'b' * 40,
+        'submitted_at': '2026-09-07T11:59:00Z', 'user': owner,
+        'body': 'GAMA-SOLO-AI-REVIEW-V1\n' + json.dumps({
+            'head_sha': 'b' * 40, 'result': 'approved',
+            'report': 'Independent AI reviewer: exact PR head inspected; no blocking findings.'})}]
+    return data
+
+
 class HTTPFixture:
     def __init__(self, data=None):
         self.data = responses() if data is None else data
@@ -144,6 +163,137 @@ class HTTPFixture:
 
 
 class SourceTests(unittest.TestCase):
+    def test_solo_owner_merge_with_exact_ai_report_allows_same_source(self):
+        with HTTPFixture(solo_responses()) as http:
+            result = resolve_source(event(), http.api(), 'wordpress')
+        self.assertEqual(result['approval']['policy'], 'solo-owner-ai-v1')
+        self.assertEqual(result['approval']['owner'], {
+            'id': 50638878, 'login': 'grzegorzrzeznikiewicz'})
+        self.assertEqual(result['approval']['review_id'], 778)
+        self.assertEqual(result['approval']['head_sha'], 'b' * 40)
+        self.assertEqual(result['artifact']['id'], 555)
+
+    def test_solo_ruleset_zero_still_requires_actual_owner_merge(self):
+        data = solo_responses()
+        data[ROOT + '/branches/main/protection']['required_pull_request_reviews'] = None
+        data[ROOT + '/rules/branches/main?per_page=100&page=1'] = [{
+            'type': 'pull_request', 'parameters': {'required_approving_review_count': 0}}]
+        with HTTPFixture(data) as http:
+            self.assertEqual(resolve_source(event(), http.api(), 'wordpress')[
+                'approval']['policy'], 'solo-owner-ai-v1')
+
+    def test_solo_refuses_missing_pr_foreign_merge_identity_or_permissions(self):
+        for change in ('no-pr', 'unmerged', 'wrong-sha', 'foreign-head', 'missing-merger',
+                       'wrong-id', 'wrong-login', 'bot', 'permission', 'identity'):
+            data = solo_responses()
+            pr = data[ROOT + '/pulls/12']
+            # Mutations must not alias the review author in this fixture.
+            pr['merged_by'] = dict(pr['merged_by'])
+            if change == 'no-pr': data[ROOT + '/commits/' + SHA + '/pulls?per_page=100&page=1'] = []
+            elif change == 'unmerged': pr['merged'] = False
+            elif change == 'wrong-sha': pr['merge_commit_sha'] = 'a' * 40
+            elif change == 'foreign-head': pr['head']['repo'] = {'id': 1, 'full_name': 'fork/repo', 'fork': True}
+            elif change == 'missing-merger': pr.pop('merged_by')
+            elif change == 'wrong-id': pr['merged_by']['id'] = 1
+            elif change == 'wrong-login': pr['merged_by']['login'] = 'other'
+            elif change == 'bot': pr['merged_by']['type'] = 'Bot'
+            elif change == 'permission': data[ROOT + '/collaborators/grzegorzrzeznikiewicz/permission']['permission'] = 'read'
+            elif change == 'identity': data[ROOT + '/collaborators/grzegorzrzeznikiewicz/permission']['user'] = {'id': 1, 'login': 'grzegorzrzeznikiewicz', 'type': 'User'}
+            with self.subTest(change=change), HTTPFixture(data) as http:
+                with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+                self.assertFalse(any('/artifacts' in path for path in http.requests))
+
+    def test_solo_refuses_stale_missing_untrusted_or_unapproved_ai_report(self):
+        for change in ('missing', 'stale-review', 'stale-report', 'foreign-author', 'after-merge',
+                       'pending', 'dismissed', 'unapproved', 'empty', 'malformed', 'extra-field'):
+            data = solo_responses()
+            reviews = data[ROOT + '/pulls/12/reviews?per_page=100&page=1']
+            review = reviews[0]
+            report = json.loads(review['body'].split('\n', 1)[1])
+            if change == 'missing': reviews.clear()
+            elif change == 'stale-review': review['commit_id'] = 'a' * 40
+            elif change == 'stale-report': report['head_sha'] = 'a' * 40
+            elif change == 'foreign-author': review['user'] = {'id': 1, 'login': 'other', 'type': 'User'}
+            elif change == 'after-merge': review['submitted_at'] = '2026-09-07T12:01:00Z'
+            elif change == 'pending': review['state'] = 'PENDING'
+            elif change == 'dismissed': review['state'] = 'DISMISSED'
+            elif change == 'unapproved': report['result'] = 'changes-requested'
+            elif change == 'empty': report['report'] = ' '
+            elif change == 'extra-field': report['skip_checks'] = True
+            review['body'] = 'GAMA-SOLO-AI-REVIEW-V1\n' + (json.dumps(report) if change != 'malformed' else '{')
+            with self.subTest(change=change), HTTPFixture(data) as http:
+                with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+                self.assertFalse(any('/artifacts' in path for path in http.requests))
+
+    def test_solo_latest_owner_review_can_withdraw_but_plain_comment_does_not(self):
+        for state, body, allowed in [
+            ('COMMENTED', 'A routine comment, not a new AI verdict.', True),
+            ('CHANGES_REQUESTED', 'Needs fixes.', False),
+            ('COMMENTED', 'GAMA-SOLO-AI-REVIEW-V1\n' + json.dumps({
+                'head_sha': 'b' * 40, 'result': 'changes-requested', 'report': 'Blocking issue found.'}), False)]:
+            data = solo_responses()
+            reviews = data[ROOT + '/pulls/12/reviews?per_page=100&page=1']
+            reviews.append({**reviews[0], 'id': 779, 'state': state, 'body': body,
+                            'submitted_at': '2026-09-07T11:59:30Z'})
+            with self.subTest(state=state, allowed=allowed), HTTPFixture(data) as http:
+                if allowed: self.assertIsNotNone(resolve_source(event(), http.api(), 'wordpress'))
+                else:
+                    with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+
+    def test_solo_new_review_supersedes_report_for_previous_head(self):
+        data = solo_responses()
+        reviews = data[ROOT + '/pulls/12/reviews?per_page=100&page=1']
+        old = copy.deepcopy(reviews[0])
+        old.update(id=777, commit_id='a' * 40, submitted_at='2026-09-07T11:58:00Z')
+        old['body'] = old['body'].replace('b' * 40, 'a' * 40)
+        reviews.insert(0, old)
+        with HTTPFixture(data) as http:
+            self.assertEqual(resolve_source(event(), http.api(), 'wordpress')[
+                'approval']['review_id'], 778)
+
+    def test_solo_uses_submission_time_not_review_creation_id(self):
+        for latest_state, verdict, allowed in [('CHANGES_REQUESTED', 'approved', False),
+                                               ('COMMENTED', 'changes-requested', False),
+                                               ('COMMENTED', 'approved', True)]:
+            data = solo_responses()
+            reviews = data[ROOT + '/pulls/12/reviews?per_page=100&page=1']
+            newer_submission = copy.deepcopy(reviews[0])
+            newer_submission.update(id=777, state=latest_state,
+                                    submitted_at='2026-09-07T11:59:30Z')
+            newer_submission['body'] = newer_submission['body'].replace('"approved"', json.dumps(verdict))
+            reviews.insert(0, newer_submission)
+            if allowed: reviews[1]['state'] = 'CHANGES_REQUESTED'
+            with self.subTest(state=latest_state, verdict=verdict), HTTPFixture(data) as http:
+                if allowed:
+                    self.assertEqual(resolve_source(event(), http.api(), 'wordpress')['approval']['review_id'], 777)
+                else:
+                    with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+                    self.assertFalse(any('/artifacts' in path for path in http.requests))
+
+    def test_solo_ambiguous_submission_time_or_unsubmitted_report_refuses(self):
+        for state in ('CHANGES_REQUESTED', 'PENDING'):
+            data = solo_responses()
+            reviews = data[ROOT + '/pulls/12/reviews?per_page=100&page=1']
+            other = {**reviews[0], 'id': 777, 'state': state}
+            if state == 'PENDING': other['submitted_at'] = None
+            reviews.insert(0, other)
+            with self.subTest(state=state), HTTPFixture(data) as http:
+                with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+
+    def test_solo_never_overrides_stricter_reviews_or_missing_protections_checks(self):
+        for change in ('no-pr-policy', 'no-checks', 'stricter-rule', 'failed-check', 'no-enforcement'):
+            data = solo_responses()
+            protection = data[ROOT + '/branches/main/protection']
+            if change == 'no-pr-policy': protection['required_pull_request_reviews'] = None
+            elif change == 'no-checks': protection['required_status_checks'] = None
+            elif change == 'stricter-rule': data[ROOT + '/rules/branches/main?per_page=100&page=1'] = [
+                {'type': 'pull_request', 'parameters': {'required_approving_review_count': 1}}]
+            elif change == 'no-enforcement': protection['enforce_admins'] = {'enabled': False}
+            else: data[ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1']['check_runs'][-1]['conclusion'] = 'failure'
+            with self.subTest(change=change), HTTPFixture(data) as http:
+                with self.assertRaises(ReleaseValidationError): resolve_source(event(), http.api(), 'wordpress')
+                self.assertFalse(any('/artifacts' in path for path in http.requests))
+
     def test_terminal_full_page_and_bound_canonical_continuation(self):
         for canonical in (False, True):
             with self.subTest(canonical=canonical), HTTPFixture({}) as http:

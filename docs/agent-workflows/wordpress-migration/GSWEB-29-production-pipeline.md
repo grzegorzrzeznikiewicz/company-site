@@ -1,5 +1,76 @@
 # GSWEB-29 — automatic production releases without staging
 
+## Owner-approved solo review policy — 2026-09-08
+
+The owner explicitly approved replacing the second-human requirement with an
+independent AI code review, all green checks and the owner's merge decision.
+First cutover remains separately authorized. No GitHub settings, merge or
+production operation is authorized merely by accepting this code/doc change.
+The earlier request to nominate another human is superseded.
+
+For this repository, effective PR protection may explicitly require zero
+approving human reviews, while retaining nonempty required checks and enforcing
+classic protections for administrators. A missing PR policy is still refused.
+If any effective rule requires one or more human approvals, its stricter
+requirement remains enforced; solo mode never silently bypasses it.
+
+With zero required approvals the source validator requires a same-repository
+PR merged into main at the exact CI SHA by `grzegorzrzeznikiewicz`, GitHub User
+ID50638878, with verified repository admin identity. A direct main push,
+unmerged PR, foreign fork or merge by another account does not qualify.
+Record the separate AI review as a **COMMENTED pull-request review**, not an
+APPROVED self-review, ordinary issue comment or approval by an invented account.
+Submit it under the owner account before merge, explicitly bound to the current
+PR head via both GitHub `commit_id` and this body format:
+
+```text
+GAMA-SOLO-AI-REVIEW-V1
+{"head_sha":"<actual full PR head SHA>","result":"approved","report":"<actual independent AI reviewer, scope, findings, disposition and limitations>"}
+```
+
+Never copy this placeholder as real evidence. The latest owner-recorded report
+must have exactly these three JSON fields, nonempty actual review text and an
+approved outcome; use `changes-requested` to record a blocking outcome. New
+code requires a fresh review for its SHA. A later owner CHANGES_REQUESTED review
+withdraws the prior report; routine comments do not. Submission timestamps, not
+review creation IDs, determine the latest decision. Ambiguous latest timestamps
+and pending owner AI reports refuse promotion. Missing, stale, pending,
+dismissed, malformed or post-merge reports refuse promotion. The source receipt
+binds review ID and SHA-256 of its exact body; publisher/host revalidation detects
+changes between validation stages. No additional write-token scope is granted
+to release jobs to create their own approval.
+
+This report is an **owner-account attestation of an AI review**, not independent
+human approval or cryptographic proof of a particular agent's identity. GitHub
+account-level provenance cannot distinguish the owner clicking merge from an
+authorized tool using that account. Agents must still obtain the owner's actual
+merge decision. An editable report is not immutable historical evidence; archive
+the review with release evidence. These limits are accepted in the solo model.
+The change remains local until separately published and freshly tested in CI;
+the green `52b5b48` run below predates it.
+
+Local verification: 43 source/publisher tests and the full pinned isolated
+Linux181-test release suite passed with warnings as errors. Independent AI
+review found one review-ordering issue, reproduced with failing tests and fixed
+using submission time; the scoped re-review approved with no remaining
+Critical/Important/Minor findings. This is technical local approval only.
+
+API contracts: [review fields](https://docs.github.com/en/rest/pulls/reviews),
+[PR details](https://docs.github.com/en/rest/pulls/pulls),
+[zero-review branch protection](https://docs.github.com/en/rest/branches/branch-protection).
+
+## Latest publication and CI — 2026-09-08
+
+The owner explicitly authorized commit/push for PR #8 CI only. Implementation
+and two independently reviewed CI-fixture fixes are published at
+`52b5b48bb6827c8730a88cc0960554055ec768de`. Fresh WordPress and legacy CI passed
+all eight jobs; downloaded release transport and browser/persistence evidence
+were verified. See [exact CI evidence and remaining gates](GSWEB-29-ci-2026-09-08.md).
+This supersedes the earlier same-day uncommitted/no-new-CI wording below.
+Gate C remains NO-GO: no merge, registry publication, production configuration
+or deployment occurred. An independent GitHub reviewer still needs to be
+designated (or the owner must explicitly revise the accepted review policy).
+
 ## Accepted scope and actual status — 2026-09-08
 
 The owner approved **local + production only**, with no remote staging and

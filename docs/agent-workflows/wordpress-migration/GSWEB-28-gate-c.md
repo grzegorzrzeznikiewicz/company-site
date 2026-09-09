@@ -1,5 +1,41 @@
 # Gate C — production readiness review
 
+## Solo-owner decision — 2026-09-08, after the CI report
+
+The owner explicitly accepted independent AI review plus green checks and the
+owner's merge decision, without a second human. The request below to nominate
+a human reviewer is superseded. The corresponding local validator/test change
+requires exact owner-merge identity and a SHA-bound owner-recorded AI report;
+it retains the existing CI, artifact, cutover and recovery gates. See
+[current review policy](GSWEB-29-production-pipeline.md).
+**Production remains NO-GO.** No merge, protections/settings mutation or deployment
+occurred. CI for `52b5b48` below does not cover this subsequent local change.
+
+## Latest remote verification — 2026-09-08, after authorized publication
+
+**VERDICT: NO-GO for production; the new full CI gap is closed.**
+Owner-authorized commit/push published the implementation and two independently
+reviewed CI-fixture fixes to PR #8, head `52b5b48bb6827c8730a88cc0960554055ec768de`.
+[WordPress CI](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34190269971)
+and [legacy CI](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34190269935)
+both passed all four jobs. WordPress executed 171 release-unit tests, 6 browser
+regression and 13 acceptance tests, exact ZIP lifecycles and a full isolated
+DB/uploads restore (14 seconds in this fixture, not a production recovery SLA).
+
+The PR test-merge is `f145ec3621f102e23e5b2ef48c43b01dd600195c`, not a merge to
+main. Both release consumers passed with image
+`sha256:46ca523aaa5a6def172928ed738d0a0f020018dffc8a1174c73a0bd5bfd6a913`.
+The downloaded transport passed the real archive validator with exact run,
+attempt, source, platform and TAR checksum; browser result files and actual
+persistence/rollback logs were inspected. Details: [current CI evidence](GSWEB-29-ci-2026-09-08.md).
+
+PR #8 remains open, auto-merge disabled; main remains `c26e196`. No registry
+publication, GitHub protection/environment changes or production mutation took
+place. Operational prerequisites below remain open. Only the PR author currently
+has repository access; the owner must designate an independent GitHub reviewer
+or explicitly change the accepted review policy before that gate can be met.
+This update supersedes the earlier same-day uncommitted/incomplete-CI status.
+
 ## Current decision update — 2026-09-08
 
 **VERDICT: NO-GO.** The owner has accepted the detailed local + production

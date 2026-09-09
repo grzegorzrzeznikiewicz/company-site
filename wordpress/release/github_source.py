@@ -20,6 +20,9 @@ REPOSITORY_ID = 1163583409
 WORKFLOW_ID = 351411087
 WORKFLOW_PATH = '.github/workflows/wordpress-ci.yml'
 ROOT = '/repos/' + REPOSITORY
+OWNER_ID = 50638878
+OWNER_LOGIN = 'grzegorzrzeznikiewicz'
+SOLO_REVIEW_PREFIX = 'GAMA-SOLO-AI-REVIEW-V1\n'
 WP_GATES = ('WordPress Source and Build', 'WordPress Package Lifecycle',
             'WordPress Runtime and Restore', 'WordPress Release Regression')
 LEGACY_GATES = ('Backend Quality (Symfony)', 'Backend Tests',
@@ -252,8 +255,11 @@ def _protection(api):
                           for item in rule.get('parameters', {}).get('required_status_checks', []))
     require(policies and checks, 'effective approval and nonempty check protections required')
     counts = [p.get('required_approving_review_count') for p in policies]
-    require(all(type(n) is int and n >= 0 for n in counts) and max(counts) >= 1,
-            'required human approval policy missing')
+    require(all(type(n) is int and 0 <= n <= 6 for n in counts),
+            'invalid required approval policy')
+    if max(counts) == 0:
+        require(classic.get('enforce_admins', {}).get('enabled') is True,
+                'solo-owner policy requires protections enforced for administrators')
     # These policies need additional proof (CODEOWNERS / final pusher identity).
     require(not any(p.get('require_code_owner_reviews') or p.get('require_code_owner_review')
                     or p.get('require_last_push_approval') or p.get('required_reviewers')
@@ -278,6 +284,8 @@ def _approval(api, sha, count):
         author = pr.get('user', {}).get('id')
         require(positive(author), 'missing PR author')
         reviews = api.pages(ROOT + '/pulls/' + str(number) + '/reviews')
+        if count == 0:
+            return _solo_approval(api, pr, number, merged, reviews)
         decisions = {}
         for review in sorted(reviews, key=lambda item: item.get('id', 0)):
             user = review.get('user', {})
@@ -307,6 +315,60 @@ def _approval(api, sha, count):
             return {'pull_request': number, 'head_sha': pr['head']['sha'],
                     'merged_at': pr['merged_at'], 'required_count': count, 'reviewers': qualified}
     raise ReleaseValidationError('merged PR with qualifying approval required')
+
+
+def _is_owner(user):
+    return (type(user) is dict and type(user.get('id')) is int
+            and user['id'] == OWNER_ID and user.get('login') == OWNER_LOGIN
+            and user.get('type') == 'User')
+
+
+def _solo_approval(api, pr, number, merged, reviews):
+    """Owner merge is consent; a COMMENTED review records the independent AI report.
+
+    This is an owner attestation, not a second human or authenticated AI identity.
+    Only explicit zero-review PR protection selects it; stricter rules stay strict.
+    """
+    _repo(pr['head'].get('repo'))
+    require(_is_owner(pr.get('merged_by')), 'solo PR must be merged by the pinned owner')
+    permission = api.get(ROOT + '/collaborators/' + OWNER_LOGIN + '/permission')
+    require(_is_owner(permission.get('user')) and permission.get('permission') == 'admin',
+            'solo owner identity or repository administration unavailable')
+    decisions = []
+    for review in reviews:
+        require(positive(review.get('id')), 'invalid review identity')
+        if not _is_owner(review.get('user')):
+            continue
+        body = review.get('body', '')
+        if not (review.get('state') == 'CHANGES_REQUESTED'
+                or type(body) is str and body.startswith(SOLO_REVIEW_PREFIX)):
+            continue
+        require(review.get('state') != 'PENDING', 'AI report has not been submitted')
+        decisions.append((timestamp(review.get('submitted_at')), review))
+    require(decisions, 'owner-recorded independent AI approval report required')
+    # Review IDs are assigned before submission (a pending review may be older).
+    # Conflicting submissions in the same timestamp cannot be safely ordered.
+    latest_time = max(when for when, _ in decisions)
+    latest_decisions = [review for when, review in decisions if when == latest_time]
+    require(len(latest_decisions) == 1, 'ambiguous latest owner review submission')
+    latest = latest_decisions[0]
+    require(latest.get('state') == 'COMMENTED'
+            and latest.get('commit_id') == pr['head']['sha']
+            and timestamp(latest.get('submitted_at')) <= merged,
+            'AI report is not submitted for the exact head before merge')
+    body = latest['body']
+    require(len(body.encode('utf-8')) <= 64 * 1024, 'AI report exceeds size limit')
+    report = json_object(body[len(SOLO_REVIEW_PREFIX):])
+    require(type(report) is dict and frozenset(report) == {'head_sha', 'result', 'report'}
+            and report.get('head_sha') == pr['head']['sha']
+            and report.get('result') == 'approved'
+            and type(report.get('report')) is str and report['report'].strip(),
+            'invalid SHA-bound AI approval report')
+    return {'policy': 'solo-owner-ai-v1', 'pull_request': number,
+            'head_sha': pr['head']['sha'], 'merged_at': pr['merged_at'],
+            'owner': {'id': OWNER_ID, 'login': OWNER_LOGIN},
+            'review_id': latest['id'],
+            'report_sha256': hashlib.sha256(latest['body'].encode('utf-8')).hexdigest()}
 
 
 def _checks(api, sha, required, source_run_id):

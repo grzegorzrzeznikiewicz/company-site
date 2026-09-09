@@ -1,5 +1,29 @@
 # Testy, audyt i odbiór migracji
 
+## Aktualizacja zasady recenzji — 2026-09-08
+
+Właściciel zaakceptował model jednoosobowy: osobny agent AI recenzuje kod,
+wszystkie kontrole muszą przejść, a właściciel decyduje o merge. Nie szukamy
+drugiego człowieka do zatwierdzania PR-a. Poniższe wezwanie do wskazania
+recenzenta jest nieaktualne. Nowa lokalna zmiana walidatora wiąże raport AI
+z SHA PR-a i faktycznym merge przez konto właściciela; nie wyłącza testów
+ani osobnej zgody na pierwszy cutover. CI dla 52b5b48 poprzedza tę zmianę.
+Gate C pozostaje NO-GO, bez merge i wdrożenia produkcyjnego.
+
+## Aktualizacja po pełnym CI — 2026-09-08
+
+Po zgodzie właściciela kod opublikowano w PR #8, HEAD 52b5b48bb6827c8730a88cc0960554055ec768de. Nowy WordPress CI i legacy CI zakończyły się sukcesem: łącznie 8/8 zadań. To zastępuje poniższy historyczny stan „niezacommitowane / brak nowego CI”, ale nie oznacza wdrożenia produkcyjnego.
+
+Potwierdzono 171 testów jednostkowych wydania, regresję 6/6, akceptację 13/13, dokładne ZIP-y oraz pełne izolowane odtworzenie DB/uploads w 14 s. Obie próby wydania sprawdziły ten sam obraz linux/amd64, szyfrowane SMTP i zachowanie konkretnych treści/mediów po aktualizacji i rollbacku. Wszystkie 21 zachowanych plików wyników przeglądarkowych ma status passed i brak błędnych testów.
+
+Test-merge: f145ec3621f102e23e5b2ef48c43b01dd600195c. Obraz: sha256:46ca523aaa5a6def172928ed738d0a0f020018dffc8a1174c73a0bd5bfd6a913. Pobrany transport przeszedł walidator pochodzenia i image.tar SHA-256: 1006dca2bc34f44efc0c7fa2ee89ff79242b48374bd7d7806e2462eb24ba9856.
+
+Gate C nadal NO-GO. PR jest otwarty, bez auto-merge; main pozostaje c26e196. Nie zmieniono produkcji, rejestru, uprawnień ani zabezpieczeń GitHub. Potrzebny niezależny recenzent GitHub lub wyraźna decyzja właściciela zmieniająca zasadę zatwierdzania. Pozostają odbiór właściciela i realne bramki operacyjne oraz osobna zgoda na pierwszy cutover.
+
+Dowody: [WordPress CI 34190269971 — 4/4 PASS](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34190269971) oraz [Legacy CI 34190269935 — 4/4 PASS](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/34190269935).
+
+## Historia wcześniejszych prób i decyzji
+
 Dokumentacja: 2026-09-08. Rozdzielamy historyczne wyniki CI z
 2026-09-06 od nowych prób lokalnych. Aktualizacja tej strony nie oznacza
 uruchomienia nowego CI ani wdrożenia produkcyjnego.

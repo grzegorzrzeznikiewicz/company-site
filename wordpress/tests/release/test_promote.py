@@ -13,7 +13,7 @@ import zipfile
 
 from wordpress.release.manifest import ReleaseValidationError
 from wordpress.release import transport as transport_boundary
-from wordpress.tests.release.test_github_source import HTTPFixture, ROOT, SHA, event, responses
+from wordpress.tests.release.test_github_source import HTTPFixture, ROOT, SHA, event, responses, solo_responses
 from wordpress.tests.release.test_transport import literal_valid_manifest, TAR_BYTES
 
 try:
@@ -76,6 +76,29 @@ else:
 
 
 class PromoteTests(unittest.TestCase):
+    def test_solo_report_is_rechecked_before_any_registry_operation(self):
+        for mutation in ('none', 'report-edited', 'wrong-merger'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as case:
+                self.root = Path(case).resolve()
+                docker = DockerFixture(self.root)
+                with HTTPFixture(solo_responses()) as http:
+                    source = self.transport(http)
+                    if mutation == 'report-edited':
+                        http.data[ROOT + '/pulls/12/reviews?per_page=100&page=1'][0]['body'] += ' '
+                    elif mutation == 'wrong-merger':
+                        http.data[ROOT + '/pulls/12']['merged_by'] = {'id': 1, 'login': 'other', 'type': 'User'}
+                    with mock.patch.dict(os.environ, {'PATH': str(self.root) + os.pathsep + os.environ['PATH']}):
+                        if mutation == 'none':
+                            result = publish(str(self.root / 'unpacked'), source, REPOSITORY,
+                                             http.api(), runner_temp=str(self.root))
+                            self.assertEqual(result['image'], REPOSITORY + '@' + DIGEST)
+                        else:
+                            with self.assertRaises(ReleaseValidationError):
+                                publish(str(self.root / 'unpacked'), source, REPOSITORY,
+                                        http.api(), runner_temp=str(self.root))
+                self.assertEqual([call['args'][0] for call in docker.calls()],
+                                 ['load', 'image', 'tag', 'push', 'pull', 'image'] if mutation == 'none' else [])
+
     def test_transport_download_follows_approved_storage_without_api_credential(self):
         import urllib.request
         with HTTPFixture() as http:

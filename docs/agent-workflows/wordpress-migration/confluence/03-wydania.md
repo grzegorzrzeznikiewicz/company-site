@@ -1,5 +1,33 @@
 # Wydania produkcyjne bez stagingu
 
+## Zatwierdzony model jednoosobowy — 2026-09-08
+
+Właściciel potwierdził, że nie będzie drugiego recenzenta, i zaakceptował:
+osobną recenzję kodu przez agenta AI, pełne zielone testy i własną decyzję
+o merge. AI nie jest drugim człowiekiem i nie daje równoważnej niezależności.
+Pierwsze przełączenie produkcji nadal wymaga osobnej zgody; kolejne standardowe
+wydania pozostają automatyczne po zaakceptowanym merge i sprawdzeniu wersji.
+
+Zapis recenzji AI musi dotyczyć dokładnego SHA i poprzedzać merge. W wariancie
+jednoosobowym pipeline weryfikuje konto właściciela wykonujące merge oraz
+zapisany pod jego kontem raport AI w recenzji typu COMMENTED. Nie używamy
+fikcyjnego zatwierdzenia własnego PR-a. Raport jest poświadczeniem właściciela,
+nie niezależnie uwierzytelnioną tożsamością AI. Brak raportu, nieaktualna wersja,
+obce konto scalające lub czerwone testy blokują wydanie.
+
+Wymóg PR i wymaganych kontroli pozostaje; jawna liczba zatwierdzeń ludzkich
+może wynosić zero, z ochroną także dla administratora. Silniejsza efektywna
+reguła nie jest automatycznie obchodzona. Nie zmieniono jeszcze ustawień GitHub,
+nie scalono PR i nie zmieniono produkcji. Nowa zmiana polityki jest lokalna;
+zielone CI 52b5b48 poprzedza tę zmianę i nie jest jej wynikiem testowym.
+
+Poniższe zapisy o braku nowego CI odnoszą się do wcześniejszego etapu.
+Pełny CI dla 52b5b48 przeszedł 8/8 kontroli; dowody są w rozdziale
+[Testy, audyt i odbiór migracji](https://gamasoftware.atlassian.net/wiki/spaces/BP/pages/1769473/Testy+audyt+i+odbi+r+migracji).
+Gotowość operacyjna i pierwszy cutover nadal pozostają otwarte.
+
+## Historia wcześniejszych ustaleń
+
 Decyzja właściciela: 2026-09-06, potwierdzona w rozmowie i zapisana w
 [GSWEB-8](https://gamasoftware.atlassian.net/browse/GSWEB-8).
 Dokumentacja: 2026-09-08. Wyniki lokalne nie są potwierdzeniem nowego CI

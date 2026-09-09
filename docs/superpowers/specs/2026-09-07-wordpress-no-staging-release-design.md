@@ -131,6 +131,21 @@ wydań. Tryb wyłączony nie publikuje obrazów w GHCR.
 
 ## 6. Zatwierdzony merge a automatyczny deploy
 
+Aktualizacja zaakceptowana przez właściciela 2026-09-08: projekt jest
+jednoosobowy. Drugiego człowieka zastępują osobna recenzja AI, pełne zielone
+kontrole i decyzja właściciela o merge. Nie udajemy niezależnej ludzkiej
+akceptacji. Dla jawnie ustawionej ochrony PR z zerową liczbą wymaganych
+zatwierdzeń pipeline sprawdza faktyczne scalenie przez konto właściciela oraz
+zapis recenzji AI dla dokładnego SHA PR-a. Mocniejsza efektywna reguła wymagań
+recenzji nie jest ignorowana. Brak reguły PR, brak wymaganych kontroli lub
+ich wyłączenie dla administratorów nie uruchamia wariantu jednoosobowego.
+Format raportu i ograniczenia dowodu opisuje
+[bieżąca polityka odbioru](../../agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
+Zgoda dotyczy tej zmiany polityki/kodu/dokumentacji, nie samego merge ani
+pierwszego przełączenia produkcji. Kolejne standardowe wydania pozostają
+automatyczne po merge i sprawdzeniu dokładnej wersji; pierwszy cutover ma
+niezmienioną osobną zgodę.
+
 `main` ma wymagać PR, recenzji oraz określonych bramek WordPressa; do zakończenia
 migracji pozostają także wymagane kontrole legacy. Nazwy nie mogą oznaczać
 pustej listy checks. Niedozwolony jest bezpośredni push lub pominięcie kontroli
