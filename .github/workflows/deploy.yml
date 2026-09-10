@@ -10,6 +10,14 @@ on:
     types:
       - completed
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Legacy release or owner-only read-only host inventory (no deployment)'
+        type: choice
+        default: legacy-release
+        options:
+          - legacy-release
+          - read-only-audit
 
 permissions:
   contents: read
@@ -20,7 +28,55 @@ concurrency:
   queue: max
 
 jobs:
+  audit-guard:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'read-only-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+    env:
+      INPUT_OPERATION: ${{ inputs.operation }}
+      GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+    steps:
+      - name: Checkout exact audit revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard read-only audit
+        id: guard
+        run: python3 -m wordpress.release.server_audit guard
+
+  read-only-audit:
+    name: Read-only host inventory (no deployment)
+    needs: audit-guard
+    if: needs.audit-guard.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      INPUT_OPERATION: ${{ inputs.operation }}
+      GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+    steps:
+      - name: Checkout exact audit revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Run pinned read-only audit
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_SSH_FINGERPRINT: ${{ secrets.SERVER_SSH_FINGERPRINT }}
+        run: python3 -m wordpress.release.server_audit run
+
   guard:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'legacy-release'
     runs-on: ubuntu-latest
     permissions:
       contents: read

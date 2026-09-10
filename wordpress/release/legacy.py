@@ -39,6 +39,10 @@ def guard_entry(payload, environment, operation):
         sha = source_run.get('head_sha')
     else:
         allowed = allowed and event_name == 'workflow_dispatch'
+        if operation == 'deploy':
+            inputs = payload.get('inputs') or {}
+            allowed = (allowed and type(inputs) is dict
+                       and inputs.get('operation') in (None, 'legacy-release'))
     allowed = allowed and full_sha(sha)
     return {'allowed': bool(allowed), 'sha': sha if allowed else None}
 

@@ -141,6 +141,15 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('allowed=' + str(allowed).lower() + '\n', self.output.read_text())
 
+    def test_audit_or_unknown_dispatch_can_never_authorize_legacy_deployment(self):
+        for operation in ('read-only-audit', 'unknown', ['legacy-release']):
+            event = self.source_event(); event['inputs'] = {'operation': operation}
+            self.event.write_text(json.dumps(event)); self.output.unlink(missing_ok=True)
+            result = self.run_step('deploy.yml', 'Guard legacy entry', {
+                'GAMA_DEPLOYMENT_MODE': 'legacy', 'GITHUB_EVENT_NAME': 'workflow_dispatch'})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.output.read_text(), 'allowed=false\n')
+
     def test_pending_is_only_retry_signal_and_source_refusal_stops_before_transport(self):
         script = scalar('wordpress-production.yml', 'Validate source with bounded pending wait')
         fixture = self.root / 'bin'; fixture.mkdir()
