@@ -19,6 +19,35 @@ except ModuleNotFoundError:
     HostOps = None
 
 
+class ProductionPortTests(unittest.TestCase):
+    def test_deploy_and_routing_use_the_reviewed_port(self):
+        ops = HostOps({'env_file': '/private/production.env'})
+        ops.request = request()
+        with mock.patch.object(ops, '_docker'), mock.patch.object(ops, '_image'), \
+                mock.patch.object(ops, '_repo', return_value=Path('/tools')), \
+                mock.patch.object(ops, '_helper_env', return_value={}), \
+                mock.patch.object(ops, 'current_state', return_value={'healthy': True}), \
+                mock.patch('wordpress.release.host_ops.run') as run:
+            ops.deploy(ops.request['image'])
+            argv = run.call_args.args[0]
+            self.assertEqual('8000', argv[argv.index('--http-port') + 1])
+            ops.switch_routing('wordpress', ops.request['operation_id'])
+            argv = run.call_args.args[0]
+            self.assertEqual('8000', argv[argv.index('--port') + 1])
+
+    def test_private_probe_uses_loopback_port_8000(self):
+        ops = HostOps({})
+        with mock.patch('wordpress.release.host_ops.urllib.request.build_opener') as build:
+            response = build.return_value.open.return_value.__enter__.return_value
+            response.status = 200
+            response.read.return_value = b'ok'
+            ops._http('/', public=False)
+            probe = build.return_value.open.call_args.args[0]
+            self.assertEqual('http://127.0.0.1:8000/', probe.full_url)
+            self.assertEqual('gama-software.com', probe.get_header('Host'))
+            self.assertEqual('https', probe.get_header('X-forwarded-proto'))
+
+
 @unittest.skipUnless(os.geteuid() == 0 and os.environ.get('GAMA_HOST_TEST_ROOT'),
                      'requires private root-owned Linux fixture')
 class HostOpsTests(unittest.TestCase):

@@ -463,7 +463,7 @@ class HostOps:
                     self.request['git_sha'] if image == self.request['image'] else None)
         root = self._repo()
         argv = [str(root / 'bin/deploy-production'), '--project', PROJECT,
-                '--env-file', self.config['env_file'], '--image', image, '--http-port', '8080',
+                '--env-file', self.config['env_file'], '--image', image, '--http-port', '8000',
                 '--confirm-image', image]
         if bootstrap: argv.append('--bootstrap')
         argv.append('--mutation-only')
@@ -494,7 +494,7 @@ class HostOps:
     def switch_routing(self, target, operation_id):
         require(operation_id == self.request['operation_id'], 'routing operation mismatch')
         if target == 'wordpress':
-            run([CUTOVER, '--project', PROJECT, '--port', '8080', '--image', self.request['image'],
+            run([CUTOVER, '--project', PROJECT, '--port', '8000', '--image', self.request['image'],
                  '--deployment-run-id', operation_id], external_mutation=True)
         else:
             require(target == 'legacy', 'invalid routing target')
@@ -505,7 +505,7 @@ class HostOps:
 
     def _http(self, path, public=True):
         require(path.startswith('/') and not path.startswith('//'), 'same-origin probe path required')
-        origin = ORIGIN if public else 'http://127.0.0.1:8080'
+        origin = ORIGIN if public else 'http://127.0.0.1:8000'
         headers = {'Host': 'gama-software.com', 'X-Forwarded-Proto': 'https'} if not public else {}
         try:
             with urllib.request.build_opener(_NoRedirect()).open(

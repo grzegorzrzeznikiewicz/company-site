@@ -32,7 +32,7 @@ grep -Fq 'exec "$ROOT_DIR/bin/deploy-production"' "$rollback"
 grep -Fq 'wordpress/tests/production-deployment-runtime.sh' "$REPOSITORY_ROOT/.github/workflows/wordpress-ci.yml"
 
 zero_image="sha256:$(printf '0%.0s' {1..64})"
-if "$deploy" --project gama-wp-production --env-file /tmp/missing --image "$zero_image" --http-port 8080 --confirm-image "$zero_image" 2>/dev/null; then
+if "$deploy" --project gama-wp-production --env-file /tmp/missing --image "$zero_image" --http-port 8000 --confirm-image "$zero_image" 2>/dev/null; then
   echo 'Production deploy accepted a missing environment file.' >&2
   exit 1
 fi
@@ -50,10 +50,16 @@ printf '%s\n' \
   'GAMA_SMTP_PASSWORD=password' \
   'GAMA_SMTP_ENCRYPTION=tls' \
   >"$invalid_env"
-if "$deploy" --project gama-wp-production --env-file "$invalid_env" --image "$zero_image" --http-port 8080 --confirm-image "$zero_image" >"$fixture_dir/output" 2>&1; then
+if "$deploy" --project gama-wp-production --env-file "$invalid_env" --image "$zero_image" --http-port 8000 --confirm-image "$zero_image" >"$fixture_dir/output" 2>&1; then
   echo 'Production deploy accepted an SMTP host rejected by the runtime plugin.' >&2
   exit 1
 fi
 grep -Fq 'Production SMTP host must be external.' "$fixture_dir/output"
+
+if "$deploy" --project gama-wp-production --env-file "$invalid_env" --image "$zero_image" --http-port 8080 --confirm-image "$zero_image" >"$fixture_dir/output" 2>&1; then
+  echo 'Production deploy accepted the port occupied by Magento.' >&2
+  exit 1
+fi
+grep -Fq 'The stable production namespace must use reviewed port 8000.' "$fixture_dir/output"
 
 echo 'Gated production promotion and data-preserving rollback contract passed.'

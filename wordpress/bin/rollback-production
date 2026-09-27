@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ ( "$#" -ne 10 && "$#" -ne 12 ) || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' || ( "$#" -eq 12 && "${11}" != '--rehearsal-fixture' ) ]]; then
-  echo 'Usage: wordpress/bin/rollback-production --project gama-wp-production --env-file <absolute-path> --image <previous-immutable-image> --http-port 8080 --confirm-image <previous-immutable-image> [--rehearsal-fixture <absolute-dir>]' >&2
+  echo 'Usage: wordpress/bin/rollback-production --project gama-wp-production --env-file <absolute-path> --image <previous-immutable-image> --http-port 8000 --confirm-image <previous-immutable-image> [--rehearsal-fixture <absolute-dir>]' >&2
   exit 64
 fi
 if [[ "$#" -eq 10 && "$2" != 'gama-wp-production' ]]; then

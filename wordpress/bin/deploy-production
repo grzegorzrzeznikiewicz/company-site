@@ -15,7 +15,7 @@ if [[ "$#" -gt 0 && "${!#}" == '--bootstrap' ]]; then
 fi
 
 if [[ ( "$#" -ne 10 && "$#" -ne 12 ) || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' || ( "$#" -eq 12 && "${11}" != '--rehearsal-fixture' ) ]]; then
-  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8080> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--mutation-only]' >&2
+  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8000> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--mutation-only]' >&2
   exit 64
 fi
 
@@ -60,8 +60,8 @@ if [[ "$project" != 'gama-wp-production' && ! "$project" =~ ^gama-wp-production-
   echo 'Production project must be stable or an isolated gama-wp-production-candidate-<id> namespace.' >&2
   exit 64
 fi
-if [[ "$project" == 'gama-wp-production' && "$http_port" != '8080' ]]; then
-  echo 'The stable production namespace must use reviewed port 8080.' >&2
+if [[ "$project" == 'gama-wp-production' && "$http_port" != '8000' ]]; then
+  echo 'The stable production namespace must use reviewed port 8000.' >&2
   exit 64
 fi
 if [[ "$project" != 'gama-wp-production' && "$http_port" != '0' ]]; then
