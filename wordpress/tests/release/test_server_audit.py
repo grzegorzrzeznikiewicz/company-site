@@ -80,7 +80,10 @@ class ServerAuditTests(unittest.TestCase):
             self.assertNotIn('SSH_PRIVATE_KEY', kwargs['env'])
             self.assertFalse(kwargs.get('shell', False))
             if args[0] == '/usr/bin/ssh-keyscan':
-                self.assertEqual(args, ['/usr/bin/ssh-keyscan', '-T', '10', '-p', '2222', 'example.invalid'])
+                # Request only the owner's pinned key type; scanning all types
+                # can exhaust the host's SSH connection rate limit before login.
+                self.assertEqual(args, ['/usr/bin/ssh-keyscan', '-T', '10', '-t', 'ed25519',
+                                        '-p', '2222', 'example.invalid'])
                 return subprocess.CompletedProcess(args, 0, 'host ssh-ed25519 ' + self.key + '\n', '')
             self.assertEqual(args[0], '/usr/bin/ssh')
             self.assertEqual(args[-2:], ['deploy@example.invalid', '/usr/bin/python3 -I -B -'])

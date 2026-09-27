@@ -128,6 +128,55 @@ diff: PASS. Niezależny przegląd zmiany kodu: APPROVE. Testy CLI obejmują 14
 przypadków błędu SSH oraz oba etapy timeoutu, z potwierdzeniem braku wycieku
 surowych danych i braku automatycznej ponownej próby.
 
+### Wynik próby diagnostycznej
+
+Zmiana została opublikowana jako `bd0501faa701c9fb3229cc1f4b04e0f6967f01a7`.
+Dokładnie jedna kolejna próba:
+[run 36341937212](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/36341937212),
+2026-09-27, etap SSH około 18:47:33–18:47:45 UTC (20:47:33–20:47:45 Europe/Warsaw).
+
+`audit-guard` zakończył się SUCCESS; porównanie odcisku hosta przeszło.
+Proces SSH zakończył się z `category=connection_timeout, exit=255`.
+Nie uzyskano raportu sondy. Ten wynik wskazuje timeout połączenia, nie jest
+potwierdzeniem odrzucenia klucza użytkownika ani udanego uwierzytelnienia.
+Dokładny etap i przyczyna timeoutu wymagają danych z logów SSH/sieci serwera;
+firewall, limity połączeń i inne blokady pozostają hipotezami, nie ustaleniami.
+
+Zadania `guard`, `Deploy to Server` i `deploy` zostały SKIPPED. Brak merge,
+wdrożenia i restartów. Zgoda na tę pojedynczą próbę została wykorzystana;
+nie wykonano automatycznego ponowienia ani zmiany kluczy lub polityk dostępu.
+
+## Diagnostyka serwera i ograniczenie skanowania — 2026-09-27
+
+Właściciel udostępnił połączoną sesję Codex w WebSSH. Zlecona diagnostyka była
+wyłącznie odczytowa: bez zmian konfiguracji, odblokowania IP i restartów.
+Raport serwera wskazał synchronizowany czas UTC oraz blokady `UFW LIMIT BLOCK`
+pakietów SYN do portu 22 z tych samych źródeł, z których chwilę wcześniej
+przychodziła seria połączeń SSH. Sekwencje wystąpiły w obu oknach audytów:
+18:38:41–18:38:46 oraz 18:47:34–18:47:39 UTC. Reguła SSH miała stan `LIMIT IN`,
+z progiem sześciu połączeń z jednego źródła w ciągu 30 sekund. W tych oknach
+nie znaleziono wpisów Fail2ban. Sam raport nie przypisuje każdego pakietu do
+konkretnego procesu klienta; korelacja mocno wspiera hipotezę wyczerpania limitu
+przez skanowanie wielu typów kluczy, a nie odrzucenia klucza użytkownika.
+
+Właściciel zatwierdził minimalną poprawkę, testy, commit/push i dokładnie jedną
+kolejną próbę audytu, bez merge i wdrożenia. `ssh-keyscan` otrzymuje teraz
+`-t ed25519`, zgodnie z typem przypiętego klucza właściciela. Według
+[dokumentacji OpenSSH](https://man.openbsd.org/ssh-keyscan#t) domyślnie skanowane
+są wszystkie obsługiwane typy. Nie zmieniono odcisku, sekretów, właściwej
+komendy SSH, zdalnej sondy, timeoutów, liczby ponowień ani zabezpieczeń serwera.
+Brak oczekiwanego klucza nadal zatrzymuje audyt przed uwierzytelnieniem.
+
+Test transportu najpierw zakończył się oczekiwanym błędem dla nieograniczonego
+skanowania; po zmianie polecenia wszystkie 11 testów audytu przeszło.
+Pełny zestaw mechanizmu wydań: 193/193 PASS w izolowanym kontenerze Linux;
+walidacja YAML i 17 negatywnych wariantów, kontrakt wdrożenia oraz
+`git diff --check`: PASS. Pozostałe lokalne zmiany dokumentacji są poza zakresem
+tej poprawki i nie wchodzą do jej commita.
+Niezależny przegląd poprawki: APPROVE, bez usterek. Przegląd potwierdził zachowanie
+granic bezpieczeństwa i ponownie uruchomił 11 testów audytu; nie zastępuje wyniku
+połączenia ani akceptacji produkcyjnego wydania.
+
 ## Panel administracyjny (adresy)
 
 Lokalnie: <http://localhost:8090/wp-admin/>. Dnia 2026-09-10 sprawdzono odpowiedź

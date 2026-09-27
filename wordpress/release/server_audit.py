@@ -93,7 +93,9 @@ def execute(env):
     child_env = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}
     stage = 'host_key_scan'
     try:
-        scan = subprocess.run(['/usr/bin/ssh-keyscan', '-T', '10', '-p', port, host],
+        # The owner pinned ED25519. Avoid extra key-type connections that can
+        # exhaust the server's SSH rate limit before the authenticated probe.
+        scan = subprocess.run(['/usr/bin/ssh-keyscan', '-T', '10', '-t', 'ed25519', '-p', port, host],
                               capture_output=True, text=True, timeout=40, env=child_env)
         verified = None
         for line in scan.stdout.splitlines():
