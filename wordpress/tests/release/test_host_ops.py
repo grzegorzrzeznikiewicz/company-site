@@ -280,6 +280,50 @@ time.sleep(30)
         with self.assertRaises(ReleaseValidationError): self.ops.preflight(request())
         self.assertFalse((self.root / 'calls').exists())
 
+    def test_first_cutover_waiver_prepares_routing_without_fake_backup_evidence(self):
+        req = request(); req.update(kind='first-cutover', authorization_ref='approval-101')
+        waiver = {key: req[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+        waiver['accept_data_loss_without_backup'] = True
+        env = self.root / 'production.env'; env.write_text(''); env.chmod(0o600)
+        adapter = self.root / 'legacy-adapter'
+        adapter.write_text('''#!/usr/bin/python3
+import hashlib,json,sys
+from pathlib import Path
+value=json.load(sys.stdin)
+with Path(__file__).with_name('routing-calls').open('a') as log: log.write(sys.argv[1]+'\\n')
+assert sys.argv[1] in ('prepare-routing','verify-routing')
+assert set(value) == {'operation_id','git_sha','image','deployment_operation_id'}
+assert value['deployment_operation_id'] == 'run-101'
+digest=hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+print(json.dumps({'binding_sha256':digest,'routing_recovery_reference':'routing:run-101'}))
+''')
+        adapter.chmod(0o700)
+        self.config.update(wordpress_root=str(self.root), env_file=str(env), github_token_file=str(env),
+                           smtp_recipient='controlled@example.test', legacy_adapter=str(adapter),
+                           first_cutover_without_backup=waiver)
+        with mock.patch.object(self.ops, '_repo', return_value=self.root), \
+                mock.patch.object(self.ops, '_api', return_value=None), \
+                mock.patch('wordpress.release.host_ops._recheck', return_value={'operation':'first-cutover'}), \
+                mock.patch('wordpress.release.host_ops.CUTOVER', str(adapter)), \
+                mock.patch('wordpress.release.host_ops.ROUTING', str(adapter)):
+            self.assertEqual(waiver, self.ops.preflight(req))
+            with mock.patch.object(self.ops, '_http', return_value=(b'legacy', {})):
+                self.ops.verify('legacy')
+                self.ops.request = {**req, 'kind':'routing-rollback', 'operation_id':'route-102',
+                                    'authorization_ref':'recovery-102',
+                                    'recovery_authorization':{'target_operation_id':'run-101'}}
+                self.ops.verify('legacy')
+                self.ops.request['image'] = OLD
+                with self.assertRaises(ReleaseValidationError): self.ops.verify('legacy')
+                self.ops.request = req
+                adapter.write_text(adapter.read_text().replace("'binding_sha256':digest", "'binding_sha256':'0'*64"))
+                with self.assertRaises(ReleaseValidationError): self.ops.verify('legacy')
+            self.assertEqual(['prepare-routing','verify-routing','verify-routing','verify-routing'],
+                             (self.root/'routing-calls').read_text().splitlines())
+            with self.assertRaises(ReleaseValidationError): self.ops.preflight(request())
+            self.config['first_cutover_without_backup'] = {**waiver, 'git_sha': 'f'*40}
+            with self.assertRaises(ReleaseValidationError): self.ops.preflight(req)
+
     def test_manual_gate_requires_actual_exact_configured_owner_history(self):
         from wordpress.release import host_ops
         formatter = getattr(host_ops, 'recovery_comment', None)

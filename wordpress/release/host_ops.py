@@ -21,7 +21,8 @@ import urllib.request
 from wordpress.release.github_source import (GitHubAPI, ROOT, json_object, require,
                                              timestamp, full_sha, positive, _repo)
 from wordpress.release.promote import _recheck
-from wordpress.release.host import IMAGE, OperationCleanupError, fingerprint, protected, read_json
+from wordpress.release.host import (IMAGE, OperationCleanupError, fingerprint, protected,
+                                    read_json, validate_backup_waiver)
 from wordpress.release.manifest import ReleaseValidationError
 
 PROJECT = 'gama-wp-production'
@@ -294,9 +295,15 @@ class HostOps:
         return root
 
     def preflight(self, request):
-        required = {'docker', 'findmnt', 'wordpress_root', 'env_file', 'github_token_file',
-                    'backup_root', 'backup_source', 'backup_adapter',
-                    'smtp_recipient', 'restore_max_age_seconds', 'minimum_retention_days'}
+        require(type(self.config) is dict, 'host integration is not configured')
+        waiver = None
+        if request['kind'] == 'first-cutover' and 'first_cutover_without_backup' in self.config:
+            waiver = validate_backup_waiver(self.config['first_cutover_without_backup'], request)
+        required = {'docker', 'wordpress_root', 'env_file', 'github_token_file', 'smtp_recipient'}
+        needs_backup = waiver is None and request['kind'] in ('standard', 'first-cutover')
+        if needs_backup:
+            required |= {'findmnt', 'backup_root', 'backup_source', 'backup_adapter',
+                         'restore_max_age_seconds', 'minimum_retention_days'}
         require(type(self.config) is dict and required <= set(self.config), 'host integration is not configured')
         self.request = request
         self._repo()
@@ -306,19 +313,38 @@ class HostOps:
         require(type(self.config['smtp_recipient']) is str and re.fullmatch(
             r'[A-Za-z0-9.!#$%&*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+', self.config['smtp_recipient']),
             'explicit controlled SMTP recipient required')
-        require(type(self.config['minimum_retention_days']) is int and self.config['minimum_retention_days'] > 0
-                and type(self.config['restore_max_age_seconds']) is int and self.config['restore_max_age_seconds'] > 0,
-                'retention and restore freshness policy required')
+        if needs_backup:
+            require(type(self.config['minimum_retention_days']) is int and self.config['minimum_retention_days'] > 0
+                    and type(self.config['restore_max_age_seconds']) is int and self.config['restore_max_age_seconds'] > 0,
+                    'retention and restore freshness policy required')
         if request['kind'] in ('standard', 'first-cutover'):
             source = _recheck(request['publication']['source'], self._api())
             require(source['operation'] == request['kind'], 'source operation mismatch')
         else:
             self._recovery_gate(request)
-        if request['kind'] in ('standard', 'first-cutover'):
+        if needs_backup:
             self._mount()
             self._evidence('backup_adapter', 'preflight', {'scope': 'wordpress', 'checksums': {}})
         if request['kind'] == 'first-cutover':
             self._tool('legacy_adapter'); protected(Path(CUTOVER)); protected(Path(ROUTING))
+            if waiver is not None: self._routing_evidence('prepare-routing')
+        return waiver
+
+    def _routing_evidence(self, action):
+        """Routing-only proof is not evidence of a data backup or restore."""
+        require(action in ('prepare-routing', 'verify-routing'), 'invalid routing evidence action')
+        original = (self.request['recovery_authorization']['target_operation_id']
+                    if self.request['kind'] == 'routing-rollback' else self.request['operation_id'])
+        binding = {key: self.request[key] for key in ('operation_id', 'git_sha', 'image')}
+        binding['deployment_operation_id'] = original
+        result = json_object(run([self._tool('legacy_adapter'), action], data=binding))
+        require(type(result) is dict and set(result) == {'binding_sha256', 'routing_recovery_reference'}
+                and result['binding_sha256'] == fingerprint(binding)
+                and type(result['routing_recovery_reference']) is str
+                and 0 < len(result['routing_recovery_reference']) <= 2048
+                and not any(ord(c) < 32 for c in result['routing_recovery_reference']),
+                'bound legacy routing recovery proof required')
+        return result
 
     def _recovery_gate(self, request):
         authorization = request['recovery_authorization']
@@ -519,7 +545,17 @@ class HostOps:
 
     def verify(self, image, public=True):
         if image == 'legacy':
-            self._evidence('legacy_adapter', 'verify-routing', {'scope': 'legacy', 'checksums': {}})
+            waiver = self.config.get('first_cutover_without_backup')
+            if waiver is not None and self.request['kind'] in ('first-cutover', 'routing-rollback'):
+                original = dict(self.request)
+                if original['kind'] == 'routing-rollback':
+                    original.update(kind='first-cutover',
+                                    operation_id=original['recovery_authorization']['target_operation_id'],
+                                    authorization_ref=waiver.get('authorization_ref') if type(waiver) is dict else None)
+                validate_backup_waiver(waiver, original)
+                self._routing_evidence('verify-routing')
+            else:
+                self._evidence('legacy_adapter', 'verify-routing', {'scope': 'legacy', 'checksums': {}})
             self._http('/', public=True)
             return
         state = self.current_state()

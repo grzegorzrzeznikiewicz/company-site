@@ -199,6 +199,61 @@ class HostTests(unittest.TestCase):
         self.assertLess(effects.index('backup:legacy'), effects.index('deploy:' + NEW + ':True'))
         self.assertLess(effects.index('backup:wordpress'), effects.index('route:wordpress'))
 
+    def waived_cutover(self):
+        (self.root / 'mode').write_text('off')
+        (self.root / 'accepted.json').unlink()
+        self.ops.state.update(installed=False, healthy=False, image=None, resources={})
+        req = request(); req.update(kind='first-cutover', authorization_ref='approval-101')
+        now = datetime.now(timezone.utc)
+        req['publication']['source']['authorization'] = {
+            'authorization_id': 'approval-101', 'promotion_run_id': 101, 'promotion_run_attempt': 1,
+            'git_sha': SHA, 'source_run_id': 100, 'source_run_attempt': 1, 'artifact_id': 50,
+            'artifact_digest': 'sha256:' + '1' * 64, 'operators': [{'id': 1, 'login': 'owner', 'type': 'User'}],
+            'window_start': (now - timedelta(hours=1)).isoformat().replace('+00:00', 'Z'),
+            'window_end': (now + timedelta(hours=1)).isoformat().replace('+00:00', 'Z')}
+        waiver = {key: req[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+        waiver['accept_data_loss_without_backup'] = True
+        self.ops.preflight = lambda req: copy.deepcopy(waiver)
+        return req, waiver
+
+    def test_waived_first_cutover_records_no_backup_and_preserves_routing_recovery(self):
+        req, waiver = self.waived_cutover()
+        self.assertEqual('completed', execute(req, self.root, self.ops)['status'])
+        journal = json.loads((self.root / 'operation.json').read_text())
+        self.assertIsNone(journal['backup'])
+        self.assertNotIn('wordpress_backup', journal)
+        self.assertEqual(waiver, journal['backup_waiver'])
+        self.assertFalse(any(e.startswith('backup:') for e in self.effects()))
+        self.assertIn('route:wordpress', self.effects())
+        recovery = request()
+        recovery.update(kind='routing-rollback', operation_id='route-102', authorization_ref='recovery-102',
+                        recovery_authorization={'target_operation_id': req['operation_id']})
+        self.ops.preflight = lambda req: None
+        self.assertEqual('completed', execute(recovery, self.root, self.ops)['status'])
+        self.assertIn('route:legacy', self.effects())
+
+    def test_waiver_cannot_authorize_other_release_or_standard_update(self):
+        req, waiver = self.waived_cutover()
+        for key, bad in [('operation_id', 'other'), ('git_sha', 'f'*40), ('image', OLD),
+                         ('authorization_ref', 'other'), ('accept_data_loss_without_backup', False)]:
+            with self.subTest(field=key):
+                wrong = {**waiver, key: bad}
+                self.ops.preflight = lambda req: wrong
+                with self.assertRaises(ReleaseValidationError): execute(req, self.root, self.ops)
+                self.assertFalse((self.root / 'operation.json').exists())
+        (self.root / 'mode').write_text('wordpress')
+        self.ops.preflight = lambda req: waiver
+        with self.assertRaises(ReleaseValidationError): execute(request(), self.root, self.ops)
+        self.assertFalse(any(e.startswith('deploy:') for e in self.effects()))
+
+    def test_failed_waived_cutover_still_returns_traffic_to_legacy(self):
+        req, waiver = self.waived_cutover()
+        self.ops.fail = True
+        result = execute(req, self.root, self.ops)
+        self.assertEqual('recovered', result['recovery'])
+        self.assertIn('route:legacy', self.effects())
+        self.assertFalse(any(e.startswith('backup:') for e in self.effects()))
+
     def test_routing_recovery_never_creates_first_wordpress_acceptance(self):
         (self.root/'mode').write_text('off')
         (self.root/'accepted.json').unlink()

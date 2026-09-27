@@ -134,6 +134,17 @@ def _backup(ops, scope, request):
     return result
 
 
+def validate_backup_waiver(record, request):
+    """Only a protected, exact first-cutover approval can waive data backups."""
+    fields = {'operation_id', 'git_sha', 'image', 'authorization_ref'}
+    require(request['kind'] == 'first-cutover' and type(record) is dict
+            and set(record) == fields | {'accept_data_loss_without_backup'}
+            and record['accept_data_loss_without_backup'] is True
+            and all(record[key] == request[key] for key in fields),
+            'backup waiver must bind the exact authorized first cutover')
+    return json_object(json.dumps(record))
+
+
 @contextmanager
 def control_lock(state_dir: Path = STATE_ROOT):
     """Hold the shared host lock through all caller mutation AND verification.
@@ -193,7 +204,8 @@ def _locked(request, root, ops):
     if first: _window(request)
     if not recovery and ops.current_main_sha() != request['git_sha']:
         return {'status': 'skipped', 'operation_id': request['operation_id'], 'reason': 'superseded-main'}
-    ops.preflight(request)
+    waiver = ops.preflight(request)
+    if waiver is not None: waiver = validate_backup_waiver(waiver, request)
     target = None
     if recovery:
         target = journal.get('recovery_target', journal) if journal is not None else None
@@ -208,8 +220,11 @@ def _locked(request, root, ops):
                     and target['prior'].get('git_sha') == request['git_sha'],
                     'code recovery must target the recorded previous image and SHA')
         else:
+            if target.get('backup_waiver') is not None:
+                validate_backup_waiver(target['backup_waiver'], target)
             require(target.get('kind') == 'first-cutover' and target['image'] == request['image']
-                    and target['git_sha'] == request['git_sha'] and target.get('backup'),
+                    and target['git_sha'] == request['git_sha']
+                    and (target.get('backup') or target.get('backup_waiver')),
                     'routing recovery must target the recorded first cutover')
     prior = ops.current_state()
     require(prior.get('platform') == 'linux/amd64', 'host platform mismatch')
@@ -236,13 +251,16 @@ def _locked(request, root, ops):
     journal = {'schema_version': 1, 'operation_id': request['operation_id'], 'kind': request['kind'],
                'git_sha': request['git_sha'], 'image': request['image'], 'fingerprint': identity,
                'prior': prior, 'status': 'preparing', 'backup': None}
+    if waiver is not None:
+        journal['backup_waiver'] = waiver
+        journal['authorization_ref'] = request['authorization_ref']
     if incident is not None: journal['previous_incident'] = incident
     if recovery: journal['recovery_target'] = target
     atomic(root / 'operation.json', journal)
     # Every failure after durable intent, even during backup, remains a barrier.
     mutated = False
     try:
-        if not recovery:
+        if not recovery and waiver is None:
             journal['backup'] = _backup(ops, 'legacy' if first else 'wordpress', request)
         require(ops.current_state()['resources'] == prior['resources'], 'persistent resources changed during backup')
         journal['status'] = 'mutating'; atomic(root / 'operation.json', journal)
@@ -254,7 +272,8 @@ def _locked(request, root, ops):
             ops.deploy(request['image'], bootstrap=first)
             if first:
                 ops.verify(request['image'], public=False)
-                journal['wordpress_backup'] = _backup(ops, 'wordpress', request)
+                if waiver is None:
+                    journal['wordpress_backup'] = _backup(ops, 'wordpress', request)
                 atomic(root / 'operation.json', journal)
                 ops.switch_routing('wordpress', request['operation_id'])
             ops.verify(request['image'])
