@@ -49,6 +49,35 @@ def validate_report(raw):
         raise AuditError('Remote audit report rejected; raw output suppressed.') from None
 
 
+def ssh_failure_category(returncode, stderr):
+    """Classify observed diagnostics, never return any part of remote/client text.
+
+    Categories are hints, not proof of a root cause. Keep LC_ALL=C on the child.
+    Unknown diagnostics remain unknown rather than disclosing raw output.
+    """
+    error = stderr.lower()
+    if 'load key ' in error and any(message in error for message in (
+            'invalid format', 'error in libcrypto', 'incorrect passphrase', 'bad permissions')):
+        return 'private_key_load'
+    for message, category in (
+        ('host key verification failed', 'host_key_verification'),
+        ('remote host identification has changed', 'host_key_verification'),
+        ('permission denied (', 'authentication_rejected'),
+        ('connection timed out', 'connection_timeout'),
+        ('connection refused', 'connection_refused'),
+        ('could not resolve hostname', 'dns_resolution'),
+        ('unable to negotiate with', 'algorithm_negotiation'),
+        ('connection closed', 'connection_closed'),
+        ('connection reset', 'connection_closed'),
+    ):
+        if message in error: return category
+    if (returncode == 127 and '/usr/bin/python3' in error
+            and ('not found' in error or 'no such file or directory' in error)):
+        return 'remote_python_unavailable'
+    if 0 < returncode < 255: return 'remote_command_failed'
+    return 'unknown_ssh_failure'
+
+
 def execute(env):
     if not allowed(env): raise AuditError('Audit dispatch is not authorized.')
     host, user = env.get('SERVER_HOST', ''), env.get('SERVER_USER', '')
@@ -62,6 +91,7 @@ def execute(env):
         raise AuditError('SSH connection configuration is missing or invalid.')
     # Child processes do not inherit GitHub/SSH secrets, custom SSH config or agents.
     child_env = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}
+    stage = 'host_key_scan'
     try:
         scan = subprocess.run(['/usr/bin/ssh-keyscan', '-T', '10', '-p', port, host],
                               capture_output=True, text=True, timeout=40, env=child_env)
@@ -85,6 +115,7 @@ def execute(env):
             known = Path(directory) / 'known_hosts'
             target = host if int(port) == 22 else '[' + host + ']:' + port
             known.write_text(target + ' ' + verified + '\n')
+            stage = 'ssh_command'
             result = subprocess.run([
                 '/usr/bin/ssh', '-F', '/dev/null', '-T', '-p', port, '-i', str(private),
                 '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
@@ -95,8 +126,14 @@ def execute(env):
                 '-o', 'LogLevel=ERROR', user + '@' + host, '/usr/bin/python3 -I -B -'],
                 input=Path(__file__).with_name('server_probe.py').read_text(),
                 capture_output=True, text=True, timeout=60, env=child_env)
-            if result.returncode != 0: raise AuditError('SSH audit failed; raw connection output suppressed.')
+            if result.returncode != 0:
+                category = ssh_failure_category(result.returncode, result.stderr)
+                raise AuditError('SSH audit failed [category=' + category + ', exit='
+                                 + str(result.returncode) + ']; raw connection output suppressed.')
             return validate_report(result.stdout)
+    except subprocess.TimeoutExpired:
+        raise AuditError('SSH audit transport failed [stage=' + stage
+                         + ', category=process_timeout]; raw connection output suppressed.') from None
     except (OSError, subprocess.SubprocessError, UnicodeError):
         raise AuditError('SSH audit transport failed; raw connection output suppressed.') from None
 

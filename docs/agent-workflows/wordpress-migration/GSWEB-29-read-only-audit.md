@@ -79,7 +79,56 @@ Sprawdzić rzeczywiste SHA i input w runie, wynik `audit-guard`, wynik audytu or
 status `skipped` dla `guard`, `build` i `deploy`. Nie interpretować samego zielonego
 statusu workflow jako dowodu wykonania sondy. Zapisać ID runu i zweryfikowany raport.
 
-## Panel administracyjny
+## Wynik jednej zatwierdzonej próby — 2026-09-27
+
+Właściciel przekazał publiczny klucz ED25519 i polecił spróbować z tym kluczem.
+Jego odcisk zapisano jako `SERVER_SSH_FINGERPRINT`. Źródło klucza nie zostało
+niezależnie potwierdzone; użyto wartości wskazanej przez właściciela, bez TOFU
+i bez wyłączania kontroli klucza hosta.
+
+Uruchomiono dokładnie jeden
+[audyt 36341394731](https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/36341394731)
+na `feature/GSWEB-9`, SHA `4f4fb3f2b78500ad77a216c509fecaf05997ff03`,
+z `operation=read-only-audit` i trybem `off`.
+
+- Osiem kontroli CI tego SHA: SUCCESS; ponowne lokalne testy sondy: 9/9.
+- `audit-guard`: SUCCESS.
+- Porównanie odcisku z publicznym kluczem pobranym przez `ssh-keyscan` przeszło:
+  kod dotarł do właściwego wywołania SSH.
+- SSH zwróciło kod różny od zera, komunikat `SSH audit failed; raw connection
+  output suppressed.`. Raport inwentaryzacji nie powstał. Nie ustalono, czy
+  przyczyną było uwierzytelnienie, weryfikacja klucza w samym SSH, połączenie,
+  czy wykonanie zdalnego Pythona; nie należy utożsamiać porównania odcisku ze
+  skutecznym zalogowaniem.
+- `guard`, `Deploy to Server` (build), `deploy`: SKIPPED. Brak merge, wdrożenia
+  i restartu. `GAMA_DEPLOYMENT_MODE` pozostaje `off`.
+
+Jednorazowa zgoda została wykorzystana. Dalsza próba wymaga uzgodnienia;
+następny krok to diagnostyka z zamkniętymi kategoriami błędów bez wypisywania
+surowych danych połączenia, kluczy ani konfiguracji.
+
+## Dodatkowa zgoda i diagnostyka — 2026-09-27
+
+Właściciel zatwierdził dodanie bezpiecznej diagnostyki, commit/push tej zmiany
+i jedną kolejną próbę audytu, bez wdrożenia. Rozszerzenie nie zmienia komendy SSH,
+kluczy, sprawdzania tożsamości hosta, warunków uruchomienia ani zdalnej sondy.
+
+Przy błędzie raportowana jest tylko stała kategoria i liczbowy kod zakończenia
+procesu SSH. Rozpoznawane są: problem odczytu klucza prywatnego, odrzucenie
+uwierzytelnienia, weryfikacja klucza hosta, timeout/odmowa/zamknięcie połączenia,
+DNS, negocjacja algorytmów, brak Pythona i błąd zdalnej komendy. Nieznane błędy
+pozostają nieznane. Timeout całego procesu wskazuje etap: pobranie klucza hosta
+lub właściwe SSH. Kategorie opisują zaobserwowany komunikat, a nie stanowią
+samodzielnego dowodu przyczyny źródłowej. Surowe stdout/stderr pozostają ukryte;
+nie dodano automatycznych ponowień.
+
+Weryfikacja rozszerzenia: 193/193 testów mechanizmu wydań w izolowanym kontenerze
+Linux, walidacja YAML z 17 negatywnymi przypadkami, kontrakt wdrożenia i kontrola
+diff: PASS. Niezależny przegląd zmiany kodu: APPROVE. Testy CLI obejmują 14
+przypadków błędu SSH oraz oba etapy timeoutu, z potwierdzeniem braku wycieku
+surowych danych i braku automatycznej ponownej próby.
+
+## Panel administracyjny (adresy)
 
 Lokalnie: <http://localhost:8090/wp-admin/>. Dnia 2026-09-10 sprawdzono odpowiedź
 HTTP 302 do lokalnego `wp-login.php`. Po wydaniu WordPressa domyślnym adresem

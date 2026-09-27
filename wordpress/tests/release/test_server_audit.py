@@ -147,6 +147,53 @@ class ServerAuditTests(unittest.TestCase):
                 self.assertEqual(self.audit.main(), 0)
             self.assertEqual(output.read_text(), 'allowed=false\n')
 
+    def test_failed_ssh_cli_reports_closed_categories_without_sensitive_output(self):
+        cases = [
+            (255, 'Load key "/PRIVATE/identity": error in libcrypto', 'private_key_load'),
+            (255, 'Load key "/PRIVATE/identity": invalid format', 'private_key_load'),
+            (255, 'Load key "/PRIVATE/identity": incorrect passphrase supplied to decrypt private key', 'private_key_load'),
+            (255, 'PRIVATE@PRIVATE: Permission denied (publickey).', 'authentication_rejected'),
+            (255, 'Host key verification failed. PRIVATE', 'host_key_verification'),
+            (255, 'ssh: connect to host PRIVATE port 22: Connection timed out', 'connection_timeout'),
+            (255, 'ssh: connect to host PRIVATE port 22: Connection refused', 'connection_refused'),
+            (255, 'ssh: Could not resolve hostname PRIVATE: Name or service not known', 'dns_resolution'),
+            (255, 'Unable to negotiate with PRIVATE port 22: no matching host key type found.', 'algorithm_negotiation'),
+            (255, 'kex_exchange_identification: Connection closed by remote host PRIVATE', 'connection_closed'),
+            (255, 'Connection reset by PRIVATE port 22', 'connection_closed'),
+            (127, 'bash: line 1: /usr/bin/python3: No such file or directory PRIVATE', 'remote_python_unavailable'),
+            (1, 'Traceback PRIVATE', 'remote_command_failed'),
+            (255, 'Unexpected PRIVATE failure ::warning::do not emit', 'unknown_ssh_failure'),
+        ]
+        for code, raw_error, category in cases:
+            with self.subTest(category=category, raw_error=raw_error), tempfile.TemporaryDirectory() as tmp:
+                summary = Path(tmp) / 'summary'
+                responses = [subprocess.CompletedProcess([], 0, 'host ssh-ed25519 ' + self.key, ''),
+                             subprocess.CompletedProcess([], code, 'PRIVATE stdout', raw_error)]
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.dict(os.environ, {**self.env, 'GITHUB_STEP_SUMMARY': str(summary)}, clear=True), \
+                        patch.object(self.audit.sys, 'argv', ['audit', 'run']), \
+                        patch.object(self.audit.subprocess, 'run', side_effect=responses) as run, \
+                        redirect_stdout(stdout), redirect_stderr(stderr):
+                    self.assertEqual(self.audit.main(), 1)
+                self.assertEqual(stdout.getvalue(), '')
+                self.assertEqual(stderr.getvalue(), 'SSH audit failed [category=' + category
+                                 + ', exit=' + str(code) + ']; raw connection output suppressed.\n')
+                self.assertFalse(summary.exists())
+                self.assertEqual(run.call_count, 2, 'Diagnostics must not retry SSH')
+                ssh_args = run.call_args.args[0]
+                self.assertFalse(Path(ssh_args[ssh_args.index('-i') + 1]).exists())
+
+    def test_timeout_diagnostics_identify_stage_without_subprocess_data(self):
+        for stage in ('host_key_scan', 'ssh_command'):
+            timeout = subprocess.TimeoutExpired(['PRIVATE command'], 40, output='PRIVATE', stderr='PRIVATE')
+            responses = [timeout] if stage == 'host_key_scan' else [
+                subprocess.CompletedProcess([], 0, 'host ssh-ed25519 ' + self.key, ''), timeout]
+            with self.subTest(stage=stage), patch.object(self.audit.subprocess, 'run', side_effect=responses):
+                with self.assertRaises(self.audit.AuditError) as error:
+                    self.audit.execute(self.env)
+                self.assertEqual(str(error.exception), 'SSH audit transport failed [stage=' + stage
+                                 + ', category=process_timeout]; raw connection output suppressed.')
+
 
 if __name__ == '__main__':
     unittest.main()
