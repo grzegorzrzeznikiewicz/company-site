@@ -413,9 +413,22 @@ class HostOps:
                 and labels.get('com.gamasoftware.wordpress.release-marker') == 'release'
                 and full_sha(labels.get('org.opencontainers.image.revision'))
                 and image in result.get('RepoDigests', [])
-                and (image_id is None or result.get('Id') == image_id)
                 and (sha is None or labels.get('org.opencontainers.image.revision') == sha),
                 'published image identity/platform/revision mismatch')
+        if image_id is not None and result.get('Id') != image_id:
+            # The containerd store reports the manifest digest as Id. Only
+            # accept that exact pinned manifest, whose config must still match
+            # the CI-tested config digest; an arbitrary alternate ID is refused.
+            require(result.get('Id') == image.rsplit('@', 1)[-1],
+                    'published local image identity mismatch')
+            manifest = json_object(self._docker('manifest', 'inspect', image))
+            require(type(manifest) is dict and manifest.get('schemaVersion') == 2
+                    and manifest.get('mediaType') in (
+                        'application/vnd.docker.distribution.manifest.v2+json',
+                        'application/vnd.oci.image.manifest.v1+json')
+                    and type(manifest.get('config')) is dict
+                    and manifest['config'].get('digest') == image_id,
+                    'published image config digest mismatch')
         return result
 
     def _mount(self):

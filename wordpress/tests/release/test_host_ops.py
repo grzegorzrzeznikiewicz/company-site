@@ -19,6 +19,62 @@ except ModuleNotFoundError:
     HostOps = None
 
 
+class ImageIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.ops = HostOps({})
+        self.digest = 'sha256:' + 'b' * 64
+        self.config_id = 'sha256:' + 'd' * 64
+        self.image = 'ghcr.io/grzegorzrzeznikiewicz/gama-wordpress@' + self.digest
+        self.info = {'Id': self.digest, 'Os': 'linux', 'Architecture': 'amd64',
+                     'Config': {'Labels': {'com.gamasoftware.wordpress.release-marker': 'release',
+                                           'org.opencontainers.image.revision': 'a' * 40}},
+                     'RepoDigests': [self.image]}
+        self.manifest = {'schemaVersion': 2,
+                         'mediaType': 'application/vnd.docker.distribution.manifest.v2+json',
+                         'config': {'digest': self.config_id}}
+
+    def check_image(self):
+        def docker(*argv, **kwargs):
+            self.assertEqual(('manifest', 'inspect', self.image), argv)
+            return json.dumps(self.manifest)
+        with mock.patch.object(self.ops, '_object', return_value=self.info), \
+                mock.patch.object(self.ops, '_docker', side_effect=docker):
+            return self.ops._image(self.image, self.config_id, 'a' * 40)
+
+    def test_containerd_manifest_id_requires_matching_config_digest(self):
+        self.assertEqual(self.digest, self.check_image()['Id'])
+
+    def test_classic_config_id_needs_no_manifest_lookup(self):
+        self.info['Id'] = self.config_id
+        with mock.patch.object(self.ops, '_object', return_value=self.info), \
+                mock.patch.object(self.ops, '_docker', side_effect=AssertionError('unexpected lookup')):
+            self.assertEqual(self.config_id, self.ops._image(self.image, self.config_id, 'a' * 40)['Id'])
+
+    def test_containerd_rejects_wrong_or_missing_config_digest(self):
+        for config in ({}, {'digest': 'sha256:' + 'e' * 64}, None):
+            with self.subTest(config=config):
+                self.manifest['config'] = config
+                with self.assertRaises(ReleaseValidationError): self.check_image()
+
+    def test_containerd_rejects_index_or_invalid_schema(self):
+        for field, value in (('schemaVersion', 1), ('mediaType', 'application/vnd.oci.image.index.v1+json')):
+            with self.subTest(field=field):
+                original = self.manifest[field]
+                self.manifest[field] = value
+                with self.assertRaises(ReleaseValidationError): self.check_image()
+                self.manifest[field] = original
+
+    def test_containerd_does_not_accept_unrelated_local_id_or_revision(self):
+        for field, value in (('Id', 'sha256:' + 'f' * 64), ('Architecture', 'arm64'), ('RepoDigests', [])):
+            with self.subTest(field=field):
+                original = self.info[field]
+                self.info[field] = value
+                with self.assertRaises(ReleaseValidationError): self.check_image()
+                self.info[field] = original
+        self.info['Config']['Labels']['org.opencontainers.image.revision'] = 'c' * 40
+        with self.assertRaises(ReleaseValidationError): self.check_image()
+
+
 class ProductionPortTests(unittest.TestCase):
     def test_deploy_only_passes_smtp_deferral_for_the_bound_bootstrap(self):
         ops = HostOps({'env_file': '/private/production.env'})
