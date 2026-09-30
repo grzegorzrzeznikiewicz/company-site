@@ -1,0 +1,7 @@
+#!/usr/bin/python3
+import sys
+
+sys.path.insert(0, '/usr/local/lib/gama-wordpress-routing')
+from ovh import main
+
+raise SystemExit(main('cutover'))

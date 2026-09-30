@@ -85,6 +85,7 @@ jobs:
           username: ${{ secrets.PRODUCTION_SERVER_USER }}
           key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
           port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          fingerprint: SHA256:n+gcr+OMaTxLNlF2uQBdEXSqyZxZ7yZDliuGAXFoaRU
           command_timeout: 40m
           envs: RELEASE_REQUEST
           script: |

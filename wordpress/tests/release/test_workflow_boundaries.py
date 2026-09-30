@@ -41,6 +41,15 @@ def scalar(filename, name, key='run'):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_production_ssh_steps_pin_verified_ovh_host_key(self):
+        for workflow, step in (
+            ('wordpress-production.yml', 'Execute installed serialized production transaction'),
+            ('wordpress-production-rollback.yml', 'Execute installed serialized recovery transaction'),
+        ):
+            with self.subTest(workflow=workflow):
+                self.assertEqual('SHA256:n+gcr+OMaTxLNlF2uQBdEXSqyZxZ7yZDliuGAXFoaRU\n',
+                                 scalar(workflow, step, 'fingerprint'))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
