@@ -1,5 +1,22 @@
 # GSWEB-29 — one first-cutover backup exception
 
+## Owner approval interface decision (2026-09-30)
+
+After approving run 36714963332 with an empty comment, the owner explicitly
+approved removing the requirement to copy canonical JSON into the GitHub
+environment approval comment. The configured owner must still approve the
+specific first-attempt production workflow run. Its commit must equal the
+authorized source commit. The source CI, artifact identity, operator identity,
+approval history, self-review policy and active time window checks remain.
+The pre-gate summary displays the release details for review; its JSON is
+informational and the approval comment is optional. This change applies only
+to first cutover; recovery approval rules are unchanged.
+The pre-gate step computes SHA-256 of the complete canonical authorization;
+the protected approval job includes this digest in its GitHub-recorded name.
+Both publisher and host read the exact first-attempt jobs from GitHub and
+require a unique successful approval job with the same digest. This preserves
+independent binding of the window, operators and artifact without manual JSON.
+
 ## Owner decision (2026-09-27)
 
 The owner explicitly approved deployment without a data backup, then approved

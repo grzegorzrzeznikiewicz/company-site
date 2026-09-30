@@ -484,7 +484,7 @@ def _cutover(payload, api, mode):
     _repo(payload.get('repository'))
     require(payload.get('ref') == 'refs/heads/main', 'trusted main dispatch required')
     authorization = payload.get('authorization')
-    comment = authorization_comment(authorization)
+    authorization_record = authorization_comment(authorization)
     require(payload.get('promotion_run_id') == authorization['promotion_run_id']
             and payload.get('promotion_run_attempt') == 1, 'promotion dispatch identity mismatch')
     run = api.get(ROOT + '/actions/runs/' + str(authorization['promotion_run_id']))
@@ -496,6 +496,7 @@ def _cutover(payload, api, mode):
             and workflow.get('state') == 'active' and run.get('workflow_id') == workflow['id']
             and run.get('path') == workflow['path'] and run.get('event') == 'workflow_dispatch'
             and run.get('head_branch') == 'main' and full_sha(run.get('head_sha'))
+            and run['head_sha'] == authorization['git_sha']
             and run.get('id') == authorization['promotion_run_id']
             and run.get('run_attempt') == 1 and run.get('status') == 'in_progress'
             and run.get('conclusion') is None, 'untrusted or reused cutover dispatch')
@@ -536,10 +537,19 @@ def _cutover(payload, api, mode):
         for e in entry.get('environments', []))]
     require(len(relevant) == 1, 'ambiguous or missing cutover approval history')
     approved = relevant[0]
+    # The trusted pre-gate job computes this name from the complete request.
+    # GitHub's run-specific job record binds fields even when comments are empty.
+    gate_name = 'Approve cutover ' + hashlib.sha256(authorization_record.encode()).hexdigest()
+    jobs = api.pages(ROOT + '/actions/runs/' + str(run['id']) + '/attempts/1/jobs', 'jobs')
+    gates = [job for job in jobs if job.get('name', '').startswith('Approve cutover ')]
+    require(len(gates) == 1 and gates[0].get('name') == gate_name
+            and gates[0].get('run_id') == run['id']
+            and gates[0].get('status') == 'completed' and gates[0].get('conclusion') == 'success',
+            'approved cutover request binding missing or changed')
     owner = approved.get('user', {})
     require(approved.get('state') == 'approved' and owner.get('type') == 'User'
-            and (owner.get('id'), owner.get('login')) in owners
-            and approved.get('comment') == comment, 'configured owner has not approved this exact cutover')
+            and (owner.get('id'), owner.get('login')) in owners,
+            'configured owner has not approved this exact cutover')
     if policies[0]['prevent_self_review']:
         require(owner['id'] != run['actor']['id'] and owner['id'] != run['triggering_actor']['id'],
                 'configured cutover self-review prevention violated')

@@ -54,6 +54,8 @@ jobs:
     needs: guard
     if: needs.guard.outputs.operation == 'first-cutover'
     runs-on: ubuntu-latest
+    outputs:
+      authorization_digest: ${{ steps.authorization.outputs.digest }}
     steps:
       - name: Checkout trusted default-branch tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -61,20 +63,24 @@ jobs:
           ref: refs/heads/main
           persist-credentials: false
       - name: Display exact requested cutover approval
+        id: authorization
         env:
           INPUT_AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           python3 - <<'PY'
-          import os
+          import hashlib, os
           from wordpress.release.github_source import json_object, authorization_comment
           auth = json_object(os.environ['INPUT_AUTHORIZATION'].encode())
           auth['promotion_run_id'] = int(os.environ['GITHUB_RUN_ID'])
           auth['promotion_run_attempt'] = int(os.environ['GITHUB_RUN_ATTEMPT'])
           comment = authorization_comment(auth)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('digest=' + hashlib.sha256(comment.encode()).hexdigest() + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Approve wordpress-production-cutover with this exact comment:\n\n```json\n' + comment + '\n```\n')
+              summary.write('Review this exact release, then approve wordpress-production-cutover. The approval comment is optional; no JSON needs to be copied.\n\n```json\n' + comment + '\n```\n')
           PY
   owner-gate:
+    name: Approve cutover ${{ needs.cutover-request.outputs.authorization_digest }}
     needs: [guard, cutover-request]
     if: needs.guard.outputs.operation == 'first-cutover'
     runs-on: ubuntu-latest
