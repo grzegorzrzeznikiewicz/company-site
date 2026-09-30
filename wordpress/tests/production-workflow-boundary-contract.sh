@@ -10,6 +10,7 @@ docker run --rm --network none --read-only \
   --mount "type=bind,src=$REPOSITORY_ROOT/.gitignore,dst=/repo/.gitignore,readonly" \
   --mount "type=bind,src=$REPOSITORY_ROOT/.github/workflows,dst=/repo/.github/workflows,readonly" \
   --mount "type=bind,src=$REPOSITORY_ROOT/wordpress/release,dst=/repo/wordpress/release,readonly" \
+  --mount "type=bind,src=$REPOSITORY_ROOT/wordpress/routing,dst=/repo/wordpress/routing,readonly" \
   --mount "type=bind,src=$REPOSITORY_ROOT/wordpress/tests,dst=/repo/wordpress/tests,readonly" \
   --mount "type=bind,src=$REPOSITORY_ROOT/wordpress/bin,dst=/repo/wordpress/bin,readonly" \
   --mount "type=bind,src=$REPOSITORY_ROOT/wordpress/runtime,dst=/repo/wordpress/runtime,readonly" \
