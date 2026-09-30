@@ -1,0 +1,116 @@
+# Copyright (C) 2026 Gama Software
+msgid ""
+msgstr ""
+"Project-Id-Version: Gama Contact 0.3.2\n"
+"Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: gama-contact\n"
+
+#. Plugin Name of the plugin
+#: gama-contact.php
+msgid "Gama Contact"
+msgstr ""
+
+#. Description of the plugin
+#: gama-contact.php
+msgid "Theme-independent, secure contact form for Gama Software."
+msgstr ""
+
+#: src/Form/FormRenderer.php:24
+msgid "Coś poszło nie tak. Spróbuj ponownie później."
+msgstr ""
+
+#: src/Form/FormRenderer.php:33
+msgid "Imię i nazwisko"
+msgstr ""
+
+#: src/Form/FormRenderer.php:38
+msgid "E-mail"
+msgstr ""
+
+#: src/Form/FormRenderer.php:44
+msgid "Telefon"
+msgstr ""
+
+#: src/Form/FormRenderer.php:49
+msgid "Wiadomość"
+msgstr ""
+
+#: src/Form/FormRenderer.php:54
+msgid "Firma"
+msgstr ""
+
+#: src/Form/FormRenderer.php:59
+msgid "Wyślij wiadomość"
+msgstr ""
+
+#: src/Form/FormRenderer.php:60
+msgid "Włącz JavaScript, aby wysłać wiadomość."
+msgstr ""
+
+#: src/Form/SubmissionController.php:29
+msgid "Nie udało się zweryfikować formularza. Odśwież stronę i spróbuj ponownie."
+msgstr ""
+
+#: src/Form/SubmissionController.php:34
+msgid "Dziękujemy. Wiadomość została przyjęta."
+msgstr ""
+
+#: src/Form/SubmissionController.php:37
+msgid "Wysłano zbyt wiele wiadomości. Spróbuj ponownie później."
+msgstr ""
+
+#: src/Form/SubmissionController.php:44
+msgid "Popraw zaznaczone pola."
+msgstr ""
+
+#: src/Form/SubmissionController.php:57
+msgid "Formularz jest chwilowo niedostępny."
+msgstr ""
+
+#: src/Form/SubmissionController.php:71
+msgid "Nowa wiadomość ze strony Gama Software"
+msgstr ""
+
+#: src/Form/SubmissionController.php:72
+msgid "Nie udało się wysłać wiadomości. Spróbuj ponownie później."
+msgstr ""
+
+#: src/Form/SubmissionController.php:75
+msgid "Dziękujemy. Wiadomość została wysłana."
+msgstr ""
+
+#: src/Form/Validator.php:21
+msgid "Podaj swoje imię i nazwisko."
+msgstr ""
+
+#: src/Form/Validator.php:23
+msgid "Imię i nazwisko jest zbyt długie."
+msgstr ""
+
+#: src/Form/Validator.php:26
+msgid "Podaj poprawny adres e-mail."
+msgstr ""
+
+#: src/Form/Validator.php:29
+msgid "Podaj numer telefonu."
+msgstr ""
+
+#: src/Form/Validator.php:31
+msgid "Podaj poprawny numer telefonu."
+msgstr ""
+
+#: src/Form/Validator.php:34
+msgid "Wiadomość nie może być pusta."
+msgstr ""
+
+#: src/Form/Validator.php:36
+msgid "Wiadomość jest zbyt długa."
+msgstr ""

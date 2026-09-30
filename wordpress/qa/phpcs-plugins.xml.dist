@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<ruleset name="Gama Software WordPress plugins">
+    <description>WordPress-Core checks for first-party plugins, including PSR-4 packages.</description>
+    <arg name="colors"/>
+    <arg value="ps"/>
+    <arg name="extensions" value="php"/>
+    <rule ref="WordPress-Core">
+        <!-- The contact plugin deliberately uses PSR-4 class filenames. -->
+        <exclude name="WordPress.Files.FileName"/>
+        <!-- PHPMailer exposes upstream camel-case public properties. -->
+        <exclude name="WordPress.NamingConventions.ValidVariableName"/>
+        <!-- Environment fallbacks intentionally treat empty strings as unset. -->
+        <exclude name="Universal.Operators.DisallowShortTernary"/>
+        <!-- Existing strict comparisons remain readable without Yoda ordering. -->
+        <exclude name="WordPress.PHP.YodaConditions"/>
+    </rule>
+</ruleset>

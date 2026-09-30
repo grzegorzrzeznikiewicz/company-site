@@ -10,22 +10,106 @@ on:
     types:
       - completed
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Legacy release or owner-only read-only host inventory (no deployment)'
+        type: choice
+        default: legacy-release
+        options:
+          - legacy-release
+          - read-only-audit
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: wordpress-production
+  cancel-in-progress: false
+  queue: max
 
 jobs:
-  deploy:
+  audit-guard:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'read-only-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+    env:
+      INPUT_OPERATION: ${{ inputs.operation }}
+      GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+    steps:
+      - name: Checkout exact audit revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard read-only audit
+        id: guard
+        run: python3 -m wordpress.release.server_audit guard
+
+  read-only-audit:
+    name: Read-only host inventory (no deployment)
+    needs: audit-guard
+    if: needs.audit-guard.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      INPUT_OPERATION: ${{ inputs.operation }}
+      GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+    steps:
+      - name: Checkout exact audit revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Run pinned read-only audit
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_SSH_FINGERPRINT: ${{ secrets.SERVER_SSH_FINGERPRINT }}
+        run: python3 -m wordpress.release.server_audit run
+
+  guard:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'legacy-release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+      sha: ${{ steps.guard.outputs.sha }}
+    steps:
+      - name: Checkout trusted default-branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Guard legacy entry
+        id: guard
+        env:
+          GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+        run: python3 -m wordpress.release.legacy guard deploy
+  build:
+    outputs:
+      image_tag: ${{ steps.image.outputs.image_tag }}
+    needs: guard
+    permissions:
+      contents: read
+      packages: write
     name: Deploy to Server
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    if: needs.guard.outputs.allowed == 'true'
     env:
-      DEPLOY_GIT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_GIT_SHA: ${{ needs.guard.outputs.sha }}
 
     steps:
       - name: Checkout tested revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ env.DEPLOY_GIT_SHA }}
 
@@ -43,17 +127,17 @@ jobs:
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: build/Dockerfile
@@ -65,7 +149,7 @@ jobs:
             ${{ steps.image.outputs.frontend_image_repo }}:main-latest
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: backend
           file: backend/Dockerfile.prod
@@ -76,81 +160,39 @@ jobs:
             ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
             ${{ steps.image.outputs.backend_image_repo }}:main-latest
 
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
+  deploy:
+    needs: [guard, build]
+    if: needs.guard.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DEPLOY_GIT_SHA: ${{ needs.guard.outputs.sha }}
+    steps:
+      - name: Encode legacy host request
+        id: request
         env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
-          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
-          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
-          COMPANY_API_APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
-          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
-          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          INPUT_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os
+          request = {'operation_id': 'legacy-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'],
+                     'kind': 'deploy', 'git_sha': os.environ['DEPLOY_GIT_SHA'], 'image_tag': os.environ['INPUT_IMAGE_TAG']}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('request=' + base64.b64encode(json.dumps(request).encode()).decode() + '\n')
+          PY
+      - name: Execute installed serialized legacy transaction
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        env:
+          RELEASE_REQUEST: ${{ steps.request.outputs.request }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 40m
-          envs: APP_IMAGE,API_IMAGE,MAILER_DSN,CONTACT_RECIPIENT,CONTACT_SENDER,COMPANY_API_APP_SECRET,COMPANY_DB_PASSWORD,ADMIN_PASSWORD_HASH,GHCR_USERNAME,GHCR_TOKEN
+          envs: RELEASE_REQUEST
           script: |
             set -euo pipefail
-            cd /srv/magento-devops
-
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            else
-              echo "GHCR credentials not provided. Trying anonymous pull..."
-            fi
-
-            sudo docker pull "$APP_IMAGE"
-            sudo docker pull "$API_IMAGE"
-            RAW_DB_PASSWORD="${COMPANY_DB_PASSWORD:-}"
-            ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$RAW_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("RAW_DB_PASSWORD", ""), safe=""))')"
-            NORMALIZED_MAILER_DSN="${MAILER_DSN:-}"
-            NORMALIZED_MAILER_DSN="${NORMALIZED_MAILER_DSN#MAILER_DSN=}"
-
-            sudo env \
-              PERSONAL_APP_IMAGE="$APP_IMAGE" \
-              COMPANY_API_IMAGE="$API_IMAGE" \
-              COMPANY_DB_PASSWORD="${RAW_DB_PASSWORD}" \
-              docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-db
-
-            sudo env \
-              PERSONAL_APP_IMAGE="$APP_IMAGE" \
-              COMPANY_API_IMAGE="$API_IMAGE" \
-              MAILER_DSN="${NORMALIZED_MAILER_DSN}" \
-              CONTACT_RECIPIENT="${CONTACT_RECIPIENT:-}" \
-              CONTACT_SENDER="${CONTACT_SENDER:-}" \
-              COMPANY_API_APP_SECRET="${COMPANY_API_APP_SECRET:-}" \
-              COMPANY_DB_PASSWORD="${ENCODED_DB_PASSWORD}" \
-              ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH:-}" \
-              docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-api personal-site
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image_repo }}:${{ steps.image.outputs.image_tag }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image_repo }}:${{ steps.image.outputs.image_tag }}
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          envs: APP_IMAGE,API_IMAGE
-          script: |
-            set -euo pipefail
-            echo "Expected frontend image: $APP_IMAGE"
-            echo "Expected backend image: $API_IMAGE"
-            sudo docker ps --filter name=vm2_personal_site --filter name=vm2_company_api --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
-
-      - name: Notify success
-        if: success()
-        run: echo "✅ Deployment successful!"
-
-      - name: Notify failure
-        if: failure()
-        run: echo "❌ Deployment failed!"
+            printf '%s' "$RELEASE_REQUEST" | base64 -d | sudo /usr/bin/python3 \
+              /srv/gama-wordpress-production/tools/wordpress/bin/production-legacy-release

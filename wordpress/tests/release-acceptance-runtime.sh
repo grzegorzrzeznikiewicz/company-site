@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOSITORY_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+source "$ROOT_DIR/tests/lib/release-evidence.sh"
+project="${GAMA_STAGING_PROJECT:-}"
+artifact_root="${GAMA_RELEASE_ARTIFACT_ROOT:-${TMPDIR:-/tmp}/codex-gsweb28-artifacts}"
+image="gama-wordpress-browser:gsweb28"
+volume="gama-acceptance-browser-artifacts-$$"
+volume_acquired=0
+volume_ownership_token=''
+
+if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
+  echo 'GAMA_STAGING_PROJECT must name the active isolated staging namespace.' >&2
+  exit 64
+fi
+network="${project}_default"
+docker network inspect "$network" >/dev/null
+mkdir -p "$artifact_root"
+archive="$artifact_root/${project}-acceptance-artifacts.tar"
+if [[ -e "$archive" || -L "$archive" ]]; then
+  echo "Refusing to overwrite acceptance evidence: $archive" >&2
+  exit 1
+fi
+
+cleanup() {
+  local status=$?
+  local final_status
+  trap - EXIT
+  set +e
+  gama_release_evidence_finalize "$status" "$volume_acquired" "$volume" "$archive" "$volume_ownership_token"
+  final_status=$?
+  set -e
+  exit "$final_status"
+}
+trap cleanup EXIT
+
+docker build \
+  --cache-from 'gama-wordpress-browser:ci-cache' \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
+  --file "$ROOT_DIR/qa/browser.Dockerfile" --tag "$image" "$REPOSITORY_ROOT"
+if gama_release_evidence_acquire_volume "$volume" gama.contract=acceptance-browser; then
+  volume_acquired=1
+  volume_ownership_token="$GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN"
+else
+  status=$?
+  exit "$status"
+fi
+docker run --rm \
+  --network "$network" \
+  --volume "$volume:/artifacts" \
+  --env WP_BASE_URL=http://wordpress \
+  --env WP_ADMIN_USER=admin \
+  --env WP_ADMIN_PASSWORD=staging-admin-test-only \
+  --env WP_EDITOR_USER=style-editor \
+  --env WP_EDITOR_PASSWORD=style-editor-test-only \
+  --env MAILPIT_API_URL=http://mailpit:8025 \
+  --env GAMA_PLAYWRIGHT_RUN=release-acceptance \
+  "$image" npm test -- --grep '@release-acceptance|@global-styles-editor-choices|@hero|@services|@modules|@blog|@contact-form|@content'
+docker run --rm --network none --volume "$volume:/artifacts:ro" --entrypoint sh "$image" -ec \
+  'test -f /artifacts/release-acceptance/report/index.html; test -f /artifacts/release-acceptance/test-results/.last-run.json'
+
+echo 'Immutable staging Editor, Administrator, content and contact acceptance passed.'

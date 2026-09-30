@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+target=/var/www/html
+source=/usr/src/wordpress
+
+if [ ! -d "$target" ] || [ "$target" = / ] || [ "$source" = / ]; then
+  echo 'Unsafe WordPress release installation target.' >&2
+  exit 1
+fi
+
+find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+tar -C "$source" -cf - . | tar -C "$target" -xf -
+chown -R 33:33 "$target"
+echo 'Installed exact WordPress release into the isolated core volume.'

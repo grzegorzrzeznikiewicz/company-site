@@ -1,0 +1,111 @@
+services:
+  db:
+    image: mariadb:10.11.18-jammy@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008
+    environment:
+      MARIADB_DATABASE: wordpress_theme_test
+      MARIADB_USER: wordpress_theme_test
+      MARIADB_PASSWORD: wordpress-theme-test-only
+      MARIADB_ROOT_PASSWORD: wordpress-theme-root-test-only
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping --host=127.0.0.1 --user=$$MARIADB_USER --password=$$MARIADB_PASSWORD --silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  uploads-init:
+    image: wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["mkdir -p /uploads && chown 33:33 /uploads && chmod 0775 /uploads"]
+    volumes:
+      - uploads:/uploads
+
+  wordpress:
+    image: wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress_theme_test
+      WORDPRESS_DB_USER: wordpress_theme_test
+      WORDPRESS_DB_PASSWORD: wordpress-theme-test-only
+      WORDPRESS_DEBUG: "1"
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('DISABLE_WP_CRON', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+        define('WP_HTTP_BLOCK_EXTERNAL', true);
+        define('WP_ACCESSIBLE_HOSTS', 'wordpress');
+        @ini_set('display_errors', '0');
+        error_reporting(E_ALL);
+    volumes:
+      - core:/var/www/html
+      - uploads:/var/www/html/wp-content/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$context = stream_context_create([\"http\" => [\"follow_location\" => 0, \"ignore_errors\" => true]]); @file_get_contents(\"http://127.0.0.1/wp-login.php\", false, $$context); $$status = $$http_response_header[0] ?? \"\"; exit(str_starts_with($$status, \"HTTP/\") && !str_contains($$status, \" 4\") && !str_contains($$status, \" 5\") ? 0 : 1);'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  wp:
+    image: wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99
+    user: "33:33"
+    environment:
+      WP_CLI_CACHE_DIR: /tmp/gama-theme-wp-cli/cache
+      WP_CLI_CONFIG_PATH: /tmp/gama-theme-wp-cli/config.yml
+      WP_CLI_PACKAGES_DIR: /tmp/gama-theme-wp-cli/packages
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress_theme_test
+      WORDPRESS_DB_USER: wordpress_theme_test
+      WORDPRESS_DB_PASSWORD: wordpress-theme-test-only
+    volumes:
+      - core:/var/www/html
+      - uploads:/var/www/html/wp-content/uploads
+      - type: bind
+        source: ${PACKAGE_ZIP:?PACKAGE_ZIP must identify the tested theme ZIP}
+        target: /package/gama-software.zip
+        read_only: true
+    entrypoint: ["wp", "--path=/var/www/html"]
+    depends_on:
+      wordpress:
+        condition: service_healthy
+
+  browser:
+    build:
+      context: ../..
+      dockerfile: wordpress/qa/browser.Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+      cache_from:
+        - gama-wordpress-browser:ci-cache
+    shm_size: "1gb"
+    environment:
+      WP_BASE_URL: http://wordpress
+      WP_ADMIN_USER: theme-admin
+      WP_ADMIN_PASSWORD: theme-test-password-only
+      WP_EDITOR_USER: style-editor
+      WP_EDITOR_PASSWORD: style-editor-test-only
+    volumes:
+      - browser-artifacts:/artifacts
+    depends_on:
+      wordpress:
+        condition: service_healthy
+
+volumes:
+  browser-artifacts:
+  core:
+  db-data:
+  uploads:
+
+networks:
+  default:
+    internal: true

@@ -1,0 +1,23 @@
+{
+  "name": "gama-software/wordpress-theme-qa",
+  "description": "Pinned quality toolchain for the Gama Software WordPress theme.",
+  "type": "project",
+  "license": "GPL-2.0-or-later",
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "1.2.1",
+    "opis/json-schema": "2.6.0",
+    "phpstan/phpstan": "2.2.13",
+    "squizlabs/php_codesniffer": "3.13.6",
+    "szepeviktor/phpstan-wordpress": "2.0.4",
+    "wp-coding-standards/wpcs": "3.4.1"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "platform": {
+      "php": "8.4.0"
+    },
+    "sort-packages": true
+  }
+}

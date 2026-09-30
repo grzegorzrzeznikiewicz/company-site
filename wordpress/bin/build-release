@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "${1:-}" == '--test-dirty' ]]; then
+  marker="${2:-}"
+  if [[ ! "$marker" =~ ^[a-z0-9][a-z0-9._-]{0,40}$ ]]; then
+    echo 'Test-dirty marker must be a safe lowercase identifier.' >&2
+    exit 64
+  fi
+  shift 2
+  exec python3 "$ROOT_DIR/release/candidate.py" build --development-dirty "$@"
+fi
+exec python3 "$ROOT_DIR/release/candidate.py" build "$@"

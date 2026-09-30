@@ -1,0 +1,22 @@
+services:
+  wordpress:
+    volumes:
+      - type: bind
+        source: ${GAMA_PRODUCTION_REHEARSAL_FIXTURE:?required}/ca.crt
+        target: /run/gama-test-ca/ca.crt
+        read_only: true
+      - type: bind
+        source: ${GAMA_PRODUCTION_REHEARSAL_FIXTURE:?required}/openssl-ca.ini
+        target: /usr/local/etc/php/conf.d/gama-test-ca.ini
+        read_only: true
+
+  bootstrap:
+    volumes:
+      - type: bind
+        source: ${GAMA_PRODUCTION_REHEARSAL_FIXTURE:?required}/ca.crt
+        target: /run/gama-test-ca/ca.crt
+        read_only: true
+      - type: bind
+        source: ${GAMA_PRODUCTION_REHEARSAL_FIXTURE:?required}/openssl-ca.ini
+        target: /usr/local/etc/php/conf.d/gama-test-ca.ini
+        read_only: true

@@ -1,101 +1,77 @@
 name: Rollback Production
-
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag to rollback to (e.g. sha-abc123... or main-latest)'
+        description: 'sha-<full 40-character SHA> or main-latest'
         required: true
-        default: 'main-latest'
-
+        type: string
 permissions:
   contents: read
-
+concurrency:
+  group: wordpress-production
+  cancel-in-progress: false
+  queue: max
 jobs:
-  rollback:
-    name: Rollback on VM2
+  guard:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+      sha: ${{ steps.guard.outputs.sha }}
+    steps:
+      - name: Checkout trusted default-branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Guard legacy entry
+        id: guard
+        env:
+          GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+        run: python3 -m wordpress.release.legacy guard rollback
+  rollback:
+    needs: guard
+    if: needs.guard.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_GIT_SHA: ${{ needs.guard.outputs.sha }}
     steps:
       - name: Prepare image metadata
         id: image
-        shell: bash
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           set -euo pipefail
-          OWNER_LOWER="${GITHUB_REPOSITORY_OWNER,,}"
-          FRONTEND_IMAGE_REPO="ghcr.io/${OWNER_LOWER}/company-site"
-          BACKEND_IMAGE_REPO="ghcr.io/${OWNER_LOWER}/company-site-backend"
-          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
-          echo "frontend_image=${FRONTEND_IMAGE_REPO}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "backend_image=${BACKEND_IMAGE_REPO}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Rollback via SSH
-        uses: appleboy/ssh-action@v1.0.3
+          [[ "$INPUT_IMAGE_TAG" =~ ^(sha-[a-f0-9]{40}|main-latest)$ ]] || exit 1
+          echo "image_tag=$INPUT_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=ghcr.io/grzegorzrzeznikiewicz/company-site:$INPUT_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "backend_image=ghcr.io/grzegorzrzeznikiewicz/company-site-backend:$INPUT_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Encode legacy host request
+        id: request
         env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image }}
-          MAILER_DSN: ${{ secrets.PROD_MAILER_DSN }}
-          CONTACT_RECIPIENT: ${{ secrets.PROD_CONTACT_RECIPIENT }}
-          CONTACT_SENDER: ${{ secrets.PROD_CONTACT_SENDER }}
-          COMPANY_API_APP_SECRET: ${{ secrets.PROD_COMPANY_API_APP_SECRET }}
-          COMPANY_DB_PASSWORD: ${{ secrets.PROD_COMPANY_DB_PASSWORD }}
-          ADMIN_PASSWORD_HASH: ${{ secrets.PROD_ADMIN_PASSWORD_HASH }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          INPUT_IMAGE_TAG: ${{ steps.image.outputs.image_tag }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os
+          request = {'operation_id': 'legacy-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'],
+                     'kind': 'rollback', 'git_sha': os.environ['DEPLOY_GIT_SHA'], 'image_tag': os.environ['INPUT_IMAGE_TAG']}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('request=' + base64.b64encode(json.dumps(request).encode()).decode() + '\n')
+          PY
+      - name: Execute installed serialized legacy transaction
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        env:
+          RELEASE_REQUEST: ${{ steps.request.outputs.request }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 40m
-          envs: APP_IMAGE,API_IMAGE,MAILER_DSN,CONTACT_RECIPIENT,CONTACT_SENDER,COMPANY_API_APP_SECRET,COMPANY_DB_PASSWORD,ADMIN_PASSWORD_HASH,GHCR_USERNAME,GHCR_TOKEN
+          envs: RELEASE_REQUEST
           script: |
             set -euo pipefail
-            cd /srv/magento-devops
-
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            else
-              echo "GHCR credentials not provided. Trying anonymous pull..."
-            fi
-
-            sudo docker pull "$APP_IMAGE"
-            sudo docker pull "$API_IMAGE"
-            RAW_DB_PASSWORD="${COMPANY_DB_PASSWORD:-}"
-            ENCODED_DB_PASSWORD="$(RAW_DB_PASSWORD="$RAW_DB_PASSWORD" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("RAW_DB_PASSWORD", ""), safe=""))')"
-            NORMALIZED_MAILER_DSN="${MAILER_DSN:-}"
-            NORMALIZED_MAILER_DSN="${NORMALIZED_MAILER_DSN#MAILER_DSN=}"
-
-            sudo env \
-              PERSONAL_APP_IMAGE="$APP_IMAGE" \
-              COMPANY_API_IMAGE="$API_IMAGE" \
-              COMPANY_DB_PASSWORD="${RAW_DB_PASSWORD}" \
-              docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-db
-
-            sudo env \
-              PERSONAL_APP_IMAGE="$APP_IMAGE" \
-              COMPANY_API_IMAGE="$API_IMAGE" \
-              MAILER_DSN="${NORMALIZED_MAILER_DSN}" \
-              CONTACT_RECIPIENT="${CONTACT_RECIPIENT:-}" \
-              CONTACT_SENDER="${CONTACT_SENDER:-}" \
-              COMPANY_API_APP_SECRET="${COMPANY_API_APP_SECRET:-}" \
-              COMPANY_DB_PASSWORD="${ENCODED_DB_PASSWORD}" \
-              ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH:-}" \
-              docker compose --env-file vm2/.env -f vm2/docker-compose.yml up -d --no-build company-api personal-site
-
-      - name: Verify rollback
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          APP_IMAGE: ${{ steps.image.outputs.frontend_image }}
-          API_IMAGE: ${{ steps.image.outputs.backend_image }}
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          envs: APP_IMAGE,API_IMAGE
-          script: |
-            set -euo pipefail
-            echo "Rolled back frontend image: $APP_IMAGE"
-            echo "Rolled back backend image: $API_IMAGE"
-            sudo docker ps --filter name=vm2_personal_site --filter name=vm2_company_api --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+            printf '%s' "$RELEASE_REQUEST" | base64 -d | sudo /usr/bin/python3 \
+              /srv/gama-wordpress-production/tools/wordpress/bin/production-legacy-release

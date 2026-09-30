@@ -11,6 +11,7 @@ export default tseslint.config(
       'build/**',
       'dist/**',
       'node_modules/**',
+      'wordpress/**',
       'src/app/components/ui/chart.tsx',
     ],
   },

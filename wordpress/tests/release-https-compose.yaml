@@ -1,0 +1,39 @@
+services:
+  wordpress-tls:
+    image: wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
+    restart: 'no'
+    entrypoint: ['/bin/sh', '-ec']
+    command:
+      - |
+        a2enmod ssl proxy proxy_http headers >/dev/null
+        a2dissite 000-default >/dev/null
+        install -m 0644 /run/gama-release-https/apache.conf /etc/apache2/sites-available/gama-release-https.conf
+        a2ensite gama-release-https >/dev/null
+        exec apache2-foreground
+    volumes:
+      - type: bind
+        source: ${GAMA_RELEASE_HTTPS_FIXTURE:?required}/apache.conf
+        target: /run/gama-release-https/apache.conf
+        read_only: true
+      - type: bind
+        source: ${GAMA_RELEASE_HTTPS_FIXTURE:?required}/ca.crt
+        target: /run/gama-release-https/ca.crt
+        read_only: true
+      - type: bind
+        source: ${GAMA_RELEASE_HTTPS_FIXTURE:?required}/leaf.crt
+        target: /run/gama-release-https/leaf.crt
+        read_only: true
+      - type: bind
+        source: ${GAMA_RELEASE_HTTPS_FIXTURE:?required}/leaf.key
+        target: /run/gama-release-https/leaf.key
+        read_only: true
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl --fail --silent --show-error --cacert /run/gama-release-https/ca.crt --resolve wordpress-tls:443:127.0.0.1 https://wordpress-tls/ >/dev/null',
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 2s

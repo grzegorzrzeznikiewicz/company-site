@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOSITORY_DIR="$(cd "$ROOT_DIR/.." && pwd)"
+DIST_DIR="$ROOT_DIR/dist"
+
+if [[ "$#" -ne 2 ]]; then
+  echo "Usage: wordpress/bin/package <plugin gama-contact|theme gama-software>" >&2
+  exit 64
+fi
+package_type="$1"
+package_slug="$2"
+case "$package_type:$package_slug" in
+  plugin:gama-contact)
+    SOURCE_DIR="$ROOT_DIR/plugins/gama-contact"
+    source_git_path="wordpress/plugins/gama-contact"
+    VERSION="$(sed -nE 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$SOURCE_DIR/gama-contact.php")"
+    if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+      echo "Plugin file must declare exactly one strict SemVer Version header." >&2
+      exit 1
+    fi
+    ;;
+  theme:gama-software)
+    SOURCE_DIR="$ROOT_DIR/theme/gama-software"
+    source_git_path="wordpress/theme/gama-software"
+    VERSION="$(sed -nE 's/^[[:space:]]*Version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$SOURCE_DIR/style.css")"
+    if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+      echo "Theme style.css must declare exactly one strict SemVer Version header." >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Usage: wordpress/bin/package <plugin gama-contact|theme gama-software>" >&2
+    exit 64
+    ;;
+esac
+
+if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
+  SOURCE_DATE_EPOCH="$(git -C "$REPOSITORY_DIR" log -1 --format=%ct -- "$source_git_path")"
+  if [[ -z "$SOURCE_DATE_EPOCH" ]]; then
+    SOURCE_DATE_EPOCH="$(git -C "$REPOSITORY_DIR" log -1 --format=%ct HEAD)"
+  fi
+fi
+
+"$ROOT_DIR/bin/validate-extensions-lock"
+
+if [[ ! "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
+  echo "SOURCE_DATE_EPOCH must be a non-negative integer." >&2
+  exit 64
+fi
+
+if timestamp="$(TZ=UTC date -r "$SOURCE_DATE_EPOCH" '+%Y%m%d%H%M.%S' 2>/dev/null)"; then
+  year="$(TZ=UTC date -r "$SOURCE_DATE_EPOCH" '+%Y' 2>/dev/null)"
+elif timestamp="$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y%m%d%H%M.%S' 2>/dev/null)"; then
+  year="$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y' 2>/dev/null)"
+else
+  echo "SOURCE_DATE_EPOCH is outside the date implementation's range." >&2
+  exit 64
+fi
+if ((10#$year < 1980 || 10#$year > 2107)); then
+  echo "SOURCE_DATE_EPOCH UTC year must be within ZIP's 1980-2107 range." >&2
+  exit 64
+fi
+
+for required_command in git find diff grep sed sort wc cp cut tr xargs mkdir mktemp touch chmod zip; do
+  if ! command -v "$required_command" >/dev/null 2>&1; then
+    echo "Required packaging command is unavailable: $required_command" >&2
+    exit 69
+  fi
+done
+
+if command -v shasum >/dev/null 2>&1; then
+  sha256_file() { shasum -a 256 "$1" | cut -d' ' -f1; }
+elif command -v sha256sum >/dev/null 2>&1; then
+  sha256_file() { sha256sum "$1" | cut -d' ' -f1; }
+else
+  echo "A SHA-256 command (shasum or sha256sum) is required." >&2
+  exit 69
+fi
+
+temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/${package_slug}-package.XXXXXX")"
+cleanup() {
+  find "$temporary_dir" -type f -delete 2>/dev/null || true
+  find "$temporary_dir" -depth -type d -exec rmdir {} \; 2>/dev/null || true
+}
+trap cleanup EXIT
+
+expected_files="$temporary_dir/expected-files.txt"
+actual_files="$temporary_dir/actual-files.txt"
+if [[ "$package_type" == plugin ]]; then
+cat >"$expected_files" <<'EOF'
+CHANGELOG.md
+LICENSE
+README.md
+assets/contact-form.css
+assets/contact-form.js
+gama-contact.php
+languages/gama-contact.pot
+readme.txt
+src/Form/FormRenderer.php
+src/Form/RateLimiter.php
+src/Form/SubmissionController.php
+src/Form/Validator.php
+src/Lifecycle/Activator.php
+src/Lifecycle/Deactivator.php
+src/Lifecycle/Uninstaller.php
+src/Plugin.php
+src/Support/I18n.php
+uninstall.php
+EOF
+else
+cat >"$expected_files" <<'EOF'
+CHANGELOG.md
+LICENSE
+README.md
+assets/icons/module-package.svg
+assets/icons/service-ai.svg
+assets/icons/service-consulting.svg
+assets/icons/service-ecommerce.svg
+assets/images/gama-software-logo.png
+functions.php
+languages/gama-software.pot
+parts/footer.html
+parts/header.html
+patterns/article.php
+patterns/contact.php
+patterns/hero.php
+patterns/modules.php
+patterns/not-found.php
+patterns/services.php
+style.css
+templates/404.html
+templates/archive.html
+templates/front-page.html
+templates/home.html
+templates/index.html
+templates/page.html
+templates/search.html
+templates/single.html
+theme.json
+EOF
+fi
+
+if [[ ! -d "$SOURCE_DIR" ]]; then
+  echo "Missing package source: $SOURCE_DIR" >&2
+  exit 1
+fi
+if find "$SOURCE_DIR" -type l -print -quit | grep -q .; then
+  echo "Package source contains a forbidden symlink." >&2
+  exit 1
+fi
+(cd "$SOURCE_DIR" && find . -type f -print | sed 's#^\./##' | LC_ALL=C sort) >"$actual_files"
+if ! diff -u "$expected_files" "$actual_files"; then
+  echo "Package source differs from the positive package allowlist." >&2
+  exit 1
+fi
+if grep -Eqi '(^|/)(\.env([./]|$)|id_rsa([./]|$)|credentials?([./]|$)|secrets?([./]|$))' "$actual_files"; then
+  echo "Package source contains a secret-like filename." >&2
+  exit 1
+fi
+if (cd "$SOURCE_DIR" && xargs grep -EIl -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|(api[_-]?key|password|client[_-]?secret)[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/=_-]{12,}' <"$actual_files") | grep -q .; then
+  echo "Package source contains a secret-like value." >&2
+  exit 1
+fi
+
+if [[ "$package_type" == plugin ]]; then
+for metadata in \
+  'Plugin Name: Gama Contact' \
+  "Version: $VERSION" \
+  'Requires at least: 7.1' \
+  'Requires PHP: 8.4' \
+  'License: GPL-2.0-or-later' \
+  'License URI: https://www.gnu.org/licenses/gpl-2.0.html' \
+  'Text Domain: gama-contact' \
+  'Domain Path: /languages'; do
+  grep -Fq "$metadata" "$SOURCE_DIR/gama-contact.php" || {
+    echo "Missing or inconsistent plugin header: $metadata" >&2
+    exit 1
+  }
+done
+for metadata in \
+  'Requires at least: 7.1' \
+  'Requires PHP: 8.4' \
+  "Stable tag: $VERSION" \
+  'License: GPL-2.0-or-later' \
+  'License URI: https://www.gnu.org/licenses/gpl-2.0.html'; do
+  grep -Fq "$metadata" "$SOURCE_DIR/readme.txt" || {
+    echo "Missing or inconsistent readme header: $metadata" >&2
+    exit 1
+  }
+done
+grep -Fq "## $VERSION " "$SOURCE_DIR/CHANGELOG.md" || {
+  echo "CHANGELOG.md version does not match the package." >&2
+  exit 1
+}
+grep -Fq 'gama-software/gama-contact' "$SOURCE_DIR/README.md" || {
+  echo "README.md is missing the package identifier." >&2
+  exit 1
+}
+else
+for metadata in \
+  'Theme Name: Gama Software' \
+  'Author: Gama Software' \
+  "Version: $VERSION" \
+  'Requires at least: 7.1' \
+  'Requires PHP: 8.4' \
+  'License: GPL v2 or later' \
+  'License URI: https://www.gnu.org/licenses/gpl-2.0.html' \
+  'Text Domain: gama-software' \
+  'Domain Path: /languages'; do
+  grep -Fq "$metadata" "$SOURCE_DIR/style.css" || {
+    echo "Missing or inconsistent theme header: $metadata" >&2
+    exit 1
+  }
+done
+grep -Fq "## $VERSION " "$SOURCE_DIR/CHANGELOG.md" || {
+  echo "CHANGELOG.md version does not match the package." >&2
+  exit 1
+}
+grep -Fq 'gama-software' "$SOURCE_DIR/README.md" || {
+  echo "README.md is missing the theme identifier." >&2
+  exit 1
+}
+fi
+license_size="$(wc -c <"$SOURCE_DIR/LICENSE" | tr -d ' ')"
+if [[ "$license_size" -lt 15000 ]] || ! grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$SOURCE_DIR/LICENSE"; then
+  echo "LICENSE does not contain the full GNU GPL version 2 text." >&2
+  exit 1
+fi
+
+stage_dir="$temporary_dir/stage"
+package_dir="$stage_dir/$package_slug"
+mkdir -p "$package_dir"
+while IFS= read -r relative_path; do
+  mkdir -p "$(dirname "$package_dir/$relative_path")"
+  cp "$SOURCE_DIR/$relative_path" "$package_dir/$relative_path"
+done <"$expected_files"
+
+find "$stage_dir" -type d -exec chmod 0755 {} \;
+find "$stage_dir" -type f -exec chmod 0644 {} \;
+TZ=UTC find "$stage_dir" -exec touch -t "$timestamp" {} \;
+
+archive="$temporary_dir/${package_slug}-${VERSION}.zip"
+(cd "$stage_dir" && find "$package_slug" -print | LC_ALL=C sort | TZ=UTC zip -X -q -9 "$archive" -@)
+
+mkdir -p "$DIST_DIR"
+cp "$archive" "$DIST_DIR/${package_slug}-${VERSION}.zip"
+
+manifest="$temporary_dir/${package_slug}-${VERSION}.manifest.txt"
+while IFS= read -r relative_path; do
+  printf '%s  %s/%s\n' "$(sha256_file "$SOURCE_DIR/$relative_path")" "$package_slug" "$relative_path"
+done <"$expected_files" | LC_ALL=C sort >"$manifest"
+cp "$manifest" "$DIST_DIR/${package_slug}-${VERSION}.manifest.txt"
+
+zip_sha="$(sha256_file "$DIST_DIR/${package_slug}-${VERSION}.zip")"
+printf '%s  %s-%s.zip\n' "$zip_sha" "$package_slug" "$VERSION" >"$temporary_dir/${package_slug}-${VERSION}.zip.sha256"
+cp "$temporary_dir/${package_slug}-${VERSION}.zip.sha256" "$DIST_DIR/${package_slug}-${VERSION}.zip.sha256"
+
+echo "Built $DIST_DIR/${package_slug}-${VERSION}.zip"
+echo "Manifest $DIST_DIR/${package_slug}-${VERSION}.manifest.txt"
+echo "SHA-256 $zip_sha"

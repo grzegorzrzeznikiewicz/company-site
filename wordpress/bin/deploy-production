@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+mutation_only=0
+if [[ "$#" -gt 0 && "${!#}" == '--mutation-only' ]]; then
+  mutation_only=1
+  set -- "${@:1:$#-1}"
+fi
+defer_smtp=0
+if [[ "$#" -gt 0 && "${!#}" == '--defer-smtp' ]]; then
+  defer_smtp=1
+  set -- "${@:1:$#-1}"
+fi
+bootstrap=0
+if [[ "$#" -gt 0 && "${!#}" == '--bootstrap' ]]; then
+  bootstrap=1
+  set -- "${@:1:$#-1}"
+fi
+
+if [[ ( "$#" -ne 10 && "$#" -ne 12 ) || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' || ( "$#" -eq 12 && "${11}" != '--rehearsal-fixture' ) ]]; then
+  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8000> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--defer-smtp] [--mutation-only]' >&2
+  exit 64
+fi
+
+project="$2"
+env_file="$4"
+image="$6"
+http_port="$8"
+confirmed_image="${10}"
+rehearsal_fixture=''
+if [[ "$#" -eq 12 ]]; then
+  rehearsal_fixture="${12}"
+fi
+
+if [[ -n "$rehearsal_fixture" && "$project" == 'gama-wp-production' ]]; then
+  echo 'The stable production namespace refuses the rehearsal fixture boundary.' >&2
+  exit 64
+fi
+
+if [[ -n "$rehearsal_fixture" ]]; then
+  if [[ ! "$project" =~ ^gama-wp-production-candidate-test-([a-z0-9][a-z0-9-]{7,39})$ ]]; then
+    echo 'A rehearsal fixture requires a unique gama-wp-production-candidate-test-<token> namespace.' >&2
+    exit 64
+  fi
+  rehearsal_token="${BASH_REMATCH[1]}"
+  ownership_file="$rehearsal_fixture/.gama-production-rehearsal-owner"
+  ca_file="$rehearsal_fixture/ca.crt"
+  php_ca_file="$rehearsal_fixture/openssl-ca.ini"
+  if [[ "$rehearsal_fixture" != /* || ! -d "$rehearsal_fixture" || -L "$rehearsal_fixture" \
+    || ! -f "$ownership_file" || -L "$ownership_file" \
+    || ! -f "$ca_file" || -L "$ca_file" \
+    || ! -f "$php_ca_file" || -L "$php_ca_file" ]]; then
+    echo 'The rehearsal fixture must be an absolute owned directory with regular CA files.' >&2
+    exit 64
+  fi
+  if [[ "$(cat "$ownership_file")" != "$rehearsal_token" ]]; then
+    echo 'The rehearsal fixture ownership token does not match its namespace.' >&2
+    exit 64
+  fi
+fi
+
+if [[ "$project" != 'gama-wp-production' && ! "$project" =~ ^gama-wp-production-candidate-[a-z0-9][a-z0-9-]{2,60}$ ]]; then
+  echo 'Production project must be stable or an isolated gama-wp-production-candidate-<id> namespace.' >&2
+  exit 64
+fi
+if [[ "$project" == 'gama-wp-production' && "$http_port" != '8000' ]]; then
+  echo 'The stable production namespace must use reviewed port 8000.' >&2
+  exit 64
+fi
+if [[ "$project" != 'gama-wp-production' && "$http_port" != '0' ]]; then
+  echo 'A production candidate must request a dynamic loopback port.' >&2
+  exit 64
+fi
+
+if [[ "$env_file" != /* || ! -f "$env_file" || -L "$env_file" ]]; then
+  echo 'Production env file must be an absolute regular file.' >&2
+  exit 64
+fi
+
+env_value() {
+  sed -n "s/^$1=//p" "$env_file" | tail -n 1
+}
+
+environment_type="$(env_value WP_ENVIRONMENT_TYPE)"
+wp_home="$(env_value WP_HOME)"
+mail_sink="$(env_value GAMA_MAIL_SINK_HOST)"
+smtp_host="$(env_value GAMA_SMTP_HOST)"
+smtp_port="$(env_value GAMA_SMTP_PORT)"
+smtp_username="$(env_value GAMA_SMTP_USERNAME)"
+smtp_password="$(env_value GAMA_SMTP_PASSWORD)"
+smtp_encryption="$(env_value GAMA_SMTP_ENCRYPTION)"
+
+if [[ ! "$image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]; then
+  echo 'WORDPRESS_IMAGE must be an immutable image digest or local image ID.' >&2
+  exit 64
+fi
+if [[ "$confirmed_image" != "$image" ]]; then
+  echo 'The confirmation must exactly match WORDPRESS_IMAGE.' >&2
+  exit 64
+fi
+if [[ "$environment_type" != 'production' ]]; then
+  echo 'WP_ENVIRONMENT_TYPE must be production.' >&2
+  exit 64
+fi
+if [[ "$wp_home" != 'https://gama-software.com' ]]; then
+  echo 'WP_HOME must be the canonical production origin.' >&2
+  exit 64
+fi
+if [[ -n "$mail_sink" ]]; then
+  echo 'Production mail sink must be disabled.' >&2
+  exit 64
+fi
+smtp_host_lower="$(printf '%s' "$smtp_host" | tr '[:upper:]' '[:lower:]')"
+if [[ "$defer_smtp" == 1 ]]; then
+  if [[ "$project" != 'gama-wp-production' || "$bootstrap" != 1 || -n "$rehearsal_fixture" \
+    || -n "$smtp_host$smtp_port$smtp_username$smtp_password$smtp_encryption" ]]; then
+    echo 'Deferred SMTP requires the stable first bootstrap and completely empty SMTP configuration.' >&2
+    exit 64
+  fi
+else
+if [[ -z "$smtp_host" || ! "$smtp_host" =~ ^[a-zA-Z0-9.-]+$ || "$smtp_host_lower" =~ ^(mailpit|localhost)(\.|$)|^127\. ]]; then
+  echo 'Production SMTP host must be external.' >&2
+  exit 64
+fi
+if [[ ! "$smtp_port" =~ ^[0-9]+$ || "$smtp_port" -lt 1 || "$smtp_port" -gt 65535 ]]; then
+  echo 'Production SMTP port must be between 1 and 65535.' >&2
+  exit 64
+fi
+if [[ -z "$smtp_username" || -z "$smtp_password" ]]; then
+  echo 'Production SMTP credentials are required.' >&2
+  exit 64
+fi
+if [[ "$smtp_encryption" != 'tls' && "$smtp_encryption" != 'ssl' ]]; then
+  echo 'Production SMTP encryption must be tls or ssl.' >&2
+  exit 64
+fi
+fi
+
+export WORDPRESS_IMAGE="$image"
+if [[ "$http_port" == '0' ]]; then
+  export WORDPRESS_HTTP_PORT=''
+else
+  export WORDPRESS_HTTP_PORT="$http_port"
+fi
+
+COMPOSE=(docker compose --project-name "$project" --env-file "$env_file" --file "$ROOT_DIR/deploy/compose.yaml")
+if [[ -n "$rehearsal_fixture" ]]; then
+  export GAMA_PRODUCTION_REHEARSAL_FIXTURE="$rehearsal_fixture"
+  COMPOSE+=(--file "$ROOT_DIR/tests/production-rehearsal.override.yaml")
+fi
+if [[ "$image" == *@sha256:* ]]; then
+  "${COMPOSE[@]}" pull wordpress install bootstrap
+fi
+resolved_image="$(docker image inspect --format '{{.Id}}' "$image")"
+if [[ ! "$resolved_image" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+  echo 'WORDPRESS_IMAGE did not resolve to an immutable local image ID.' >&2
+  exit 1
+fi
+if [[ "$image" != *@sha256:* && "$resolved_image" != "$confirmed_image" ]]; then
+  echo 'WORDPRESS_IMAGE does not resolve to the confirmed local image ID.' >&2
+  exit 1
+fi
+if [[ "$bootstrap" -eq 1 ]]; then
+  "${COMPOSE[@]}" up --detach db uploads-init
+fi
+"${COMPOSE[@]}" stop wordpress
+"${COMPOSE[@]}" run --rm --no-deps install
+if [[ "$mutation_only" == 1 ]]; then
+  "${COMPOSE[@]}" up --detach --no-deps wordpress
+else
+  "${COMPOSE[@]}" up --detach --wait --no-deps wordpress
+fi
+if [[ "$bootstrap" -eq 1 ]]; then
+  "${COMPOSE[@]}" run --rm bootstrap
+fi
+
+if [[ "$mutation_only" == 1 ]]; then
+  # HostOps verifies health and identity separately after conclusive success.
+  exit 0
+fi
+
+wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
+running_image="$(docker inspect --format '{{.Image}}' "$wordpress_container")"
+if [[ "$running_image" != "$resolved_image" ]]; then
+  echo 'Running production container image does not match resolved WORDPRESS_IMAGE.' >&2
+  exit 1
+fi
+
+echo "Production candidate deployed behind the existing routing: $image"
+echo "Namespace: $project"
+echo "Published port: $("${COMPOSE[@]}" port wordpress 80)"
+echo 'This command does not switch public traffic.'

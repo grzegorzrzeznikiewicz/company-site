@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "extensions": [
+    {
+      "type": "plugin",
+      "slug": "example-extension",
+      "version": "1.2.3",
+      "source": "https://downloads.example.test/example-extension-1.2.3.zip",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "license": "GPL-2.0-or-later",
+      "requires": {
+        "wordpress": "7.1",
+        "php": "8.4"
+      },
+      "purpose": "Focused validation fixture",
+      "decision": "GSWEB-23"
+    }
+  ]
+}

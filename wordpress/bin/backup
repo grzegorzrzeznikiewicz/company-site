@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+project='gama-wordpress'
+
+if [[ "$#" -eq 3 && "$1" == '--project' ]]; then
+  project="$2"
+  destination="$3"
+elif [[ "$#" -eq 1 ]]; then
+  destination="$1"
+else
+  echo 'Usage: wordpress/bin/backup [--project <compose-project>] <new-destination-directory>' >&2
+  exit 64
+fi
+if [[ ! "$project" =~ ^gama-wordpress$|^gama-wp-(staging|production)(-[a-z0-9][a-z0-9-]{2,40})?$ ]]; then
+  echo 'Backup project must be the local, staging or production Gama WordPress namespace.' >&2
+  exit 64
+fi
+if [[ "$destination" != /* || -e "$destination" || -L "$destination" ]]; then
+  echo 'Backup destination must be a new absolute path.' >&2
+  exit 64
+fi
+
+parent="$(dirname "$destination")"
+[[ -d "$parent" && ! -L "$parent" ]]
+mkdir -m 0700 "$destination"
+
+cleanup_on_error() {
+  local status=$?
+  if [[ "$status" -ne 0 && -d "$destination" && ! -L "$destination" ]]; then
+    find "$destination" -type f -delete 2>/dev/null || true
+    rmdir "$destination" 2>/dev/null || true
+  fi
+  exit "$status"
+}
+trap cleanup_on_error EXIT
+
+service_container() {
+  docker ps \
+    --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=$1" \
+    --format '{{.ID}}'
+}
+
+database_container="$(service_container db)"
+wordpress_container="$(service_container wordpress)"
+for container in "$database_container" "$wordpress_container"; do
+  [[ -n "$container" && "$container" != *$'\n'* ]]
+  [[ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" == healthy ]]
+done
+
+uploads_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/html/wp-content/uploads"}}{{.Name}}{{"\n"}}{{end}}{{end}}' "$wordpress_container" | sed '/^$/d')"
+if [[ -z "$uploads_volume" || "$uploads_volume" == *$'\n'* ]]; then
+  echo 'Expected exactly one labelled Gama WordPress uploads volume.' >&2
+  exit 1
+fi
+
+docker exec "$database_container" sh -ec \
+  'exec mariadb-dump --host=127.0.0.1 --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 "$MARIADB_DATABASE"' \
+  >"$destination/database.sql"
+
+docker run --rm \
+  --network none \
+  --volume "$uploads_volume:/source:ro" \
+  --entrypoint tar \
+  wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d \
+  -C /source -cf - . >"$destination/uploads.tar"
+
+wordpress_version="$(docker exec "$wordpress_container" php -r 'include "/var/www/html/wp-includes/version.php"; echo $wp_version;')"
+database_image="$(docker inspect --format '{{.Config.Image}}' "$database_container")"
+source_wordpress_image="$(docker inspect --format '{{.Image}}' "$wordpress_container")"
+source_wordpress_image_ref="$(docker inspect --format '{{.Config.Image}}' "$wordpress_container")"
+source_wordpress_image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wordpress_container")"
+if [[ "$source_wordpress_image_revision" == '<no value>' ]]; then source_wordpress_image_revision=''; fi
+git_commit="${GAMA_BACKUP_GIT_COMMIT:-$source_wordpress_image_revision}"
+if [[ -z "$git_commit" ]] && git -C "$ROOT_DIR/.." rev-parse HEAD >/dev/null 2>&1; then
+  git_commit="$(git -C "$ROOT_DIR/.." rev-parse HEAD)"
+fi
+if [[ ! "$git_commit" =~ ^[a-f0-9]{40}$ ]]; then
+  echo 'Backup requires the deployed full Git revision.' >&2
+  exit 1
+fi
+created_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+printf '%s\n' \
+  'format_version=1' \
+  "created_utc=$created_utc" \
+  "source_project=$project" \
+  "git_commit=$git_commit" \
+  "source_wordpress_image=$source_wordpress_image" \
+  "source_wordpress_image_ref=$source_wordpress_image_ref" \
+  "source_wordpress_image_revision=$source_wordpress_image_revision" \
+  "wordpress_version=$wordpress_version" \
+  "database_image=$database_image" \
+  'database_file=database.sql' \
+  'uploads_file=uploads.tar' \
+  >"$destination/manifest.txt"
+
+if command -v shasum >/dev/null 2>&1; then
+  (cd "$destination" && shasum -a 256 database.sql manifest.txt uploads.tar >SHA256SUMS)
+else
+  (cd "$destination" && sha256sum database.sql manifest.txt uploads.tar >SHA256SUMS)
+fi
+chmod 0600 "$destination"/*
+
+trap - EXIT
+echo "Backup created: $destination"
+echo "Created UTC: $created_utc"
+echo "Git commit: $git_commit"

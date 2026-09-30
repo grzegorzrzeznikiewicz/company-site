@@ -1,0 +1,250 @@
+name: WordPress Production Deployment
+on:
+  workflow_run:
+    workflows: [WordPress Quality Gates]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: 'First-cutover JSON: exact source SHA/run/attempt/artifact/digest, authorization_id, operators and UTC window; this run fills promotion identity'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: wordpress-production
+  cancel-in-progress: false
+  queue: max
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      operation: ${{ steps.guard.outputs.operation }}
+    steps:
+      - name: Guard production entry
+        id: guard
+        env:
+          GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          mode = os.environ.get('GAMA_DEPLOYMENT_MODE')
+          event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+          repo = 'grzegorzrzeznikiewicz/company-site'
+          source = event.get('repository', {})
+          trusted = (os.environ['GITHUB_REPOSITORY'] == repo and source.get('full_name') == repo
+                     and source.get('fork') is False and source.get('default_branch') == 'main'
+                     and os.environ['GITHUB_REF'] == 'refs/heads/main')
+          operation = ''
+          if trusted and os.environ['GITHUB_EVENT_NAME'] == 'workflow_run' and mode == 'wordpress':
+              run = event.get('workflow_run', {})
+              if (run.get('event') == 'push' and run.get('head_branch') == 'main'
+                  and run.get('conclusion') == 'success'
+                  and run.get('head_repository', {}).get('full_name') == repo
+                  and run.get('head_repository', {}).get('fork') is False):
+                  operation = 'standard'
+          elif (trusted and os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch' and mode == 'off'
+                and os.environ['GITHUB_RUN_ATTEMPT'] == '1'):
+              operation = 'first-cutover'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('operation=' + operation + '\n')
+          PY
+  cutover-request:
+    needs: guard
+    if: needs.guard.outputs.operation == 'first-cutover'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted default-branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Display exact requested cutover approval
+        env:
+          INPUT_AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from wordpress.release.github_source import json_object, authorization_comment
+          auth = json_object(os.environ['INPUT_AUTHORIZATION'].encode())
+          auth['promotion_run_id'] = int(os.environ['GITHUB_RUN_ID'])
+          auth['promotion_run_attempt'] = int(os.environ['GITHUB_RUN_ATTEMPT'])
+          comment = authorization_comment(auth)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Approve wordpress-production-cutover with this exact comment:\n\n```json\n' + comment + '\n```\n')
+          PY
+  owner-gate:
+    needs: [guard, cutover-request]
+    if: needs.guard.outputs.operation == 'first-cutover'
+    runs-on: ubuntu-latest
+    environment: wordpress-production-cutover
+    permissions: {}
+    steps:
+      - name: Owner permission boundary
+        run: echo 'Actual approval history is checked before publication and under the host lock.'
+  validate:
+    needs: [guard, owner-gate]
+    if: ${{ !cancelled() && (needs.guard.outputs.operation == 'standard' || (needs.guard.outputs.operation == 'first-cutover' && needs.owner-gate.result == 'success')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted default-branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Prepare source event data
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.WORDPRESS_PROVENANCE_READ_TOKEN }}
+          OPERATION: ${{ needs.guard.outputs.operation }}
+          INPUT_AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from wordpress.release.github_source import GitHubAPI, ROOT, json_object, authorization_comment
+          event = json_object(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())
+          if os.environ['OPERATION'] == 'first-cutover':
+              auth = json_object(os.environ['INPUT_AUTHORIZATION'].encode())
+              auth['promotion_run_id'] = int(os.environ['GITHUB_RUN_ID'])
+              auth['promotion_run_attempt'] = int(os.environ['GITHUB_RUN_ATTEMPT'])
+              authorization_comment(auth)
+              api = GitHubAPI(os.environ['GITHUB_READ_TOKEN'])
+              run = api.get(ROOT + '/actions/runs/' + str(auth['source_run_id']) + '/attempts/' + str(auth['source_run_attempt']))
+              event = {'repository': event['repository'], 'ref': 'refs/heads/main',
+                       'promotion_run_id': auth['promotion_run_id'], 'promotion_run_attempt': auth['promotion_run_attempt'],
+                       'authorization': auth, 'source_event': {'action': 'completed', 'repository': event['repository'], 'workflow_run': run}}
+          Path(os.environ['RUNNER_TEMP'], 'source-event.json').write_text(json.dumps(event))
+          PY
+      - name: Validate source with bounded pending wait
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.WORDPRESS_PROVENANCE_READ_TOKEN }}
+          GAMA_DEPLOYMENT_MODE: ${{ vars.GAMA_DEPLOYMENT_MODE }}
+          OPERATION: ${{ needs.guard.outputs.operation }}
+        run: |
+          set -euo pipefail
+          test -n "$GITHUB_READ_TOKEN"
+          deadline=$((SECONDS + 600))
+          while true; do
+            remaining=$((deadline - SECONDS))
+            [[ "$remaining" -gt 0 ]] || exit 1
+            status=0
+            timeout "$remaining" python3 wordpress/release/promote.py validate-source \
+              --event "$RUNNER_TEMP/source-event.json" --mode "$GAMA_DEPLOYMENT_MODE" \
+              --operation "$OPERATION" --output "$RUNNER_TEMP/source.json" || status=$?
+            if [[ "$status" -eq 0 ]]; then break; fi
+            [[ "$status" -eq 3 && "$SECONDS" -lt "$deadline" ]] || exit "$status"
+            remaining=$((deadline - SECONDS))
+            [[ "$remaining" -gt 0 ]] || exit 1
+            sleep "$((remaining < 10 ? remaining : 10))"
+          done
+          python3 -c 'import json,os; assert isinstance(json.load(open(os.environ["RUNNER_TEMP"]+"/source.json")),dict)'
+          python3 wordpress/release/promote.py validate-transport \
+            --source "$RUNNER_TEMP/source.json" --destination "$RUNNER_TEMP/validated-release" \
+            --output "$RUNNER_TEMP/validated-transport.json"
+      - name: Retain validated source identity
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wordpress-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/source.json
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: [guard, validate]
+    if: ${{ !cancelled() && needs.validate.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - name: Checkout trusted default-branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - name: Download validated source identity
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: wordpress-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/source
+      - name: Verify exact transport on publisher runner
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.WORDPRESS_PROVENANCE_READ_TOKEN }}
+        run: |
+          python3 wordpress/release/promote.py validate-transport \
+            --source "$RUNNER_TEMP/source/source.json" --destination "$RUNNER_TEMP/release" \
+            --output "$RUNNER_TEMP/transport-source.json"
+      - name: Login for registry publication only
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish exact verified candidate without rebuilding
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.WORDPRESS_PROVENANCE_READ_TOKEN }}
+        run: |
+          python3 wordpress/release/promote.py publish \
+            --release-dir "$RUNNER_TEMP/release" --source "$RUNNER_TEMP/transport-source.json" \
+            --repository ghcr.io/grzegorzrzeznikiewicz/gama-wordpress --output "$RUNNER_TEMP/publication.json"
+      - name: Retain immutable publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wordpress-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication.json
+          if-no-files-found: error
+          retention-days: 90
+  deploy:
+    needs: [guard, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: wordpress-production
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Download exact publication record
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: wordpress-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication
+      - name: Encode bounded host request
+        id: request
+        env:
+          OPERATION: ${{ needs.guard.outputs.operation }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os
+          from pathlib import Path
+          publication = json.loads(Path(os.environ['RUNNER_TEMP'], 'publication/publication.json').read_text())
+          request = {'operation_id': 'wp-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'],
+                     'kind': os.environ['OPERATION'], 'git_sha': publication['source']['provenance']['git_sha'],
+                     'image': publication['image'], 'publication': publication,
+                     'authorization_ref': publication['source'].get('authorization', {}).get('authorization_id')}
+          raw = json.dumps(request).encode()
+          assert len(raw) <= 1024 * 1024
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('request=' + base64.b64encode(raw).decode() + '\n')
+          PY
+      - name: Execute installed serialized production transaction
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
+        env:
+          RELEASE_REQUEST: ${{ steps.request.outputs.request }}
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT }}
+          command_timeout: 40m
+          envs: RELEASE_REQUEST
+          script: |
+            set -euo pipefail
+            printf '%s' "$RELEASE_REQUEST" | base64 -d | sudo /usr/bin/python3 \
+              /srv/gama-wordpress-production/tools/wordpress/bin/production-release \
+              --config /srv/gama-wordpress-production/control/host-config.json

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE_FILE="$ROOT_DIR/deploy/compose.yaml"
+RESTORE_OVERRIDE="$ROOT_DIR/deploy/restore.override.yaml"
+
+if [[ "$#" -ne 6 || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--confirm' ]]; then
+  echo 'Usage: wordpress/bin/restore --project gama-restore-<id> --env-file <deployment-env> --confirm <backup-directory>' >&2
+  exit 64
+fi
+
+project="$2"
+ENV_FILE="$4"
+backup="$6"
+if [[ ! "$project" =~ ^gama-restore-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
+  echo 'Restore project must use the isolated gama-restore-<id> namespace.' >&2
+  exit 64
+fi
+if [[ "$backup" != /* || ! -d "$backup" || -L "$backup" ]]; then
+  echo 'Backup must be an absolute, regular directory.' >&2
+  exit 64
+fi
+if [[ "$ENV_FILE" != /* || ! -f "$ENV_FILE" || -L "$ENV_FILE" ]]; then
+  echo 'Restore deployment env file must be an absolute regular file.' >&2
+  exit 64
+fi
+for file in database.sql uploads.tar manifest.txt SHA256SUMS; do
+  [[ -f "$backup/$file" && ! -L "$backup/$file" ]]
+done
+grep -Fxq 'format_version=1' "$backup/manifest.txt"
+if tar -tf "$backup/uploads.tar" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+  echo 'Uploads archive contains an unsafe path.' >&2
+  exit 1
+fi
+if tar -tvf "$backup/uploads.tar" | awk '{print substr($1,1,1)}' | grep -Eq '^[lh]$'; then
+  echo 'Uploads archive contains a link and is not restorable.' >&2
+  exit 1
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+  (cd "$backup" && shasum -a 256 -c SHA256SUMS)
+else
+  (cd "$backup" && sha256sum -c SHA256SUMS)
+fi
+
+source_wordpress_image="$(sed -n 's/^source_wordpress_image=//p' "$backup/manifest.txt")"
+source_wordpress_image_ref="$(sed -n 's/^source_wordpress_image_ref=//p' "$backup/manifest.txt")"
+source_wordpress_image_revision="$(sed -n 's/^source_wordpress_image_revision=//p' "$backup/manifest.txt")"
+env_wordpress_image="$(sed -n 's/^WORDPRESS_IMAGE=//p' "$ENV_FILE" | tail -n 1)"
+if [[ ! "$source_wordpress_image" =~ ^sha256:[a-f0-9]{64}$ \
+  || ! "$env_wordpress_image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]; then
+  echo 'Restore requires an immutable WordPress image in both manifest and deployment env.' >&2
+  exit 1
+fi
+if ! docker image inspect "$env_wordpress_image" >/dev/null 2>&1; then
+  if [[ "$env_wordpress_image" != *@sha256:* ]]; then
+    echo 'The exact local restore image is unavailable.' >&2
+    exit 1
+  fi
+  docker pull "$env_wordpress_image" >/dev/null
+fi
+if [[ "$(docker image inspect --format '{{.Id}}' "$env_wordpress_image")" != "$source_wordpress_image" ]]; then
+  echo "Deployment env image does not match backup artifact: $source_wordpress_image_ref" >&2
+  exit 1
+fi
+if [[ -n "$source_wordpress_image_revision" \
+  && "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$env_wordpress_image")" != "$source_wordpress_image_revision" ]]; then
+  echo 'Deployment image revision does not match the backup manifest.' >&2
+  exit 1
+fi
+
+if docker ps -a --filter label=com.docker.compose.project="$project" --quiet | grep -q . \
+  || docker volume ls --filter label=com.docker.compose.project="$project" --quiet | grep -q . \
+  || docker network inspect "${project}_default" >/dev/null 2>&1; then
+  echo "Restore target $project already owns Docker resources; refusing overwrite." >&2
+  exit 1
+fi
+
+COMPOSE=(docker compose --project-name "$project" --env-file "$ENV_FILE" --file "$COMPOSE_FILE" --file "$RESTORE_OVERRIDE")
+started_at="$(date +%s)"
+"${COMPOSE[@]}" run --rm --no-deps install
+"${COMPOSE[@]}" up --detach db uploads-init
+
+database_container="$("${COMPOSE[@]}" ps -q db)"
+for _ in $(seq 1 60); do
+  if [[ "$(docker inspect --format '{{.State.Health.Status}}' "$database_container")" == healthy ]]; then
+    break
+  fi
+  sleep 1
+done
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$database_container")" == healthy ]]
+
+"${COMPOSE[@]}" exec -T db sh -ec \
+  'exec mariadb --host=127.0.0.1 --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" "$MARIADB_DATABASE"' \
+  <"$backup/database.sql"
+
+uploads_volume="$(docker volume ls \
+  --filter label=com.docker.compose.project="$project" \
+  --filter label=com.docker.compose.volume=uploads \
+  --quiet)"
+if [[ -z "$uploads_volume" || "$uploads_volume" == *$'\n'* ]]; then
+  echo "Expected exactly one uploads volume for $project." >&2
+  exit 1
+fi
+docker run --rm --interactive \
+  --network none \
+  --volume "$uploads_volume:/target" \
+  --entrypoint sh \
+  wordpress:7.1.0-php8.4-apache \
+  -ec 'find /target -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar -C /target -xf -; chown -R 33:33 /target' \
+  <"$backup/uploads.tar"
+
+"${COMPOSE[@]}" up --detach wordpress
+wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
+for _ in $(seq 1 60); do
+  if [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wordpress_container")" == healthy ]]; then
+    break
+  fi
+  sleep 1
+done
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$wordpress_container")" == healthy ]]
+
+elapsed="$(( $(date +%s) - started_at ))"
+echo "Restore completed: $project"
+echo "Restored image: $source_wordpress_image"
+echo "Elapsed seconds: $elapsed"
+echo "Cleanup after verification: docker compose --project-name $project --env-file $ENV_FILE --file $COMPOSE_FILE --file $RESTORE_OVERRIDE down --volumes"

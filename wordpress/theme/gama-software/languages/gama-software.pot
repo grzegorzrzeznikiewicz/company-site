@@ -1,0 +1,504 @@
+# Copyright (C) 2026 Gama Software
+msgid ""
+msgstr ""
+"Project-Id-Version: Gama Software 0.4.1\n"
+"Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: gama-software\n"
+
+#: theme.json
+msgctxt "Color name"
+msgid "Accent"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Base"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Inverse surface"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted card text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Muted text on dark"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Soft accent"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Strong text"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Subtle border"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Subtle surface"
+msgstr ""
+
+#: theme.json
+msgctxt "Color name"
+msgid "Text"
+msgstr ""
+
+#: theme.json
+msgctxt "Font family name"
+msgid "System sans"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Body"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Button"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Display"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Display large"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Heading 2"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Heading 3"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Lead"
+msgstr ""
+
+#: theme.json
+msgctxt "Font size name"
+msgid "Small"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 1"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 2"
+msgstr ""
+
+#: theme.json
+msgctxt "Shadow name"
+msgid "Elevation 3"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "2X large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Extra large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Large"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Medium"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Section"
+msgstr ""
+
+#: theme.json
+msgctxt "Space size name"
+msgid "Small"
+msgstr ""
+
+#: theme.json
+msgctxt "Template part name"
+msgid "Footer"
+msgstr ""
+
+#: theme.json
+msgctxt "Template part name"
+msgid "Header"
+msgstr ""
+
+#. Theme Name of the theme
+#. Author of the theme
+#: style.css
+#: patterns/hero.php:18
+msgid "Gama Software"
+msgstr ""
+
+#. Theme URI of the theme
+#. Author URI of the theme
+#: style.css
+msgid "https://gamasoftware.com/"
+msgstr ""
+
+#. Description of the theme
+#: style.css
+msgid "Production block-theme foundation for the Gama Software website."
+msgstr ""
+
+#: patterns/article.php
+msgctxt "Pattern title"
+msgid "Gama Software Article Starter"
+msgstr ""
+
+#: patterns/article.php
+msgctxt "Pattern description"
+msgid "A semantic starter structure for a Gama Software article."
+msgstr ""
+
+#: patterns/article.php:14
+msgid "Krótki wstęp przedstawiający najważniejszą wartość artykułu."
+msgstr ""
+
+#: patterns/article.php:17
+msgid "Pierwsza część artykułu"
+msgstr ""
+
+#: patterns/article.php:20
+msgid "Rozwiń temat, dodając konkretne przykłady oraz odsyłacze do wiarygodnych źródeł."
+msgstr ""
+
+#: patterns/article.php:24
+msgid "Opcjonalny cytat lub najważniejszy wniosek."
+msgstr ""
+
+#: patterns/contact.php
+msgctxt "Pattern title"
+msgid "Gama Software Contact"
+msgstr ""
+
+#: patterns/contact.php
+msgctxt "Pattern description"
+msgid "Centered contact form with an editable heading and e-mail fallback."
+msgstr ""
+
+#: patterns/contact.php:17
+msgid "Kontakt"
+msgstr ""
+
+#: patterns/contact.php:22
+msgid "Formularz jest chwilowo niedostępny. Napisz do nas:"
+msgstr ""
+
+#: patterns/hero.php
+msgctxt "Pattern title"
+msgid "Gama Software Hero"
+msgstr ""
+
+#: patterns/hero.php
+msgctxt "Pattern description"
+msgid "The editable introductory section for the Gama Software homepage."
+msgstr ""
+
+#: patterns/hero.php:22
+msgid "Specjalizujemy się w wdrożeniach e-commerce, konsultacjach oraz budowaniu agentów AI dla Twojego biznesu"
+msgstr ""
+
+#: patterns/hero.php:28
+msgid "Poznaj nasze usługi"
+msgstr ""
+
+#: patterns/modules.php
+msgctxt "Pattern title"
+msgid "Gama Software Modules"
+msgstr ""
+
+#: patterns/modules.php
+msgctxt "Pattern description"
+msgid "The editable Magento modules offer for the Gama Software homepage."
+msgstr ""
+
+#: patterns/modules.php:21
+msgid "Moduły Magento 2"
+msgstr ""
+
+#: patterns/modules.php:24
+msgid "Profesjonalne rozszerzenia dostępne w modelu subskrypcji"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Advanced SEO Suite"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Kompleksowe narzędzie do optymalizacji SEO"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Automatyczne generowanie meta tagów"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Optymalizacja URL"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Rich snippets"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Sitemap XML"
+msgstr ""
+
+#: patterns/modules.php:33
+msgid "Analiza SEO on-page"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Smart Product Recommendations"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "AI-powered rekomendacje produktów"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Algorytmy uczenia maszynowego"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Personalizacja dla użytkownika"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Cross-selling i up-selling"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "Analityka skuteczności"
+msgstr ""
+
+#: patterns/modules.php:34
+msgid "A/B testing"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Enhanced Checkout"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Zoptymalizowany proces zakupowy"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "One-step checkout"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Autouzupełnianie adresów"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Integracje z kurierami"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Płatności Express"
+msgstr ""
+
+#: patterns/modules.php:35
+msgid "Optymalizacja konwersji"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Inventory Management Pro"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Zaawansowane zarządzanie magazynem"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Multi-warehouse support"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Automatyczne powiadomienia"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Prognozowanie zapasów"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Integracja z ERP"
+msgstr ""
+
+#: patterns/modules.php:36
+msgid "Raporty i analityka"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Customer Loyalty Program"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Program lojalnościowy dla klientów"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "System punktów i nagród"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Poziomy lojalnościowe"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Spersonalizowane promocje"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Gamifikacja"
+msgstr ""
+
+#: patterns/modules.php:37
+msgid "Integracja z newsletter"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Performance Optimizer"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Optymalizacja wydajności sklepu"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Lazy loading obrazów"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Optymalizacja bazy danych"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Cache management"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "CDN integration"
+msgstr ""
+
+#: patterns/modules.php:38
+msgid "Monitoring wydajności"
+msgstr ""
+
+#: patterns/modules.php:77
+msgid "Wkrótce dostępne w formie subskrypcji"
+msgstr ""
+
+#: patterns/modules.php:81
+msgid "Zapisz się na listę oczekujących"
+msgstr ""
+
+#: patterns/not-found.php
+msgctxt "Pattern title"
+msgid "Page not found"
+msgstr ""
+
+#: patterns/not-found.php:13
+msgid "Page not found"
+msgstr ""
+
+#: patterns/not-found.php:16
+msgid "The requested page could not be found."
+msgstr ""
+
+#: patterns/not-found.php:18
+msgctxt "search form label"
+msgid "Search"
+msgstr ""
+
+#: patterns/not-found.php:18
+msgctxt "search form button"
+msgid "Search"
+msgstr ""
+
+#: patterns/services.php
+msgctxt "Pattern title"
+msgid "Gama Software Services"
+msgstr ""
+
+#: patterns/services.php
+msgctxt "Pattern description"
+msgid "The editable services grid for the Gama Software homepage."
+msgstr ""
+
+#: patterns/services.php:18
+msgid "Nasze Usługi"
+msgstr ""
+
+#: patterns/services.php:30
+msgid "Wdrożenia E-commerce"
+msgstr ""
+
+#: patterns/services.php:34
+msgid "Kompleksowe wdrożenia platform e-commerce, w tym Magento 2, dostosowane do potrzeb Twojego biznesu. Od analizy wymagań po uruchomienie sklepu."
+msgstr ""
+
+#: patterns/services.php:46
+msgid "Konsultacje E-commerce"
+msgstr ""
+
+#: patterns/services.php:50
+msgid "Profesjonalne doradztwo w zakresie strategii e-commerce, optymalizacji procesów sprzedażowych oraz wyboru najlepszych rozwiązań technologicznych."
+msgstr ""
+
+#: patterns/services.php:62
+msgid "Agenci AI"
+msgstr ""
+
+#: patterns/services.php:66
+msgid "Budujemy inteligentnych asystentów AI, którzy automatyzują obsługę klienta, wspierają sprzedaż i podnoszą efektywność Twojego biznesu online."
+msgstr ""

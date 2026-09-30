@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$ROOT_DIR/.env"
+
+# The address is a reserved invalid domain. The unique token prevents a stale
+# Mailpit message from satisfying this invocation's delivery assertion.
+token="gsweb10-mail-$(date +%s)-$$"
+"$SCRIPT_DIR/wp" eval "if (!wp_mail('${token}@invalid.test', '${token}', 'Mailpit-only test message: ${token}')) { exit(1); }"
+
+mailpit_port="$(sed -n 's/^MAILPIT_HTTP_PORT=//p' "$ENV_FILE" | tail -n 1)"
+mailpit_port="${mailpit_port:-8027}"
+for ((attempt = 1; attempt <= 15; attempt++)); do
+  if curl --fail --silent --show-error "http://127.0.0.1:${mailpit_port}/api/v1/messages" | grep -Fq "$token"; then
+    printf '%s\n' "$token"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Mailpit did not receive the SMTP smoke message." >&2
+exit 1

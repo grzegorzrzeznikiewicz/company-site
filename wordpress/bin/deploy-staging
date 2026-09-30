@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ "$#" -ne 5 || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--confirm' ]]; then
+  echo 'Usage: wordpress/bin/deploy-staging --project gama-wp-staging-<id> --env-file <absolute-path> --confirm' >&2
+  exit 64
+fi
+project="$2"
+env_file="$4"
+if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
+  echo 'Staging project must use the gama-wp-staging-<id> namespace.' >&2
+  exit 64
+fi
+if [[ "$env_file" != /* || ! -f "$env_file" || -L "$env_file" ]]; then
+  echo 'Staging env file must be an absolute regular file.' >&2
+  exit 64
+fi
+image="$(sed -n 's/^WORDPRESS_IMAGE=//p' "$env_file" | tail -n 1)"
+if [[ ! "$image" =~ ^([^[:space:]]+@)?sha256:[a-f0-9]{64}$ ]]; then
+  echo 'WORDPRESS_IMAGE must be an immutable image digest or local image ID.' >&2
+  exit 64
+fi
+
+COMPOSE=(docker compose --project-name "$project" --env-file "$env_file" --file "$ROOT_DIR/deploy/compose.yaml" --file "$ROOT_DIR/deploy/staging.override.yaml")
+"${COMPOSE[@]}" up --detach db mailpit uploads-init
+"${COMPOSE[@]}" stop wordpress >/dev/null 2>&1 || true
+"${COMPOSE[@]}" run --rm --no-deps install
+"${COMPOSE[@]}" up --detach wordpress
+wordpress_container="$("${COMPOSE[@]}" ps -q wordpress)"
+for _ in $(seq 1 60); do
+  if [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wordpress_container")" == healthy ]]; then break; fi
+  sleep 1
+done
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$wordpress_container")" == healthy ]]
+"${COMPOSE[@]}" run --rm bootstrap
+echo "Staging deployed: $project"
+echo "Image: $image"
