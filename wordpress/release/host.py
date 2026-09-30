@@ -145,6 +145,17 @@ def validate_backup_waiver(record, request):
     return json_object(json.dumps(record))
 
 
+def validate_smtp_deferral(record, request):
+    """An owner may defer mail delivery only for one exact first cutover."""
+    fields = {'operation_id', 'git_sha', 'image', 'authorization_ref'}
+    require(request['kind'] == 'first-cutover' and type(record) is dict
+            and set(record) == fields | {'accept_contact_delivery_unavailable'}
+            and record['accept_contact_delivery_unavailable'] is True
+            and all(record[key] == request[key] for key in fields),
+            'SMTP deferral must bind the exact authorized first cutover')
+    return json_object(json.dumps(record))
+
+
 @contextmanager
 def control_lock(state_dir: Path = STATE_ROOT):
     """Hold the shared host lock through all caller mutation AND verification.
@@ -206,6 +217,9 @@ def _locked(request, root, ops):
         return {'status': 'skipped', 'operation_id': request['operation_id'], 'reason': 'superseded-main'}
     waiver = ops.preflight(request)
     if waiver is not None: waiver = validate_backup_waiver(waiver, request)
+    smtp_deferral = getattr(ops, 'smtp_deferral', None)
+    if smtp_deferral is not None:
+        smtp_deferral = validate_smtp_deferral(smtp_deferral, request)
     target = None
     if recovery:
         target = journal.get('recovery_target', journal) if journal is not None else None
@@ -254,6 +268,8 @@ def _locked(request, root, ops):
     if waiver is not None:
         journal['backup_waiver'] = waiver
         journal['authorization_ref'] = request['authorization_ref']
+    if smtp_deferral is not None:
+        journal['smtp_deferral'] = smtp_deferral
     if incident is not None: journal['previous_incident'] = incident
     if recovery: journal['recovery_target'] = target
     atomic(root / 'operation.json', journal)
@@ -282,6 +298,8 @@ def _locked(request, root, ops):
         if not first:
             require(current['resources'] == prior['resources'], 'persistent resources changed during release')
         result = {'status': 'completed', 'operation_id': request['operation_id']}
+        if smtp_deferral is not None:
+            result['smtp_verification'] = 'deferred'
         completed[request['operation_id']] = {'fingerprint': identity, 'result': result}
         # Acceptance and completion are separate fsync writes; any crash between
         # them conservatively leaves a blocking journal, never repeatable intent.

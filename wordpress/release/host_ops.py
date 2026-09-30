@@ -22,7 +22,7 @@ from wordpress.release.github_source import (GitHubAPI, ROOT, json_object, requi
                                              timestamp, full_sha, positive, _repo)
 from wordpress.release.promote import _recheck
 from wordpress.release.host import (IMAGE, OperationCleanupError, fingerprint, protected,
-                                    read_json, validate_backup_waiver)
+                                    read_json, validate_backup_waiver, validate_smtp_deferral)
 from wordpress.release.manifest import ReleaseValidationError
 
 PROJECT = 'gama-wp-production'
@@ -188,6 +188,7 @@ class HostOps:
     def __init__(self, config, *, api=None):
         self.config, self.api = config, api
         self.request = None
+        self.smtp_deferral = None
 
     def _tool(self, key):
         require(type(self.config.get(key)) is str, 'missing protected operational configuration: ' + key)
@@ -299,6 +300,9 @@ class HostOps:
         waiver = None
         if request['kind'] == 'first-cutover' and 'first_cutover_without_backup' in self.config:
             waiver = validate_backup_waiver(self.config['first_cutover_without_backup'], request)
+        self.smtp_deferral = None
+        if request['kind'] == 'first-cutover' and 'first_cutover_without_smtp' in self.config:
+            self.smtp_deferral = validate_smtp_deferral(self.config['first_cutover_without_smtp'], request)
         required = {'docker', 'wordpress_root', 'env_file', 'github_token_file', 'smtp_recipient'}
         needs_backup = waiver is None and request['kind'] in ('standard', 'first-cutover')
         if needs_backup:
@@ -484,6 +488,9 @@ class HostOps:
 
     def deploy(self, image, bootstrap=False):
         require(type(image) is str and re.fullmatch(IMAGE, image), 'immutable deploy image required')
+        if self.smtp_deferral is not None:
+            validate_smtp_deferral(self.smtp_deferral, self.request)
+            require(bootstrap and image == self.request['image'], 'SMTP deferral requires exact first bootstrap')
         self._docker('pull', '--platform', 'linux/amd64', image, external_mutation=True)
         self._image(image, self.request['publication']['image_id'] if image == self.request['image'] else None,
                     self.request['git_sha'] if image == self.request['image'] else None)
@@ -492,6 +499,7 @@ class HostOps:
                 '--env-file', self.config['env_file'], '--image', image, '--http-port', '8000',
                 '--confirm-image', image]
         if bootstrap: argv.append('--bootstrap')
+        if self.smtp_deferral is not None: argv.append('--defer-smtp')
         argv.append('--mutation-only')
         run(argv, env=self._helper_env(), external_mutation=True)
         # The synchronous mutation returned successfully. Read-only health
@@ -592,6 +600,15 @@ class HostOps:
         require('application/json' in rest_headers.get('Content-Type', ''), 'contact REST index unavailable')
         route = json_object(rest_body).get('routes', {}).get('/gama-contact/v1/messages', {})
         require('POST' in route.get('methods', []), 'contact submission route missing')
+        if self.smtp_deferral is not None:
+            validate_smtp_deferral(self.smtp_deferral, self.request)
+            require(image == self.request['image'], 'SMTP deferral image mismatch')
+            # Keep the form, but prove the production transport rejects mail.
+            # Short-circuit before wp_mail if config is present or plugin missing.
+            self._docker('exec', container_ids[0], 'php', '-r',
+                         'require "/var/www/html/wp-load.php"; exit(wp_get_environment_type() === "production" && function_exists("gama_mail_transport_config") && gama_mail_transport_config() === null && wp_mail($argv[1], "Gama deferred SMTP check", "Delivery must fail closed") === false ? 0 : 1);',
+                         self.config['smtp_recipient'])
+            return
         # PHP program text is constant; the approved mailbox is passed as argv.
         self._docker('exec', container_ids[0], 'php', '-r',
                      'require "/var/www/html/wp-load.php"; exit(wp_mail($argv[1], "Gama release verification", "Controlled release SMTP transport probe") ? 0 : 1);',

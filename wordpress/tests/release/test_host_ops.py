@@ -20,6 +20,23 @@ except ModuleNotFoundError:
 
 
 class ProductionPortTests(unittest.TestCase):
+    def test_deploy_only_passes_smtp_deferral_for_the_bound_bootstrap(self):
+        ops = HostOps({'env_file': '/private/production.env'})
+        ops.request = request()
+        ops.request.update(kind='first-cutover', authorization_ref='owner-approval')
+        record = {key: ops.request[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+        record['accept_contact_delivery_unavailable'] = True
+        ops.smtp_deferral = record
+        with mock.patch.object(ops, '_docker'), mock.patch.object(ops, '_image'), \
+                mock.patch.object(ops, '_repo', return_value=Path('/tools')), \
+                mock.patch.object(ops, '_helper_env', return_value={}), \
+                mock.patch.object(ops, 'current_state', return_value={'healthy': True}), \
+                mock.patch('wordpress.release.host_ops.run') as run:
+            ops.deploy(ops.request['image'], bootstrap=True)
+            self.assertIn('--defer-smtp', run.call_args.args[0])
+            with self.assertRaises(ReleaseValidationError):
+                ops.deploy(ops.request['image'], bootstrap=False)
+
     def test_deploy_and_routing_use_the_reviewed_port(self):
         ops = HostOps({'env_file': '/private/production.env'})
         ops.request = request()
@@ -79,6 +96,8 @@ elif a in [['inspect', 'wp'], ['inspect', 'db']]:
 elif a == ['image', 'inspect', data['image']]:
     print(json.dumps([{'Id':'sha256:'+'d'*64,'Os':'linux','Architecture':data['architecture'],'Config':{'Labels':{'org.opencontainers.image.revision':'a'*40,'com.gamasoftware.wordpress.release-marker':'release'}},'RepoDigests':[data['image']]}]))
 elif a == ['exec', 'wp', 'php', '-r', 'require "/var/www/html/wp-load.php"; exit(wp_mail($argv[1], "Gama release verification", "Controlled release SMTP transport probe") ? 0 : 1);', 'controlled@example.test']: pass
+elif a == ['exec', 'wp', 'php', '-r', 'require "/var/www/html/wp-load.php"; exit(wp_get_environment_type() === "production" && function_exists("gama_mail_transport_config") && gama_mail_transport_config() === null && wp_mail($argv[1], "Gama deferred SMTP check", "Delivery must fail closed") === false ? 0 : 1);', 'controlled@example.test']:
+    sys.exit(0 if data.get('mail_fail_closed', True) else 1)
 elif a in [['ps','--filter','label=com.docker.compose.project=gama-wp-production','--filter','label=com.docker.compose.service='+service,'--format','{{.ID}}'] for service in ('db','wordpress')]: print('db' if 'label=com.docker.compose.service=db' in a else 'wp')
 elif a in [['inspect','--format','{{.State.Health.Status}}',c] for c in ('wp','db')]: print('healthy')
 elif a == ['inspect','--format',r'{{range .Mounts}}{{if eq .Destination "/var/www/html/wp-content/uploads"}}{{.Name}}{{"\\n"}}{{end}}{{end}}','wp']: print('gama-wp-production_uploads')
@@ -307,6 +326,16 @@ print(json.dumps({'binding_sha256':digest,'routing_recovery_reference':'routing:
                 mock.patch('wordpress.release.host_ops.CUTOVER', str(adapter)), \
                 mock.patch('wordpress.release.host_ops.ROUTING', str(adapter)):
             self.assertEqual(waiver, self.ops.preflight(req))
+            deferred = {key: req[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+            deferred['accept_contact_delivery_unavailable'] = True
+            self.config['first_cutover_without_smtp'] = deferred
+            self.ops.preflight(req)
+            self.assertEqual(deferred, getattr(self.ops, 'smtp_deferral', None))
+            self.config['first_cutover_without_smtp'] = {**deferred, 'git_sha': 'f'*40}
+            with self.assertRaises(ReleaseValidationError): self.ops.preflight(req)
+            self.config.pop('first_cutover_without_smtp')
+            self.ops.preflight(req)
+            self.assertIsNone(self.ops.smtp_deferral)
             with mock.patch.object(self.ops, '_http', return_value=(b'legacy', {})):
                 self.ops.verify('legacy')
                 self.ops.request = {**req, 'kind':'routing-rollback', 'operation_id':'route-102',
@@ -318,7 +347,7 @@ print(json.dumps({'binding_sha256':digest,'routing_recovery_reference':'routing:
                 self.ops.request = req
                 adapter.write_text(adapter.read_text().replace("'binding_sha256':digest", "'binding_sha256':'0'*64"))
                 with self.assertRaises(ReleaseValidationError): self.ops.verify('legacy')
-            self.assertEqual(['prepare-routing','verify-routing','verify-routing','verify-routing'],
+            self.assertEqual(['prepare-routing','prepare-routing','prepare-routing','verify-routing','verify-routing','verify-routing'],
                              (self.root/'routing-calls').read_text().splitlines())
             with self.assertRaises(ReleaseValidationError): self.ops.preflight(request())
             self.config['first_cutover_without_backup'] = {**waiver, 'git_sha': 'f'*40}
@@ -374,6 +403,21 @@ print(json.dumps({'binding_sha256':digest,'routing_recovery_reference':'routing:
             self.assertEqual(['/', '/blog/', '/wp-login.php', '/logo.svg', '/wp-json/'], http.requests)
             calls = [json.loads(line) for line in (self.root/'calls').read_text().splitlines()]
             self.assertEqual('controlled@example.test', calls[-1][-1])
+            req = request()
+            req.update(kind='first-cutover', image=OLD, authorization_ref='owner-approval')
+            self.ops.request = req
+            self.ops.smtp_deferral = {key: req[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+            self.ops.smtp_deferral['accept_contact_delivery_unavailable'] = True
+            # The real adapter must execute the runtime fail-closed check, not a send.
+            with mock.patch.object(self.ops, '_docker', wraps=self.ops._docker) as docker:
+                self.ops.verify(OLD)
+                last = docker.call_args.args
+                self.assertIn('gama_mail_transport_config', last[-2])
+                self.assertIn('=== false', last[-2])
+                self.data['mail_fail_closed'] = False
+                self.write_data()
+                with self.assertRaises(ReleaseValidationError): self.ops.verify(OLD)
+            self.ops.smtp_deferral = None
             pages['/'] = (200, {'Content-Type':'text/html'}, home.replace(b'gama-contact-form', b'missing-contact'))
             with self.assertRaises(ReleaseValidationError): self.ops.verify(OLD)
             pages['/'] = (200, {'Content-Type':'text/html'}, home)

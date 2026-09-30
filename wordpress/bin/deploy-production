@@ -8,6 +8,11 @@ if [[ "$#" -gt 0 && "${!#}" == '--mutation-only' ]]; then
   mutation_only=1
   set -- "${@:1:$#-1}"
 fi
+defer_smtp=0
+if [[ "$#" -gt 0 && "${!#}" == '--defer-smtp' ]]; then
+  defer_smtp=1
+  set -- "${@:1:$#-1}"
+fi
 bootstrap=0
 if [[ "$#" -gt 0 && "${!#}" == '--bootstrap' ]]; then
   bootstrap=1
@@ -15,7 +20,7 @@ if [[ "$#" -gt 0 && "${!#}" == '--bootstrap' ]]; then
 fi
 
 if [[ ( "$#" -ne 10 && "$#" -ne 12 ) || "$1" != '--project' || "$3" != '--env-file' || "$5" != '--image' || "$7" != '--http-port' || "$9" != '--confirm-image' || ( "$#" -eq 12 && "${11}" != '--rehearsal-fixture' ) ]]; then
-  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8000> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--mutation-only]' >&2
+  echo 'Usage: wordpress/bin/deploy-production --project <production-namespace> --env-file <absolute-path> --image <immutable-image> --http-port <0|8000> --confirm-image <immutable-image> [--rehearsal-fixture <absolute-dir>] [--bootstrap] [--defer-smtp] [--mutation-only]' >&2
   exit 64
 fi
 
@@ -108,6 +113,13 @@ if [[ -n "$mail_sink" ]]; then
   exit 64
 fi
 smtp_host_lower="$(printf '%s' "$smtp_host" | tr '[:upper:]' '[:lower:]')"
+if [[ "$defer_smtp" == 1 ]]; then
+  if [[ "$project" != 'gama-wp-production' || "$bootstrap" != 1 || -n "$rehearsal_fixture" \
+    || -n "$smtp_host$smtp_port$smtp_username$smtp_password$smtp_encryption" ]]; then
+    echo 'Deferred SMTP requires the stable first bootstrap and completely empty SMTP configuration.' >&2
+    exit 64
+  fi
+else
 if [[ -z "$smtp_host" || ! "$smtp_host" =~ ^[a-zA-Z0-9.-]+$ || "$smtp_host_lower" =~ ^(mailpit|localhost)(\.|$)|^127\. ]]; then
   echo 'Production SMTP host must be external.' >&2
   exit 64
@@ -123,6 +135,7 @@ fi
 if [[ "$smtp_encryption" != 'tls' && "$smtp_encryption" != 'ssl' ]]; then
   echo 'Production SMTP encryption must be tls or ssl.' >&2
   exit 64
+fi
 fi
 
 export WORDPRESS_IMAGE="$image"

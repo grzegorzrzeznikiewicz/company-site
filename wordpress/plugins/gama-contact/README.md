@@ -30,7 +30,7 @@ Configure the recipient and sender in deployment environment variables; never
 export them through WordPress content or commit production values:
 
 ```dotenv
-GAMA_CONTACT_RECIPIENT=founders@gama-software.com
+GAMA_CONTACT_RECIPIENT=grzegorz.rzeznikiewicz@gama-software.com
 GAMA_CONTACT_SENDER=no-reply@gama-software.com
 ```
 

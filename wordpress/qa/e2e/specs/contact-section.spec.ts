@@ -16,8 +16,8 @@ test('renders an accessible editable Contact fallback without the form plugin @c
       contact.getByRole('heading', { level: 2, name: 'Kontakt' }),
     ).toHaveCount(1);
     await expect(
-      contact.getByRole('link', { name: 'founders@gama-software.com' }),
-    ).toHaveAttribute('href', 'mailto:founders@gama-software.com');
+      contact.getByRole('link', { name: 'grzegorz.rzeznikiewicz@gama-software.com' }),
+    ).toHaveAttribute('href', 'mailto:grzegorz.rzeznikiewicz@gama-software.com');
     await expect(
       contact.locator('.gama-contact__form-placeholder'),
     ).toBeVisible();

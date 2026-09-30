@@ -37,7 +37,7 @@ foreach ( array( 'Title: Gama Software Contact', 'Slug: gama-software/contact', 
 		$fail( "pattern metadata misses {$metadata}" );
 	}
 }
-foreach ( array( 'anchor":"contact', 'gama-contact', 'Kontakt', 'mailto:founders@gama-software.com', 'gama-contact__form-slot', 'gama-contact__form-placeholder' ) as $required ) {
+foreach ( array( 'anchor":"contact', 'gama-contact', 'Kontakt', 'mailto:grzegorz.rzeznikiewicz@gama-software.com', 'gama-contact__form-slot', 'gama-contact__form-placeholder' ) as $required ) {
 	if ( ! str_contains( $pattern, $required ) || ! str_contains( $front_page, $required ) ) {
 		$fail( "pattern or front page misses {$required}" );
 	}

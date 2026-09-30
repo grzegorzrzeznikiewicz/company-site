@@ -19,7 +19,7 @@
 		<div class="wp-block-group gama-contact__card has-base-background-color has-background">
 			<!-- wp:group {"className":"gama-contact__form-slot","layout":{"type":"constrained"}} -->
 			<div class="wp-block-group gama-contact__form-slot">
-				<!-- wp:paragraph {"className":"gama-contact__form-placeholder","align":"center","textColor":"text-muted"} --><p class="has-text-align-center gama-contact__form-placeholder has-text-muted-color has-text-color"><?php esc_html_e( 'Formularz jest chwilowo niedostępny. Napisz do nas:', 'gama-software' ); ?> <a href="mailto:founders@gama-software.com">founders@gama-software.com</a></p><!-- /wp:paragraph -->
+				<!-- wp:paragraph {"className":"gama-contact__form-placeholder","align":"center","textColor":"text-muted"} --><p class="has-text-align-center gama-contact__form-placeholder has-text-muted-color has-text-color"><?php esc_html_e( 'Formularz jest chwilowo niedostępny. Napisz do nas:', 'gama-software' ); ?> <a href="mailto:grzegorz.rzeznikiewicz@gama-software.com">grzegorz.rzeznikiewicz@gama-software.com</a></p><!-- /wp:paragraph -->
 				<!-- wp:shortcode -->[gama_contact_form]<!-- /wp:shortcode -->
 			</div>
 			<!-- /wp:group -->

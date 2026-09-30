@@ -232,6 +232,16 @@ class HostTests(unittest.TestCase):
         self.assertEqual('completed', execute(recovery, self.root, self.ops)['status'])
         self.assertIn('route:legacy', self.effects())
 
+    def test_deferred_smtp_is_durable_and_not_reported_as_verified(self):
+        req, _ = self.waived_cutover()
+        record = {key: req[key] for key in ('operation_id', 'git_sha', 'image', 'authorization_ref')}
+        record['accept_contact_delivery_unavailable'] = True
+        self.ops.smtp_deferral = record
+        result = execute(req, self.root, self.ops)
+        self.assertEqual('completed', result['status'])
+        self.assertEqual('deferred', result.get('smtp_verification'))
+        self.assertEqual(record, self.read('operation.json').get('smtp_deferral'))
+
     def test_waiver_cannot_authorize_other_release_or_standard_update(self):
         req, waiver = self.waived_cutover()
         for key, bad in [('operation_id', 'other'), ('git_sha', 'f'*40), ('image', OLD),

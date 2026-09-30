@@ -9,6 +9,13 @@ off-host backup requirement **only for that exact first-cutover operation**.
 It does not approve deleting legacy data, disabling HTTPS checks, or skipping
 CI, source provenance, SMTP/content checks, or the owner cutover gate.
 
+**Later owner decision (2026-09-30):** the owner additionally requested first
+deployment before configuring Google Workspace SMTP, while keeping the contact
+form visible. This specifically supersedes the SMTP-delivery prerequisite for
+that first cutover, not content checks or any other gate. The correct contact
+recipient is `grzegorz.rzeznikiewicz@gama-software.com`; the former `founders`
+address does not exist.
+
 There is no guaranteed data recovery without a backup. Preserving the old
 application and its routing is not a database/upload backup and must not be
 reported as one. Future standard releases still require the original backup
@@ -70,3 +77,27 @@ Tests cover no backup calls or false backup records, exact release binding,
 rejection for standard updates, automatic return to legacy on failure, manual
 routing recovery, and routing-only adapter evidence. This document records
 approval and implementation requirements, **not a completed deployment**.
+
+## Separate first-cutover SMTP deferral
+
+The root-owned configuration may separately contain `first_cutover_without_smtp`.
+It uses the same exact `operation_id`, `git_sha`, `image`, and `authorization_ref`
+fields as above, plus `accept_contact_delivery_unavailable: true`. It is not
+implied by the backup exception and cannot authorize a standard update or a
+different first-cutover identity. The actual cutover window and owner approval
+continue to be verified by the existing release coordinator.
+
+With this explicit deferral, only the stable first bootstrap receives
+`--defer-smtp`. All five SMTP environment settings must be empty. The form stays
+visible; the production mail plugin must reject delivery and the form reports
+an error instead of success. Messages are not queued for later delivery.
+Private and public page, navigation, logo, login, contact form, REST and HTTPS
+checks remain required. Runtime verification checks that the fail-closed mail
+plugin is active with no usable SMTP configuration.
+
+The operation journal contains `smtp_deferral`; the completion result contains
+`smtp_verification: deferred`. Neither is proof of working contact delivery.
+The deployment can complete with this known limitation, but contact acceptance
+and the whole epic remain incomplete until Google Workspace is configured and
+an actual test message is received. Standard releases continue to require
+normal SMTP configuration and a successful transport probe.
