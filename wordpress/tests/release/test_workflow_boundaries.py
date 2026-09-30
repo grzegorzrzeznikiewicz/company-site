@@ -4,6 +4,7 @@ Only external commands are replaced. Event inputs and expected calls are literal
 """
 import json
 import base64
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -41,13 +42,17 @@ def scalar(filename, name, key='run'):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_production_ssh_steps_pin_verified_ovh_host_key(self):
+    def test_production_ssh_steps_accept_verified_ovh_ecdsa_host_key(self):
+        # drone-ssh 1.7.3 / x/crypto v0.17.0 prefers ECDSA over Ed25519.
+        # Public key fingerprint independently confirmed in the OVH console.
+        key = base64.b64decode('AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBB09wd8/d+qIpYgaqZjN+iYeHOJPQaHNDfFzj0DfSq6usRx6U5zXN8G6Glr0+gmkMIqv4Eiq9CfiSMLjgiOVY0=')
+        fingerprint = 'SHA256:' + base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip('=')
         for workflow, step in (
             ('wordpress-production.yml', 'Execute installed serialized production transaction'),
             ('wordpress-production-rollback.yml', 'Execute installed serialized recovery transaction'),
         ):
             with self.subTest(workflow=workflow):
-                self.assertEqual('SHA256:n+gcr+OMaTxLNlF2uQBdEXSqyZxZ7yZDliuGAXFoaRU\n',
+                self.assertEqual(fingerprint + '\n',
                                  scalar(workflow, step, 'fingerprint'))
 
     def setUp(self):
