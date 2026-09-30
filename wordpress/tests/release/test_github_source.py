@@ -613,6 +613,11 @@ def cutover_fixture():
         'environments': [{'id': 333, 'name': 'wordpress-production-cutover'}],
         'state': 'approved', 'user': owner,
         'comment': json.dumps(authorization, sort_keys=True, separators=(',', ':'))}]
+    import hashlib
+    digest = hashlib.sha256(json.dumps(authorization, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    data[ROOT + '/actions/runs/900/attempts/1/jobs?per_page=100&page=1'] = {
+        'total_count': 1, 'jobs': [{'id': 901, 'run_id': 900,
+            'name': 'Approve cutover ' + digest, 'status': 'completed', 'conclusion': 'success'}]}
     payload = {'repository': repo, 'ref': 'refs/heads/main',
                'promotion_run_id': 900, 'promotion_run_attempt': 1,
                'authorization': authorization, 'source_event': event()}
@@ -620,6 +625,50 @@ def cutover_fixture():
 
 
 class CutoverTests(unittest.TestCase):
+    def test_gate_job_must_be_unique_successful_and_bound_to_this_run(self):
+        for mutation in ('missing', 'duplicate', 'failed', 'pending', 'wrong_run', 'wrong_digest'):
+            data, payload = cutover_fixture()
+            page = data[ROOT + '/actions/runs/900/attempts/1/jobs?per_page=100&page=1']
+            job = page['jobs'][0]
+            if mutation == 'missing':
+                page.update(total_count=0, jobs=[])
+            elif mutation == 'duplicate':
+                page.update(total_count=2, jobs=[job, dict(job, id=902)])
+            elif mutation == 'failed':
+                job['conclusion'] = 'failure'
+            elif mutation == 'pending':
+                job.update(status='in_progress', conclusion=None)
+            elif mutation == 'wrong_run':
+                job['run_id'] = 899
+            else:
+                job['name'] = 'Approve cutover ' + 'f' * 64
+            with self.subTest(mutation=mutation), HTTPFixture(data) as fixture:
+                with self.assertRaises(ReleaseValidationError):
+                    resolve_source(payload, fixture.api(), 'off', operation='first-cutover')
+
+    def test_owner_approval_cannot_authorize_a_substituted_window(self):
+        data, payload = cutover_fixture()
+        payload['authorization']['window_end'] = '2100-01-01T00:00:00Z'
+        with HTTPFixture(data) as fixture:
+            with self.assertRaises(ReleaseValidationError):
+                resolve_source(payload, fixture.api(), 'off', operation='first-cutover')
+
+    def test_owner_approval_does_not_require_a_machine_generated_comment(self):
+        for comment in ('', 'Approved for production'):
+            data, payload = cutover_fixture()
+            data[ROOT + '/actions/runs/900/approvals'][0]['comment'] = comment
+            with self.subTest(comment=comment), HTTPFixture(data) as fixture:
+                result = resolve_source(payload, fixture.api(), 'off', operation='first-cutover')
+                self.assertEqual(result['authorization']['promotion_run_id'], 900)
+                self.assertEqual(result['authorization']['git_sha'], SHA)
+
+    def test_cutover_dispatch_must_run_the_approved_source_revision(self):
+        data, payload = cutover_fixture()
+        data[ROOT + '/actions/runs/900']['head_sha'] = 'e' * 40
+        with HTTPFixture(data) as fixture:
+            with self.assertRaises(ReleaseValidationError):
+                resolve_source(payload, fixture.api(), 'off', operation='first-cutover')
+
     def test_operator_human_type_must_match_fetched_identity(self):
         data, payload = cutover_fixture()
         data[ROOT + '/collaborators/reviewer/permission']['user']['type'] = 'Bot'
