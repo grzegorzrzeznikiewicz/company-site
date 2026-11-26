@@ -8,5 +8,5 @@ if [[ ! -f "$ROOT_DIR/.env" ]]; then
 fi
 
 docker compose --project-name gama-wordpress --env-file "$ROOT_DIR/.env" --file "$ROOT_DIR/compose.yaml" config |
-  grep -Fx '    image: wordpress:7.1.0-php8.4-apache'
+  grep -Fx '    image: wordpress:7.1.5-php8.4-apache'
 "$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'

@@ -28,8 +28,9 @@ $read = static function ( string $relative ) use ( $root, $fail ): string {
 $bootstrap = $read( 'gama-security.php' );
 $plugin    = $read( 'src/class-plugin.php' );
 $guard     = $read( 'src/class-loginguard.php' );
+$health    = $read( 'src/class-sitehealth.php' );
 
-foreach ( array( 'Plugin Name: Gama Security', 'Version: 0.1.1', 'Requires at least: 7.1', 'Requires PHP: 8.4', 'GPL-2.0-or-later', 'Text Domain: gama-security' ) as $required ) {
+foreach ( array( 'Plugin Name: Gama Security', 'Version: 0.1.2', 'Requires at least: 7.1', 'Requires PHP: 8.4', 'GPL-2.0-or-later', 'Text Domain: gama-security' ) as $required ) {
 	if ( ! str_contains( $bootstrap, $required ) ) {
 		$fail( "bootstrap misses {$required}" );
 	}
@@ -43,6 +44,18 @@ foreach ( array( 'authenticate', 'wp_login_failed', 'wp_login', 'WP_Error', 'GET
 	if ( ! str_contains( $guard, $required ) ) {
 		$fail( "login guard misses {$required}" );
 	}
+}
+
+foreach ( array( 'site_status_tests', 'background_updates', 'AUTOMATIC_UPDATER_DISABLED', 'WP_AUTO_UPDATE_CORE' ) as $required ) {
+	if ( ! str_contains( $health, $required ) ) {
+		$fail( "site health policy misses {$required}" );
+	}
+}
+if ( str_contains( $health, 'wordpress_version' ) ) {
+	$fail( 'site health policy must keep the core version test' );
+}
+if ( ! str_contains( $bootstrap, 'src/class-sitehealth.php' ) || ! str_contains( $plugin, 'new SiteHealth()' ) ) {
+	$fail( 'site health policy is not registered' );
 }
 
 fwrite( STDOUT, "GSWEB-23 role and security plugin source contract passed.\n" );

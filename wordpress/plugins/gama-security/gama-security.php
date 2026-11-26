@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Gama Security
  * Description: Role, response-header and login protections for Gama Software.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Requires at least: 7.1
  * Requires PHP: 8.4
  * Author: Gama Software
@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/src/class-loginguard.php';
 require_once __DIR__ . '/src/class-plugin.php';
+require_once __DIR__ . '/src/class-sitehealth.php';
 
 add_action(
 	'plugins_loaded',

@@ -107,7 +107,7 @@ docker run --rm --interactive \
   --network none \
   --volume "$uploads_volume:/target" \
   --entrypoint sh \
-  wordpress:7.1.0-php8.4-apache \
+  wordpress:7.1.5-php8.4-apache \
   -ec 'find /target -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar -C /target -xf -; chown -R 33:33 /target' \
   <"$backup/uploads.tar"
 
