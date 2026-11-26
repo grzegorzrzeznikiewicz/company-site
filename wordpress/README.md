@@ -36,6 +36,9 @@ that Compose mounts read-only. `tests/external-extensions-contract.sh` keeps the
 pins in sync. Connecting a Google account and completing the Complianz wizard
 (cookie policy, consent categories) are owner actions in wp-admin and are not
 automated; Complianz writes its generated files under `wp-content/uploads/complianz`.
+An ordinary production release does not run the bootstrap, so the owner activates
+the plugins in wp-admin after the first release that ships them: see the
+[GSWEB-31 runbook](../docs/agent-workflows/wordpress-migration/GSWEB-31-external-extensions.md).
 
 `wordpress/dist` contains ignored local artifacts only. Do not upload, release,
 attach, or distribute them without separate owner approval.

@@ -44,7 +44,10 @@ One plugin owns one durable capability. Existing plugins: `gama-contact`
   time and by `wordpress/bin/fetch-extensions` for local development, never
   committed. A new one needs a lock entry, a Dockerfile `ADD --checksum` line,
   Compose mounts, a bootstrap activation and a release manifest package; the
-  `external-extensions-contract.sh` test lists what is missing.
+  `external-extensions-contract.sh` test lists what is missing. An ordinary
+  production release does not bootstrap, so a newly added extension must be
+  activated by the owner after deployment; see the
+  [GSWEB-31 runbook](agent-workflows/wordpress-migration/GSWEB-31-external-extensions.md).
 - **Distribution:** ZIPs in `wordpress/dist` are local artifacts. Uploading or
   publishing one needs separate owner approval.
 

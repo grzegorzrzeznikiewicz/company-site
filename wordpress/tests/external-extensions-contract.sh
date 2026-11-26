@@ -70,8 +70,11 @@ while read -r slug version main_file sha256; do
   escaped_version="${version//./\\.}"
 
   # Production image.
-  grep -Fxq "ADD --checksum=sha256:${sha256} \\" "$dockerfile" || fail "Dockerfile does not verify the $slug checksum"
-  grep -Fxq "    ${url} /tmp/external-extensions/${slug}.zip" "$dockerfile" || fail "Dockerfile does not fetch the pinned $slug archive"
+  # The checksum must sit on the ADD instruction that fetches this exact URL.
+  add_pair="$(grep -Fx -A1 "ADD --checksum=sha256:${sha256} \\" "$dockerfile" || true)"
+  [[ -n "$add_pair" ]] || fail "Dockerfile does not verify the $slug checksum"
+  [[ "$add_pair" == "ADD --checksum=sha256:${sha256} \\"$'\n'"    ${url} /tmp/external-extensions/${slug}.zip" ]] ||
+    fail "Dockerfile does not bind the $slug checksum to the pinned $slug archive"
   grep -Fq "Version: +${escaped_version}\$' /tmp/external-plugins/${slug}/${main_file}" "$dockerfile" ||
     fail "Dockerfile does not assert the $slug header version"
   grep -Fxq "COPY --from=external_extensions /tmp/external-plugins/${slug} /usr/src/wordpress/wp-content/plugins/${slug}" "$dockerfile" ||
@@ -89,8 +92,13 @@ while read -r slug version main_file sha256; do
   grep -Fq "plugin get ${slug} --field=version | grep -Fx '${version}'" "$smoke" || fail "runtime smoke does not check the $slug version"
   grep -Fq "'plugin/${slug}'," "$manifest" || fail "release manifest does not require plugin/$slug"
   grep -Fq "'plugin/${slug}'" "$candidate" || fail "candidate validation does not list plugin/$slug"
-  grep -Fq "${slug}/${main_file}" "$candidate" ||
-    grep -Fq "'${slug}'" "$candidate" || fail "candidate package inventory does not read $slug"
+  if [[ "$main_file" == "${slug}.php" ]]; then
+    grep -Eq "^foreach \(array\(([^)]*, )?'${slug}'(, [^)]*)?\) as \\\$plugin\) \{\$" "$candidate" ||
+      fail "candidate package inventory does not read $slug"
+  else
+    grep -Fq "/usr/src/wordpress/wp-content/plugins/${slug}/${main_file}" "$candidate" ||
+      fail "candidate package inventory does not read $slug from ${main_file}"
+  fi
 done < <(cut -d' ' -f1-4 <<<"$locked")
 
 if (cd "$REPOSITORY_ROOT" && git ls-files --error-unmatch wordpress/.cache >/dev/null 2>&1); then
