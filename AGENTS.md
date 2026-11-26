@@ -47,9 +47,10 @@ history. Use Conventional Commits with the ticket key, for example
 `feat(GSWEB-32): ...` or `fix(GSWEB-30): ...`.
 
 Apply and verify every change locally first (local WordPress on port 8090),
-then release it to production through the WordPress pipeline. Merges to `main`
-release automatically after the four WordPress quality gates; server-side
-changes outside the pipeline need explicit owner approval.
+then release it to production through the WordPress pipeline. After the four WordPress quality gates on `main`, the production workflow
+releases automatically only while the repository variable
+`GAMA_DEPLOYMENT_MODE` is `wordpress`; with `off` the guard skips deployment.
+Server-side changes outside the pipeline need explicit owner approval.
 
 ## Chrome and Jira Profile Order
 
