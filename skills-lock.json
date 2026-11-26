@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "skills": {
+    "om-auto-review-pr": {
+      "source": "open-mercato/skills",
+      "commit": "7c861837ee54acf2854f73c4558e6ce13ddfd80c",
+      "sourceType": "github",
+      "skillPath": "skills/om-auto-review-pr/SKILL.md",
+      "computedHash": "27dcf3a1a333ae7da6aad5fa110d6824f46701a7a84d5f305d84bc4fe0101b68"
+    },
+    "om-code-review": {
+      "source": "open-mercato/skills",
+      "commit": "7c861837ee54acf2854f73c4558e6ce13ddfd80c",
+      "sourceType": "github",
+      "skillPath": "skills/om-code-review/SKILL.md",
+      "computedHash": "6b865bf93e68f87cd9e08975a7640c71f218197a54c778a7092caeaf75bc6af2"
+    },
+    "om-setup-agent-pipeline": {
+      "source": "open-mercato/skills",
+      "commit": "7c861837ee54acf2854f73c4558e6ce13ddfd80c",
+      "sourceType": "github",
+      "skillPath": "skills/om-setup-agent-pipeline/SKILL.md",
+      "computedHash": "841141a0853722e82e975997d70fe41630f7266ace2079f164c83457be78df5c"
+    }
+  }
+}

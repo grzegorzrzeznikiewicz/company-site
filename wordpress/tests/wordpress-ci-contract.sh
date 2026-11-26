@@ -101,7 +101,21 @@ for retired in ci.yml deploy.yml rollback.yml; do
   [[ ! -e "$REPOSITORY_ROOT/.github/workflows/$retired" ]]
 done
 [[ ! -e "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
-[[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
+[[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'ai-code-review.yml wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
+# GSWEB-34: the AI review workflow only reviews and records the owner's solo
+# report; it must stay pinned, owner-only and unable to push or merge by itself.
+ai_review="$REPOSITORY_ROOT/.github/workflows/ai-code-review.yml"
+grep -Fq "github.event.pull_request.user.login == 'grzegorzrzeznikiewicz'" "$ai_review"
+grep -Fq 'github.event.pull_request.head.repo.full_name == github.repository' "$ai_review"
+grep -Fq 'uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1.0.270' "$ai_review"
+grep -Fq 'persist-credentials: false' "$ai_review"
+grep -Fq 'Bash(gh pr merge:*)' "$ai_review"
+grep -Fq 'Bash(git push:*)' "$ai_review"
+grep -Fq 'python3 -W error -m wordpress.release.ai_review_gate' "$ai_review"
+grep -Fq "if: steps.gate.outputs.result == 'approved'" "$ai_review"
+grep -Fq -- '--auto --squash --match-head-commit "$HEAD_SHA"' "$ai_review"
+[[ "$(grep -Fc 'gh pr merge "$PR_NUMBER"' "$ai_review")" -eq 2 ]]
+if grep -Eq 'pull_request_target|workflow_run|GITHUB_TOKEN' "$ai_review"; then exit 1; fi
 
 # Parse real YAML using the existing lock-pinned assets QA dependency. This is
 # required by the source gate and also checks deliberate broken graph fixtures.
