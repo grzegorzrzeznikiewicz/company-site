@@ -1,66 +1,26 @@
 # Gama Software Website
 
-[![CI Quality Checks](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/ci.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/ci.yml)
-[![Deploy to Production](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/deploy.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/deploy.yml)
+[![WordPress Quality Gates](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/wordpress-ci.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/wordpress-ci.yml)
+[![WordPress Production Deployment](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/wordpress-production.yml/badge.svg)](https://github.com/grzegorzrzeznikiewicz/company-site/actions/workflows/wordpress-production.yml)
 
-Company website for Gama Software.
+Company website for Gama Software, <https://gama-software.com>. Since the
+2026-09-30 cutover the site runs only on WordPress: a first-party block theme
+plus small first-party plugins, edited in the WordPress Site Editor.
 
-Figma source:
-[Firmowa Wizytówka Strony](https://www.figma.com/design/cxRnksVttQoJbK9Q3R2Bk2/Firmowa-Wizyt%C3%B3wka-Strony)
+The former React/Vite frontend and Symfony/PostgreSQL contact API were retired
+in GSWEB-30. Their last full source is preserved by the Git tag
+`legacy-react-symfony-final`; see [Legacy stack](#legacy-stack).
 
-Release history:
-[CHANGELOG.md](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/CHANGELOG.md)
+Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
-- Docker
-- Docker Compose
-- Optional: `nvm` or `Volta` if you want the same local Node version as CI (`24.14.0`)
+- Docker with Docker Compose
 
-Local system `php` and `node` are not required for development.
+Local `php`, `node` and `composer` are not required; every tool runs in a
+pinned container.
 
-## Local Development
-
-### Start the full stack
-
-```bash
-cp .env.example .env
-cp backend/.env.local.example backend/.env.local
-
-bin/start
-```
-
-`bin/start` and `bin/restart` safely remove orphaned containers that belong to this Docker Compose project, including legacy service names from older local stack revisions.
-
-### Endpoints
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8080/api/contact`
-- Admin panel: `http://localhost:8080/admin`
-- MailHog: `http://localhost:8026`
-
-## Environment Commands
-
-```bash
-bin/start
-bin/stop
-bin/restart
-bin/backend-start
-bin/backend-stop
-bin/frontend-start
-bin/frontend-stop
-bin/logs-frontend
-bin/logs-backend
-bin/backend-check
-bin/frontend-check
-bin/e2e-check
-```
-
-## Local WordPress
-
-The WordPress runtime is separate from the existing React/Symfony Compose
-project. It uses only the fixed `gama-wordpress` Compose project name, a MariaDB
-volume, an uploads volume, and localhost-only WordPress/Mailpit ports.
+## Local development
 
 ```bash
 cp wordpress/.env.example wordpress/.env
@@ -69,214 +29,97 @@ wordpress/bin/start
 
 - Site: `http://localhost:8090`
 - WordPress admin: `http://localhost:8090/wp-admin/`
-- Test email inbox: `http://localhost:8027`
-- SMTP sink: `127.0.0.1:1027` (Mailpit only; never a real recipient)
+- Test email inbox (Mailpit): `http://localhost:8027`
 
-The example local administrator is `admin / ChangeMe-WordPress-Only`. Change
-these values in your untracked `wordpress/.env` when needed.
+The example local administrator is set in `wordpress/.env` (see
+`wordpress/.env.example`). Local mail never leaves Mailpit.
 
 ```bash
 wordpress/bin/start       # start and idempotently bootstrap WordPress
 wordpress/bin/stop        # stop only gama-wordpress containers
 wordpress/bin/restart     # recreate containers without deleting data
-wordpress/bin/logs        # follow WordPress-project logs
+wordpress/bin/logs        # follow logs
 wordpress/bin/wp core version
 wordpress/bin/test-mail   # prove outbound local mail reaches Mailpit
-wordpress/tests/mount-contract.sh        # validate safe theme/plugin bind mounts
-wordpress/tests/runtime-smoke.sh           # non-destructive runtime smoke check
-wordpress/bin/reset --list-targets         # inspect targets before a reset
-wordpress/bin/validate-extensions-lock     # validate the empty external-extension inventory
-wordpress/bin/package plugin gama-contact  # build the local reproducible plugin ZIP
-wordpress/tests/plugin-package-contract.sh # verify contents and two byte-identical builds
-wordpress/bin/package theme gama-software  # build the local reproducible theme ZIP
-wordpress/tests/theme-package-contract.sh  # verify contents and two byte-identical builds
-wordpress/tests/package-compose-contract.sh # verify isolated image/mount parity
-wordpress/tests/test-package-input-contract.sh # reject non-canonical ZIP inputs before Docker
-wordpress/tests/test-package-isolation-contract.sh # verify exact-label preflight and cleanup semantics
-wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip # disposable clean ZIP lifecycle
-wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip # disposable clean ZIP lifecycle
 ```
 
-The `clean-runtime` mode (`wordpress/tests/runtime-smoke.sh --clean`) and
-`wordpress/bin/reset --confirm` are destructive. Run either only on a
-disposable CI runner or VM with its own Docker daemon, never on the owner's
-port-8090 preview. Inspect `wordpress/bin/reset --list-targets` first. The reset
-command refuses to run without `--confirm`; when confirmed, it removes only the
-`gama-wordpress` Compose project's database, uploads, and local WordPress Core
-volumes. It never targets the React/Symfony project.
+`wordpress/bin/reset --confirm` and `wordpress/tests/runtime-smoke.sh --clean`
+are destructive. Inspect `wordpress/bin/reset --list-targets` first and never
+run them against a preview you want to keep.
 
-The WordPress package architecture, code/runtime classification, lifecycle,
-dependency-lock policy, and exact next-plugin procedure are recorded in
-[`GSWEB-11-architecture.md`](docs/agent-workflows/wordpress-migration/GSWEB-11-architecture.md).
-The approved immutable QA inputs and ZIP-only browser contract for the first
-production theme are recorded in
-[`GSWEB-12-gate-a.md`](docs/agent-workflows/wordpress-migration/GSWEB-12-gate-a.md).
-The current packages are the production-theme foundation
-[`gama-software` 0.4.1](wordpress/theme/gama-software/README.md) and the
-theme-independent contact plugin
-[`gama-contact` 0.3.2](wordpress/plugins/gama-contact/README.md); their READMEs
-contain activation, lifecycle, editing and reset guidance. Files in
-`wordpress/dist` are ignored local artifacts and must not be uploaded, released,
-or otherwise distributed without separate approval.
+## Packages
 
-## Frontend
+| Package | Path | Version |
+| --- | --- | --- |
+| Theme `gama-software` | [`wordpress/theme/gama-software`](wordpress/theme/gama-software/README.md) | 0.4.1 |
+| Plugin `gama-contact` (contact form) | [`wordpress/plugins/gama-contact`](wordpress/plugins/gama-contact/README.md) | 0.3.2 |
+| Plugin `gama-seo` | [`wordpress/plugins/gama-seo`](wordpress/plugins/gama-seo/README.md) | 0.1.0 |
+| Plugin `gama-security` | [`wordpress/plugins/gama-security`](wordpress/plugins/gama-security/README.md) | 0.1.1 |
+| Plugin `gama-mail-transport` (production SMTP) | [`wordpress/plugins/gama-mail-transport`](wordpress/plugins/gama-mail-transport/README.md) | 0.1.0 |
+| Plugin `gama-local-mailpit` (local only) | `wordpress/plugins/gama-local-mailpit` | 0.1.0 |
 
-The `frontend` service runs the Vite development server inside Docker.
-
-Requests to `/api/*` are proxied to the `backend` service. `VITE_API_BASE_URL` can stay empty in Docker-based development.
-
-### Frontend environment variables
-
-- `FRONTEND_NODE_VERSION`: Node version used by Docker and GitHub Actions (`24.14.0`)
-- `VITE_DEV_PORT`: frontend port exposed on the host (`5173`)
-- `VITE_API_BASE_URL`: optional explicit API URL
-- `VITE_API_PROXY_TARGET`: proxy target used outside Docker; the container overrides it to `http://backend:8080`
-
-### Frontend quality checks
+Build and verify a package:
 
 ```bash
-bin/frontend-check
+wordpress/bin/package theme gama-software
+wordpress/tests/theme-contract.sh
+wordpress/bin/package plugin gama-contact
+wordpress/tests/plugin-package-contract.sh
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip
 ```
 
-### Frontend end-to-end checks
+Files in `wordpress/dist` are ignored local artifacts. Do not upload or
+distribute them without owner approval.
 
-```bash
-bin/e2e-check
-```
+Adding or changing a theme feature or plugin: see
+[`docs/EXTENDING.md`](docs/EXTENDING.md).
 
-## Backend
+## CI and releases
 
-The backend lives in [backend/](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/backend) and is a Symfony 8 application serving:
+- [`wordpress-ci.yml`](.github/workflows/wordpress-ci.yml) — four required
+  quality gates on every PR and push to `main`.
+- [`wordpress-production.yml`](.github/workflows/wordpress-production.yml) —
+  promotes the exact CI-built image of a merged `main` commit to production.
+- [`wordpress-production-rollback.yml`](.github/workflows/wordpress-production-rollback.yml)
+  — owner-approved manual recovery.
 
-- the contact form API at `/api/contact`
-- the admin panel at `/admin`
+Release, backup, restore and rollback procedures are documented in
+[`docs/agent-workflows/wordpress-migration/`](docs/agent-workflows/wordpress-migration/README.md)
+(GSWEB-24, GSWEB-26 and GSWEB-29).
 
-The stack includes:
-
-- `backend`: Symfony runtime container
-- `backend-tools`: one-off backend tooling container
-- `symfony-db`: PostgreSQL exposed on host port `5433`
-- `mailhog`: local SMTP sink and UI
-
-### Backend environment variables
-
-Copy [backend/.env.local.example](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/backend/.env.local.example) to `backend/.env.local` and configure:
-
-- `DATABASE_URL`
-- `MAILER_DSN`
-- `CONTACT_RECIPIENT`
-- `CONTACT_SENDER`
-- `CORS_ALLOW_ORIGIN`
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD_HASH`
-- `ADMIN_PANEL_TITLE`
-
-In local development, `MAILER_DSN="smtp://mailhog:1025"` sends email to MailHog.
-The example local admin credentials are `admin / Admin123!`.
-
-### Useful backend commands
-
-Generate an admin password hash:
-
-```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec backend php -r "echo password_hash('YourPassword', PASSWORD_BCRYPT), PHP_EOL;"
-```
-
-Run Doctrine migrations:
-
-```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.symfony.yml exec backend php bin/console doctrine:migrations:migrate
-```
-
-Run backend quality checks and tests:
-
-```bash
-bin/backend-check
-```
-
-## Local `company.test` Domain
-
-1. Add host entries:
-
-   ```bash
-   echo "127.0.0.1 company.test api.company.test" | sudo tee -a /etc/hosts
-   ```
-
-2. Ensure `.env` contains:
-
-   ```dotenv
-   VITE_API_BASE_URL=
-   VITE_DEV_HOST=0.0.0.0
-   VITE_DEV_PORT=5173
-   ```
-
-3. Start the stack:
-
-   ```bash
-   bin/start
-   ```
-
-4. Access:
-   - frontend: `http://company.test:5173`
-   - backend/admin: `http://api.company.test:8080`
-
-## Deployment
-
-Deployment-related files are in [build/](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/build):
-
-- [DEPLOYMENT.md](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/build/DEPLOYMENT.md)
-- [CI-CD-SETUP.md](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/build/CI-CD-SETUP.md)
-- [README.md](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/build/README.md)
-
-### GitHub Actions
-
-- [ci.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/ci.yml)
-- [deploy.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/deploy.yml)
-- [rollback.yml](/Users/grzegorzrzeznikiewicz/Programowanie/PHP/Projekty/GamaSoftware/web/.github/workflows/rollback.yml)
-
-### Required GitHub Secrets
-
-- `SERVER_HOST`
-- `SERVER_USER`
-- `SSH_PRIVATE_KEY`
-- `SSH_PORT`
-- `GHCR_USERNAME`
-- `GHCR_TOKEN`
-- `PROD_MAILER_DSN`
-- `PROD_CONTACT_RECIPIENT`
-- `PROD_CONTACT_SENDER`
-- `PROD_COMPANY_API_APP_SECRET`
-- `PROD_COMPANY_DB_PASSWORD`
-- `PROD_ADMIN_PASSWORD_HASH`
-
-## Project Structure
+## Project structure
 
 ```text
 .
-├── src/                  # React application source
-├── tests/e2e/            # Playwright end-to-end tests
-├── backend/              # Symfony 8 API and admin panel
-├── bin/                  # Local environment command wrappers
-├── docker/               # Local Docker helper scripts
-├── build/                # Build and deployment files
-├── .github/workflows/    # GitHub Actions workflows
-├── .nvmrc                # Project Node version
-└── package.json
+├── wordpress/
+│   ├── theme/gama-software/   # block theme (templates, parts, patterns, theme.json)
+│   ├── plugins/               # first-party plugins, one capability each
+│   ├── config/                # external-extension lock and schema
+│   ├── bin/                   # local runtime, packaging and release commands
+│   ├── tests/                 # contract, runtime and release tests
+│   ├── qa/                    # pinned QA toolchains and Playwright specs
+│   ├── release/, routing/     # production release and routing tooling
+│   └── runtime/, deploy/      # production image and Compose files
+├── docs/                      # migration records, editor guides, extension guide
+└── .github/workflows/         # WordPress CI, production release and rollback
 ```
 
-## Tech Stack
+## Legacy stack
 
-- React 18
-- TypeScript
-- Vite 6
-- Tailwind CSS 4
-- shadcn/ui
-- Material UI
-- Motion
-- Symfony 8
-- PostgreSQL 16
-- Docker
+The React 18/Vite frontend (`src/`), Symfony 8 contact API and EasyAdmin panel
+(`backend/`), their Docker/CI files and `bin/*` wrappers were removed in
+GSWEB-30 after the owner's Gate D decision on 2026-11-26. To inspect or rebuild
+them, check out the tag:
+
+```bash
+git fetch origin tag legacy-react-symfony-final
+git checkout legacy-react-symfony-final
+```
+
+The tag points at the last `main` commit that still contained the full legacy
+source and its CI/deploy workflows.
 
 ## License
 
-Copyright © 2026 Gama Software. All rights reserved.
+Copyright © 2026 Gama Software. All rights reserved. The WordPress theme and plugins
+are licensed GPL-2.0-or-later, as declared in their headers.
