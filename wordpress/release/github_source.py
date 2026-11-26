@@ -25,8 +25,6 @@ OWNER_LOGIN = 'grzegorzrzeznikiewicz'
 SOLO_REVIEW_PREFIX = 'GAMA-SOLO-AI-REVIEW-V1\n'
 WP_GATES = ('WordPress Source and Build', 'WordPress Package Lifecycle',
             'WordPress Runtime and Restore', 'WordPress Release Regression')
-LEGACY_GATES = ('Backend Quality (Symfony)', 'Backend Tests',
-                'Frontend Quality', 'End-to-End Tests')
 MAX_ZIP_BYTES = 4 * 1024 * 1024 * 1024 + 1024 * 1024
 
 
@@ -372,10 +370,6 @@ def _solo_approval(api, pr, number, merged, reviews):
 
 
 def _checks(api, sha, required, source_run_id):
-    legacy_workflow = api.get(ROOT + '/actions/workflows/ci.yml')
-    require(positive(legacy_workflow.get('id'))
-            and legacy_workflow.get('path') == '.github/workflows/ci.yml'
-            and legacy_workflow.get('state') == 'active', 'legacy CI workflow identity unavailable')
     checks = api.pages(ROOT + '/commits/' + sha + '/check-runs?filter=latest', 'check_runs')
     statuses = api.pages(ROOT + '/commits/' + sha + '/statuses')
     for name, app_id in dict.fromkeys(required):
@@ -402,14 +396,9 @@ def _checks(api, sha, required, source_run_id):
                 job = api.get(ROOT + '/actions/jobs/' + str(job_id))
                 _repo(current.get('repository'))
                 _repo(current.get('head_repository'))
-                if name in WP_GATES:
-                    require(current.get('workflow_id') == WORKFLOW_ID
-                            and current.get('path') == WORKFLOW_PATH and run_id == source_run_id,
-                            'WordPress check is not from the selected source workflow run')
-                elif name in LEGACY_GATES:
-                    require(current.get('workflow_id') == legacy_workflow['id']
-                            and current.get('path') == legacy_workflow['path'],
-                            'mandatory legacy job is not from the trusted CI workflow')
+                require(current.get('workflow_id') == WORKFLOW_ID
+                        and current.get('path') == WORKFLOW_PATH and run_id == source_run_id,
+                        'Actions check is not from the selected WordPress source workflow run')
                 require(current.get('id') == run_id and positive(current.get('run_attempt'))
                         and current.get('head_sha') == sha and current.get('head_branch') == 'main'
                         and current.get('event') == 'push'
@@ -596,7 +585,7 @@ def resolve_source(event_payload, api, mode, *, operation='standard'):
                     and job.get('conclusion') == 'success', 'WordPress gate attempt not successful')
         count, required = _protection(api)
         approval = _approval(api, sha, count)
-        _checks(api, sha, required + [(n, 15368) for n in WP_GATES + LEGACY_GATES], run_id)
+        _checks(api, sha, required + [(n, 15368) for n in WP_GATES], run_id)
         name = 'wordpress-release-{0}-{1}-{2}'.format(sha, run_id, attempt)
         artifacts = api.pages(run_path + '/artifacts', 'artifacts')
         selected = [a for a in artifacts if a.get('name') == name]

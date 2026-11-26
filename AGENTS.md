@@ -2,38 +2,34 @@
 
 ## Project Structure & Module Organization
 
-The React/Vite site lives in `src/`, with page composition in `src/app/`, reusable
-site components in `src/app/components/site/`, and UI primitives in
-`src/app/components/ui/`. Browser tests live in `tests/e2e/`. The Symfony 8
-contact API and EasyAdmin panel are isolated in `backend/`; its PHP tests are in
-`backend/tests/`. The in-progress WordPress migration is deliberately separate
-under `wordpress/`: the block theme is `wordpress/theme/gama-software`,
-first-party plugins are `wordpress/plugins/`, and package/runtime checks are
-under `wordpress/tests/` and `wordpress/qa/`. The shared migration process and
-ticket ordering are documented in `docs/agent-workflows/wordpress-migration/`.
+The site is WordPress only. The block theme is `wordpress/theme/gama-software`
+(templates, parts, patterns, `theme.json`); first-party plugins live in
+`wordpress/plugins/<slug>`, one durable capability each. Package, runtime and
+release tooling is under `wordpress/bin`, `wordpress/release`,
+`wordpress/routing`, `wordpress/runtime` and `wordpress/deploy`; tests and QA
+toolchains are in `wordpress/tests/` and `wordpress/qa/`. Migration records,
+editor guides and the extension guide are in `docs/`.
+
+The former React/Symfony stack was retired in GSWEB-30. Its source is only in
+the Git tag `legacy-react-symfony-final`; do not reintroduce it.
 
 ## Build, Test, and Development Commands
 
-Use Node 24.14.0 (`.nvmrc`) for the frontend. `bin/start` brings up the
-React/Symfony development stack; `bin/frontend-check` runs frontend formatting,
-linting, type checking, unit tests, and build checks, while `bin/e2e-check`
-runs its Playwright suite. For the PHP application, the `backend-tools` Compose
-service runs Composer quality commands defined by `backend/composer.json`.
-
-Start the isolated WordPress environment with `wordpress/bin/start`. Package
-the theme with `wordpress/bin/package theme gama-software`, validate its static
-contract with `wordpress/tests/theme-contract.sh`, and run the ZIP-only
-lifecycle with `wordpress/bin/test-package wordpress/dist/gama-software-0.3.0.zip`.
+Start the isolated WordPress environment with `wordpress/bin/start`
+(`http://localhost:8090`, Mailpit on `8027`). Package the theme with
+`wordpress/bin/package theme gama-software`, validate it with
+`wordpress/tests/theme-contract.sh`, and run the ZIP-only lifecycle with
+`wordpress/bin/test-package wordpress/dist/gama-software-<version>.zip`.
+Plugins follow the same pattern (`wordpress/bin/package plugin <slug>`).
+Release tooling tests run with `wordpress/tests/production-workflow-boundary-contract.sh`.
 Do not distribute ignored files from `wordpress/dist` without owner approval.
 
 ## Coding Style & Naming Conventions
 
-TypeScript is strict and uses the `@/*` alias for `src/*`. ESLint applies its
-type-aware recommended rules to TypeScript; format frontend files with Prettier
-(single quotes, semicolons, trailing commas). PHP uses four spaces and LF line
-endings as set by `backend/.editorconfig`; Symfony quality checks use PHP-CS-
-Fixer, PHPStan, PHPMD, and PHPUnit. Keep WordPress changes inside its isolated
-area rather than coupling them to the existing React/Symfony stack.
+PHP follows the WordPress Coding Standards enforced by
+`wordpress/qa/phpcs*.xml.dist` and PHPStan (`wordpress/qa/phpstan.neon.dist`).
+Use the theme's and plugins' own text domains for every user-facing string.
+Prefer native blocks, patterns and `theme.json` over custom JavaScript.
 
 ## Testing Guidelines
 
@@ -42,13 +38,18 @@ and package tests must use pinned, reproducible inputs and must not alter
 unrelated Docker projects. `wordpress/bin/reset` is destructive and requires
 its explicit `--confirm` argument; inspect targets first with `--list-targets`.
 
-## Commit, Pull Request, and Migration Guidelines
+## Work Tracking, Commits and Releases
 
-Use the established Conventional Commit style, for example
-`feat(GSWEB-14): ...`, `fix(GSWEB-14): ...`, or `docs(GSWEB-11): ...`.
-Jira is the source of ticket requirements and status; Git is the technical
-history. Production deployment or removal of the legacy stack requires explicit
-owner approval after the stated gates and independent review.
+All work goes through Jira project GSWEB (gamasoftware.atlassian.net): create
+or update the ticket before starting, keep status and progress comments
+current. Jira is the source of requirements and status; Git is the technical
+history. Use Conventional Commits with the ticket key, for example
+`feat(GSWEB-32): ...` or `fix(GSWEB-30): ...`.
+
+Apply and verify every change locally first (local WordPress on port 8090),
+then release it to production through the WordPress pipeline. Merges to `main`
+release automatically after the four WordPress quality gates; server-side
+changes outside the pipeline need explicit owner approval.
 
 ## Chrome and Jira Profile Order
 

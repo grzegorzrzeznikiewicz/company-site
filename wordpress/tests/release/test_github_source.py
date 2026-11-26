@@ -17,8 +17,8 @@ SHA = '1234567890abcdef1234567890abcdef12345678'
 ROOT = '/repos/' + REPO
 WP = ['WordPress Source and Build', 'WordPress Package Lifecycle',
       'WordPress Runtime and Restore', 'WordPress Release Regression']
-LEGACY = ['Backend Quality (Symfony)', 'Backend Tests', 'Frontend Quality',
-          'End-to-End Tests']
+RETIRED_LEGACY = ['Backend Quality (Symfony)', 'Backend Tests', 'Frontend Quality',
+                  'End-to-End Tests']
 
 
 def responses():
@@ -34,8 +34,8 @@ def responses():
                'status': 'completed', 'conclusion': 'success',
                'app': {'id': 15368},
                'details_url': 'https://github.com/' + REPO +
-               '/actions/runs/' + ('987654321' if i < 4 else '987654322') + '/job/' + str(i + 1)}
-              for i, name in enumerate(WP + LEGACY)]
+               '/actions/runs/987654321/job/' + str(i + 1)}
+              for i, name in enumerate(WP)]
     result = {
         ROOT: repo,
         ROOT + '/actions/workflows/351411087': {
@@ -52,8 +52,8 @@ def responses():
                 'require_code_owner_reviews': False,
                 'require_last_push_approval': False},
             'required_status_checks': {
-                'strict': True, 'contexts': WP + LEGACY,
-                'checks': [{'context': n, 'app_id': 15368} for n in WP + LEGACY]}},
+                'strict': True, 'contexts': list(WP),
+                'checks': [{'context': n, 'app_id': 15368} for n in WP]}},
         ROOT + '/rules/branches/main?per_page=100&page=1': [],
         ROOT + '/commits/' + SHA + '/pulls?per_page=100&page=1': [{'number': 12}],
         ROOT + '/pulls/12': {
@@ -69,7 +69,7 @@ def responses():
         ROOT + '/collaborators/reviewer/permission': {
             'permission': 'write', 'user': {'id': 222, 'login': 'reviewer', 'type': 'User'}},
         ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1': {
-            'total_count': 8, 'check_runs': checks},
+            'total_count': 4, 'check_runs': checks},
         ROOT + '/commits/' + SHA + '/statuses?per_page=100&page=1': [],
         ROOT + '/actions/runs/987654321/artifacts?per_page=100&page=1': {
             'total_count': 1, 'artifacts': [{
@@ -80,14 +80,10 @@ def responses():
                                  'head_repository_id': 1163583409,
                                  'head_branch': 'main', 'head_sha': SHA}}]},
     }
-    for index, name in enumerate(WP + LEGACY):
+    for index, name in enumerate(WP):
         result[ROOT + '/actions/jobs/' + str(index + 1)] = {
-            'id': index + 1, 'name': name, 'run_id': 987654321 if index < 4 else 987654322,
+            'id': index + 1, 'name': name, 'run_id': 987654321,
             'run_attempt': 1, 'head_sha': SHA, 'status': 'completed', 'conclusion': 'success'}
-    result[ROOT + '/actions/workflows/ci.yml'] = {
-        'id': 765, 'path': '.github/workflows/ci.yml', 'state': 'active'}
-    result[ROOT + '/actions/runs/987654322'] = {
-        **copy.deepcopy(run), 'id': 987654322, 'workflow_id': 765, 'path': '.github/workflows/ci.yml'}
     return result
 
 
@@ -436,7 +432,7 @@ class SourceTests(unittest.TestCase):
 
     def test_unprotected_branch_and_higher_approval_count_refuse(self):
         path = ROOT + '/branches/main/protection'
-        for mutation in ('empty', 'two', 'read_only', 'pending_legacy', 'wrong_main_sha'):
+        for mutation in ('empty', 'two', 'read_only', 'pending_check', 'wrong_main_sha'):
             data = responses()
             if mutation == 'empty':
                 data[path] = {}
@@ -446,7 +442,7 @@ class SourceTests(unittest.TestCase):
                 data[ROOT + '/collaborators/reviewer/permission']['permission'] = 'read'
             else:
                 checks = data[ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1']['check_runs']
-                checks[-1]['conclusion' if mutation == 'pending_legacy' else 'head_sha'] = None if mutation == 'pending_legacy' else 'a' * 40
+                checks[-1]['conclusion' if mutation == 'pending_check' else 'head_sha'] = None if mutation == 'pending_check' else 'a' * 40
             with self.subTest(mutation=mutation), HTTPFixture(data) as fixture:
                 with self.assertRaises(ReleaseValidationError):
                     resolve_source(event(), fixture.api(), 'wordpress')
@@ -472,7 +468,7 @@ class SourceTests(unittest.TestCase):
             with self.assertRaises(ReleaseValidationError):
                 resolve_source(event(), fixture.api(), 'wordpress')
 
-    def test_current_attempt_of_legacy_check_is_verified(self):
+    def test_current_attempt_of_required_check_is_verified(self):
         data = responses()
         check_path = ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1'
         data[check_path]['check_runs'][-1]['details_url'] = (
@@ -481,7 +477,7 @@ class SourceTests(unittest.TestCase):
             **data[ROOT + '/actions/runs/987654321'], 'id': 99, 'run_attempt': 2}
         data[ROOT + '/actions/jobs/88'] = {
             'id': 88, 'run_id': 99, 'run_attempt': 1, 'head_sha': SHA,
-            'name': 'End-to-End Tests', 'status': 'completed', 'conclusion': 'success'}
+            'name': 'WordPress Release Regression', 'status': 'completed', 'conclusion': 'success'}
         with HTTPFixture(data) as fixture:
             with self.assertRaises(ReleaseValidationError):
                 resolve_source(event(), fixture.api(), 'wordpress')
@@ -501,7 +497,7 @@ class SourceTests(unittest.TestCase):
                 with self.assertRaises(ReleaseValidationError):
                     resolve_source(event(), fixture.api(), 'wordpress')
 
-    def test_pending_exact_main_legacy_check_has_distinct_retryable_refusal(self):
+    def test_pending_exact_main_required_check_has_distinct_retryable_refusal(self):
         data = responses()
         check = data[ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1']['check_runs'][-1]
         check.update(status='in_progress', conclusion=None)
@@ -529,10 +525,24 @@ class SourceTests(unittest.TestCase):
                     with self.assertRaises(ReleaseValidationError):
                         resolve_source(event(), fixture.api(), 'wordpress')
 
-    def test_other_workflow_cannot_impersonate_mandatory_legacy_job_names(self):
+    def test_other_workflow_cannot_impersonate_mandatory_wordpress_job_names(self):
         data = responses()
-        data[ROOT + '/actions/runs/987654322'].update(
-            workflow_id=42, path='.github/workflows/imposter.yml')
+        check = data[ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100&page=1']['check_runs'][-1]
+        check['details_url'] = 'https://github.com/' + REPO + '/actions/runs/987654322/job/4'
+        data[ROOT + '/actions/runs/987654322'] = {
+            **data[ROOT + '/actions/runs/987654321'], 'id': 987654322,
+            'workflow_id': 42, 'path': '.github/workflows/imposter.yml'}
+        data[ROOT + '/actions/jobs/4']['run_id'] = 987654322
+        with HTTPFixture(data) as fixture:
+            with self.assertRaises(ReleaseValidationError):
+                resolve_source(event(), fixture.api(), 'wordpress')
+            self.assertFalse(any('/artifacts' in path for path in fixture.requests))
+
+    def test_retired_legacy_required_checks_refuse_until_protection_is_updated(self):
+        data = responses()
+        status = data[ROOT + '/branches/main/protection']['required_status_checks']
+        status['contexts'] += RETIRED_LEGACY
+        status['checks'] += [{'context': n, 'app_id': 15368} for n in RETIRED_LEGACY]
         with HTTPFixture(data) as fixture:
             with self.assertRaises(ReleaseValidationError):
                 resolve_source(event(), fixture.api(), 'wordpress')
@@ -546,7 +556,7 @@ class SourceTests(unittest.TestCase):
             checks['check_runs'].append({
                 'id': 800, 'name': 'external-audit', 'head_sha': SHA,
                 'status': 'completed', 'conclusion': 'success', 'app': {'id': 44}})
-            checks['total_count'] = 9
+            checks['total_count'] = 5
             data[ROOT + '/commits/' + SHA + '/statuses?per_page=100&page=1'] = [{
                 'id': 901, 'node_id': 'fixture-status', 'state': state,
                 'context': 'external-audit', 'description': 'Audit result',
@@ -572,7 +582,7 @@ class SourceTests(unittest.TestCase):
         checks['check_runs'].append({
             'id': 800, 'name': 'external-audit', 'head_sha': SHA,
             'status': 'completed', 'conclusion': 'success', 'app': {'id': 44}})
-        checks['total_count'] = 9
+        checks['total_count'] = 5
         data[ROOT + '/commits/' + SHA + '/statuses?per_page=100&page=1'] = [{
             'id': 901, 'node_id': 'fixture-status', 'state': 'success',
             'context': 'external-audit', 'description': 'Audit result',

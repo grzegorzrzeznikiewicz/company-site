@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.0 — WordPress only (GSWEB-30)
+
+- Retired the React/Vite frontend, the Symfony 8 contact API and EasyAdmin
+  panel, their Docker, `bin/*` and `build/` files, and the legacy GitHub/GitLab
+  CI, deploy and rollback workflows. The last full legacy source is the Git tag
+  `legacy-react-symfony-final`.
+- Production release verification now requires only the four WordPress quality
+  gates; the legacy CI workflow is no longer trusted or consulted.
+- Removed the one-shot read-only server audit (pinned to a retired branch and
+  deployment mode) and the legacy release transaction.
+- Rewrote README and AGENTS for the WordPress-only repository and added
+  `docs/EXTENDING.md` with the extension rules, start checklist and
+  Definition of Done.
+
+The 1.x entries below describe the retired React/Symfony site.
+
 ## 1.1.0
 
 - Refactored the React frontend into smaller site components and moved the contact form to `react-hook-form`.
