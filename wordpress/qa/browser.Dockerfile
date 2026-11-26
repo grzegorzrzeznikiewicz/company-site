@@ -6,11 +6,11 @@ RUN set -eux; \
     architecture="$(dpkg --print-architecture)"; \
     case "$architecture" in \
       amd64) \
-        package_url='https://security.ubuntu.com/ubuntu/pool/main/n/nss/libnss3-tools_3.98-1ubuntu0.2_amd64.deb'; \
+        package_url='https://snapshot.ubuntu.com/ubuntu/20260901T000000Z/pool/main/n/nss/libnss3-tools_3.98-1ubuntu0.2_amd64.deb'; \
         package_sha256='e5b42390b02c21851bc04e9557ec48539a913f9b09637220c4b1db0d1386b3fb' \
         ;; \
       arm64) \
-        package_url='https://ports.ubuntu.com/ubuntu-ports/pool/main/n/nss/libnss3-tools_3.98-1ubuntu0.2_arm64.deb'; \
+        package_url='https://snapshot.ubuntu.com/ubuntu-ports/20260901T000000Z/pool/main/n/nss/libnss3-tools_3.98-1ubuntu0.2_arm64.deb'; \
         package_sha256='02d5f5e9d7a40d79fd23448b3f4016b7c83113f2b0df9f55efa16a39be33ce97' \
         ;; \
       *) \
