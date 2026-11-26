@@ -43,6 +43,7 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
         phone: rect('#gama-contact-phone'),
         message: rect('#gama-contact-message'),
         button: rect('[type="submit"]'),
+        privacy: rect('.gama-contact-form__privacy'),
       };
     });
 
@@ -70,7 +71,10 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
       0,
     );
     expect(geometry.button.height).toBeCloseTo(40, 0);
-    expect(geometry.card.height).toBeLessThan(520);
+    // GSWEB-32: the GDPR notice is new; the legacy parity bound applies to
+    // the rest of the card and the notice itself stays compact.
+    expect(geometry.card.height - geometry.privacy.height).toBeLessThan(520);
+    expect(geometry.privacy.height).toBeLessThan(100);
     await expect(contact.locator('.gama-contact__details')).toHaveCount(0);
     await expect(form.locator('br, p:not([class])')).toHaveCount(0);
     await expect(form.locator('noscript')).toBeHidden();
