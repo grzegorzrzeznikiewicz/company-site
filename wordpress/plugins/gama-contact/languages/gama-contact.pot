@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Gama Software
 msgid ""
 msgstr ""
-"Project-Id-Version: Gama Contact 0.3.2\n"
+"Project-Id-Version: Gama Contact 0.3.3\n"
 "Report-Msgid-Bugs-To: https://gamasoftware.com/\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,94 +23,106 @@ msgstr ""
 msgid "Theme-independent, secure contact form for Gama Software."
 msgstr ""
 
-#: src/Form/FormRenderer.php:24
+#: src/Form/FormRenderer.php:22
 msgid "Coś poszło nie tak. Spróbuj ponownie później."
 msgstr ""
 
-#: src/Form/FormRenderer.php:33
+#: src/Form/FormRenderer.php:31
 msgid "Imię i nazwisko"
 msgstr ""
 
-#: src/Form/FormRenderer.php:38
+#: src/Form/FormRenderer.php:36
 msgid "E-mail"
 msgstr ""
 
-#: src/Form/FormRenderer.php:44
+#: src/Form/FormRenderer.php:42
 msgid "Telefon"
 msgstr ""
 
-#: src/Form/FormRenderer.php:49
+#: src/Form/FormRenderer.php:47
 msgid "Wiadomość"
 msgstr ""
 
-#: src/Form/FormRenderer.php:54
+#: src/Form/FormRenderer.php:52
 msgid "Firma"
 msgstr ""
 
-#: src/Form/FormRenderer.php:59
+#: src/Form/FormRenderer.php:57
 msgid "Wyślij wiadomość"
 msgstr ""
 
-#: src/Form/FormRenderer.php:60
+#: src/Form/FormRenderer.php:58
 msgid "Włącz JavaScript, aby wysłać wiadomość."
 msgstr ""
 
-#: src/Form/SubmissionController.php:29
+#. translators: %s: site name.
+#: src/Form/FormRenderer.php:80
+#, php-format
+msgid "Administratorem danych jest %s. Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie."
+msgstr ""
+
+#. translators: %s: privacy policy URL.
+#: src/Form/FormRenderer.php:90
+#, php-format
+msgid "Szczegóły, w tym Twoje prawa, znajdziesz w <a href=\"%s\">Polityce prywatności</a>."
+msgstr ""
+
+#: src/Form/SubmissionController.php:27
 msgid "Nie udało się zweryfikować formularza. Odśwież stronę i spróbuj ponownie."
 msgstr ""
 
-#: src/Form/SubmissionController.php:34
+#: src/Form/SubmissionController.php:32
 msgid "Dziękujemy. Wiadomość została przyjęta."
 msgstr ""
 
-#: src/Form/SubmissionController.php:37
+#: src/Form/SubmissionController.php:35
 msgid "Wysłano zbyt wiele wiadomości. Spróbuj ponownie później."
 msgstr ""
 
-#: src/Form/SubmissionController.php:44
+#: src/Form/SubmissionController.php:42
 msgid "Popraw zaznaczone pola."
 msgstr ""
 
-#: src/Form/SubmissionController.php:57
+#: src/Form/SubmissionController.php:55
 msgid "Formularz jest chwilowo niedostępny."
 msgstr ""
 
-#: src/Form/SubmissionController.php:71
+#: src/Form/SubmissionController.php:69
 msgid "Nowa wiadomość ze strony Gama Software"
 msgstr ""
 
-#: src/Form/SubmissionController.php:72
+#: src/Form/SubmissionController.php:70
 msgid "Nie udało się wysłać wiadomości. Spróbuj ponownie później."
 msgstr ""
 
-#: src/Form/SubmissionController.php:75
+#: src/Form/SubmissionController.php:73
 msgid "Dziękujemy. Wiadomość została wysłana."
 msgstr ""
 
-#: src/Form/Validator.php:21
+#: src/Form/Validator.php:20
 msgid "Podaj swoje imię i nazwisko."
 msgstr ""
 
-#: src/Form/Validator.php:23
+#: src/Form/Validator.php:22
 msgid "Imię i nazwisko jest zbyt długie."
 msgstr ""
 
-#: src/Form/Validator.php:26
+#: src/Form/Validator.php:25
 msgid "Podaj poprawny adres e-mail."
 msgstr ""
 
-#: src/Form/Validator.php:29
+#: src/Form/Validator.php:28
 msgid "Podaj numer telefonu."
 msgstr ""
 
-#: src/Form/Validator.php:31
+#: src/Form/Validator.php:30
 msgid "Podaj poprawny numer telefonu."
 msgstr ""
 
-#: src/Form/Validator.php:34
+#: src/Form/Validator.php:33
 msgid "Wiadomość nie może być pusta."
 msgstr ""
 
-#: src/Form/Validator.php:36
+#: src/Form/Validator.php:35
 msgid "Wiadomość jest zbyt długa."
 msgstr ""

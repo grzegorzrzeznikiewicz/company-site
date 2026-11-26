@@ -93,8 +93,8 @@ wordpress/tests/theme-package-contract.sh  # verify contents and two byte-identi
 wordpress/tests/package-compose-contract.sh # verify isolated image/mount parity
 wordpress/tests/test-package-input-contract.sh # reject non-canonical ZIP inputs before Docker
 wordpress/tests/test-package-isolation-contract.sh # verify exact-label preflight and cleanup semantics
-wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip # disposable clean ZIP lifecycle
-wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip # disposable clean ZIP lifecycle
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.3.zip # disposable clean ZIP lifecycle
+wordpress/bin/test-package wordpress/dist/gama-software-0.4.2.zip # disposable clean ZIP lifecycle
 ```
 
 The `clean-runtime` mode (`wordpress/tests/runtime-smoke.sh --clean`) and
@@ -112,9 +112,9 @@ The approved immutable QA inputs and ZIP-only browser contract for the first
 production theme are recorded in
 [`GSWEB-12-gate-a.md`](docs/agent-workflows/wordpress-migration/GSWEB-12-gate-a.md).
 The current packages are the production-theme foundation
-[`gama-software` 0.4.1](wordpress/theme/gama-software/README.md) and the
+[`gama-software` 0.4.2](wordpress/theme/gama-software/README.md) and the
 theme-independent contact plugin
-[`gama-contact` 0.3.2](wordpress/plugins/gama-contact/README.md); their READMEs
+[`gama-contact` 0.3.3](wordpress/plugins/gama-contact/README.md); their READMEs
 contain activation, lifecycle, editing and reset guidance. Files in
 `wordpress/dist` are ignored local artifacts and must not be uploaded, released,
 or otherwise distributed without separate approval.

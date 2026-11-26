@@ -106,12 +106,12 @@ jobs:
           path: wordpress/dist
 
       - name: Test exact contact plugin package
-        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.2.zip)"
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package plugin gama-contact wordpress/dist/gama-contact-0.3.3.zip)"
 
       - name: Test exact theme package
         env:
           GAMA_THEME_ARTIFACT_ROOT: ${{ runner.temp }}/wordpress-browser-artifacts
-        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.1.zip)"
+        run: wordpress/bin/test-package "$(wordpress/bin/require-ci-package theme gama-software wordpress/dist/gama-software-0.4.2.zip)"
 
       - name: Persist WordPress browser QA image cache
         if: ${{ always() }}

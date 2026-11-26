@@ -20,11 +20,11 @@ wordpress/tests/package-compose-contract.sh
 wordpress/tests/test-package-input-contract.sh
 wordpress/tests/test-package-isolation-contract.sh
 wordpress/tests/ci-package-input-contract.sh
-wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.3.zip
 
 wordpress/bin/package theme gama-software
 wordpress/tests/theme-contract.sh
-wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip
+wordpress/bin/test-package wordpress/dist/gama-software-0.4.2.zip
 ```
 
 `wordpress/dist` contains ignored local artifacts only. Do not upload, release,

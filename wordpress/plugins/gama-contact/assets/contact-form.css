@@ -76,3 +76,9 @@
 	height: 1px;
 	overflow: hidden;
 }
+
+.gama-contact-form__privacy {
+	margin: 0;
+	font-size: .875rem;
+	text-align: center;
+}

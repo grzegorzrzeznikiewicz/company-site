@@ -13,6 +13,9 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
     const contact = page.locator('main section#contact.gama-contact');
     const form = contact.locator('form.gama-contact-form');
     await expect(form).toBeVisible();
+    await expect(form.locator('.gama-contact-form__privacy')).toContainText(
+      'Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie.',
+    );
     // A missing stylesheet used to produce a false pass in Docker (localhost
     // asset URLs resolving to the browser container instead of WordPress).
     await expect(form).toHaveCSS('display', 'flex');

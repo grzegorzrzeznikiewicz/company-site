@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 - 2026-11-26
+
+- Add Privacy Policy and Terms links to the editable footer navigation (GSWEB-32).
+
 ## 0.4.1 - 2026-09-05
 
 - Restore Contact parity: a centered 42rem card, responsive form fields and compact centered submit button.
