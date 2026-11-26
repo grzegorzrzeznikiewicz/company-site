@@ -103,35 +103,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('operation=standard\n', self.output.read_text())
 
-    def test_legacy_tag_is_data_and_hostile_shell_never_executes(self):
-        marker = self.root / 'injected'
-        for tag in ['main-latest', 'sha-' + SHA]:
-            result = self.run_step('rollback.yml', 'Prepare image metadata', {'INPUT_IMAGE_TAG': tag})
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('company-site:' + tag, self.output.read_text())
-        for tag in ['latest', 'sha-short', 'main-latest\nimage=attacker',
-                    '$(touch ' + str(marker) + ')', '"; touch ' + str(marker) + '; #']:
-            self.output.unlink(missing_ok=True)
-            result = self.run_step('rollback.yml', 'Prepare image metadata', {'INPUT_IMAGE_TAG': tag})
-            self.assertNotEqual(result.returncode, 0)
-            self.assertFalse(marker.exists())
-            self.assertFalse(self.output.exists())
-
-    def test_legacy_and_recovery_guard_refuse_other_modes_branches_and_attempt_reuse(self):
+    def test_recovery_guard_refuses_other_modes_and_attempt_reuse(self):
         self.event.write_text(json.dumps(self.source_event()))
-        for workflow in ('deploy.yml', 'rollback.yml'):
-            for mode, ref, event_name, allowed in [
-                ('legacy', 'refs/heads/main', 'workflow_dispatch', True),
-                ('wordpress', 'refs/heads/main', 'workflow_dispatch', False),
-                ('off', 'refs/heads/main', 'workflow_run', False),
-                ('', 'refs/heads/main', 'workflow_run', False),
-                ('legacy', 'refs/heads/feature/evil', 'workflow_dispatch', False),
-                ('legacy', 'refs/heads/main', 'pull_request', False)]:
-                self.output.unlink(missing_ok=True)
-                result = self.run_step(workflow, 'Guard legacy entry', {
-                    'GAMA_DEPLOYMENT_MODE': mode, 'GITHUB_REF': ref, 'GITHUB_EVENT_NAME': event_name})
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('allowed=' + str(allowed).lower() + '\n', self.output.read_text())
         for mode, attempt, allowed in [('off', '1', True), ('wordpress', '1', True),
                                        ('legacy', '1', False), ('off', '2', False), ('', '1', False)]:
             self.output.unlink(missing_ok=True)
@@ -145,24 +118,6 @@ class WorkflowTests(unittest.TestCase):
             'GAMA_DEPLOYMENT_MODE': 'off', 'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_EVENT_NAME': 'workflow_dispatch'})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.output.read_text(), 'operation=\n')
-
-    def test_legacy_guard_limits_event_policy_to_requested_operation(self):
-        self.event.write_text(json.dumps(self.source_event()))
-        for workflow, allowed in [('deploy.yml', True), ('rollback.yml', False)]:
-            self.output.unlink(missing_ok=True)
-            result = self.run_step(workflow, 'Guard legacy entry', {
-                'GAMA_DEPLOYMENT_MODE': 'legacy', 'GITHUB_EVENT_NAME': 'workflow_run'})
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('allowed=' + str(allowed).lower() + '\n', self.output.read_text())
-
-    def test_audit_or_unknown_dispatch_can_never_authorize_legacy_deployment(self):
-        for operation in ('read-only-audit', 'unknown', ['legacy-release']):
-            event = self.source_event(); event['inputs'] = {'operation': operation}
-            self.event.write_text(json.dumps(event)); self.output.unlink(missing_ok=True)
-            result = self.run_step('deploy.yml', 'Guard legacy entry', {
-                'GAMA_DEPLOYMENT_MODE': 'legacy', 'GITHUB_EVENT_NAME': 'workflow_dispatch'})
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(self.output.read_text(), 'allowed=false\n')
 
     def test_pending_is_only_retry_signal_and_source_refusal_stops_before_transport(self):
         script = scalar('wordpress-production.yml', 'Validate source with bounded pending wait')
@@ -267,8 +222,7 @@ with HTTPFixture() as fixture:
 import json, os, pathlib, sys
 root = pathlib.Path(os.environ['RUNNER_TEMP']); args = sys.argv[1:]
 assert args in [
-    ['/usr/bin/python3', '/srv/gama-wordpress-production/tools/wordpress/bin/production-release', '--config', '/srv/gama-wordpress-production/control/host-config.json'],
-    ['/usr/bin/python3', '/srv/gama-wordpress-production/tools/wordpress/bin/production-legacy-release']]
+    ['/usr/bin/python3', '/srv/gama-wordpress-production/tools/wordpress/bin/production-release', '--config', '/srv/gama-wordpress-production/control/host-config.json']]
 raw = sys.stdin.buffer.read()
 json.loads(raw)
 (root/'received').write_bytes(raw)
@@ -279,14 +233,12 @@ with (root/'elevation').open('a') as out: out.write(json.dumps(args)+'\\n')
         env = {'RELEASE_REQUEST': base64.b64encode(raw).decode(), 'PATH': str(fixtures) + ':' + os.environ['PATH']}
         for workflow, step in [
             ('wordpress-production.yml', 'Execute installed serialized production transaction'),
-            ('wordpress-production-rollback.yml', 'Execute installed serialized recovery transaction'),
-            ('deploy.yml', 'Execute installed serialized legacy transaction'),
-            ('rollback.yml', 'Execute installed serialized legacy transaction')]:
+            ('wordpress-production-rollback.yml', 'Execute installed serialized recovery transaction')]:
             result = self.run_step(workflow, step, env, 'script')
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((self.root/'received').read_bytes(), raw)
             self.assertFalse((self.root/'injected').exists())
-        self.assertEqual(len((self.root/'elevation').read_text().splitlines()), 4)
+        self.assertEqual(len((self.root/'elevation').read_text().splitlines()), 2)
 
     def test_ci_passes_single_candidate_to_both_consumers(self):
         # Execute the actual orchestration with strict candidate/consumer executables.

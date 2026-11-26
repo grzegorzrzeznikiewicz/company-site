@@ -96,10 +96,12 @@ if validate_release_collection_wiring "$fixture_dir/missing-release-collection.s
   exit 1
 fi
 
-for legacy in ci.yml deploy.yml rollback.yml; do
-  [[ -f "$REPOSITORY_ROOT/.github/workflows/$legacy" ]]
+# GSWEB-30 retired the React/Symfony pipelines; only WordPress workflows remain.
+for retired in ci.yml deploy.yml rollback.yml; do
+  [[ ! -e "$REPOSITORY_ROOT/.github/workflows/$retired" ]]
 done
-[[ -f "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
+[[ ! -e "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
+[[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
 
 # Parse real YAML using the existing lock-pinned assets QA dependency. This is
 # required by the source gate and also checks deliberate broken graph fixtures.
@@ -112,7 +114,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const yaml = require('/qa/node_modules/js-yaml');
 assert.equal(require('/qa/node_modules/js-yaml/package.json').version, '4.3.2');
-const names = ['wordpress-ci.yml', 'wordpress-production.yml', 'wordpress-production-rollback.yml', 'deploy.yml', 'rollback.yml'];
+const names = ['wordpress-ci.yml', 'wordpress-production.yml', 'wordpress-production-rollback.yml'];
 const files = Object.fromEntries(names.map(name => [name, yaml.load(fs.readFileSync('/workflows/' + name, 'utf8'))]));
 function check(all) {
   const wp = all['wordpress-production.yml'];
@@ -143,8 +145,7 @@ function check(all) {
       assert(!('administration' in permissions));
       const text = JSON.stringify(job);
       if (name !== 'wordpress-ci.yml' && (text.includes('secrets.') || Object.values(permissions).includes('write'))) {
-        const boundary = name === 'deploy.yml' && id === 'read-only-audit' ? 'audit-guard'
-          : name === 'wordpress-production-rollback.yml' ? 'prepare' : 'guard';
+        const boundary = name === 'wordpress-production-rollback.yml' ? 'prepare' : 'guard';
         assert(chain.includes(boundary));
       }
       for (const step of job.steps) {
@@ -172,39 +173,6 @@ function check(all) {
   assert.equal(wp.jobs.publish.environment, undefined);
   assert(!/SSH|SMTP|PRODUCTION_SERVER|PROD_MAILER/.test(JSON.stringify(wp.jobs.publish)));
   assert(!/secrets\./.test(JSON.stringify(wp.jobs['owner-gate'])));
-  for (const [name, operation] of [['deploy.yml', 'deploy'], ['rollback.yml', 'rollback']]) {
-    const guard = all[name].jobs.guard;
-    assert.deepEqual(guard.permissions, {contents: 'read'});
-    assert.equal(guard.steps.length, 2);
-    assert(guard.steps[0].uses.startsWith('actions/checkout@'));
-    assert.equal(guard.steps[0].with.ref, 'refs/heads/main');
-    assert.equal(guard.steps[0].with['persist-credentials'], false);
-    assert.equal(guard.steps[1].run.trim(), 'python3 -m wordpress.release.legacy guard ' + operation);
-    assert(!/secrets\./.test(JSON.stringify(guard)));
-  }
-  const legacy = all['deploy.yml'];
-  assert.equal(legacy.jobs.guard.if, "github.event_name != 'workflow_dispatch' || inputs.operation == 'legacy-release'");
-  assert.deepEqual(legacy.on.workflow_dispatch.inputs.operation.options, ['legacy-release', 'read-only-audit']);
-  const auditGuard = legacy.jobs['audit-guard'];
-  const audit = legacy.jobs['read-only-audit'];
-  assert.equal(auditGuard.if, "github.event_name == 'workflow_dispatch' && inputs.operation == 'read-only-audit'");
-  assert(!JSON.stringify(auditGuard).includes('secrets.'));
-  assert.equal(auditGuard.steps[1].run, 'python3 -m wordpress.release.server_audit guard');
-  assert.equal(auditGuard.outputs.allowed, '${{ steps.guard.outputs.allowed }}');
-  assert.equal(auditGuard.steps[1].id, 'guard');
-  assert.deepEqual(list(audit.needs), ['audit-guard']);
-  assert.equal(audit.if, "needs.audit-guard.outputs.allowed == 'true'");
-  assert.equal(audit.steps[1].run, 'python3 -m wordpress.release.server_audit run');
-  assert.deepEqual(Object.keys(audit.steps[1].env).sort(), ['SERVER_HOST', 'SERVER_SSH_FINGERPRINT', 'SERVER_USER', 'SSH_PORT', 'SSH_PRIVATE_KEY']);
-  for (const job of [auditGuard, audit]) {
-    assert.deepEqual(job.permissions, {contents: 'read'});
-    assert.equal(job.steps.length, 2);
-    assert.equal(job.steps[0].with.ref, '${{ github.sha }}');
-    assert.equal(job.steps[0].with['persist-credentials'], false);
-    assert.deepEqual(job.env, {INPUT_OPERATION: '${{ inputs.operation }}', GAMA_DEPLOYMENT_MODE: '${{ vars.GAMA_DEPLOYMENT_MODE }}'});
-    assert.equal(job.environment, undefined);
-    assert(job['timeout-minutes'] <= 3);
-  }
   assert(list(wp.jobs.publish.needs).includes('validate'));
   assert(list(wp.jobs.deploy.needs).includes('publish'));
   assert.equal(all['wordpress-production-rollback.yml'].jobs.recover.environment, 'wordpress-production-rollback');
@@ -225,23 +193,14 @@ for (const mutate of [
   f => { f['wordpress-production.yml'].jobs.validate.steps[0].with.ref = '${{ github.event.workflow_run.head_sha }}'; },
   f => { f['wordpress-production.yml'].permissions.packages = 'write'; },
   f => { f['wordpress-production.yml'].jobs.deploy.environment = 'wordpress-production-cutover'; },
-  f => { f['deploy.yml'].jobs.deploy.steps[0].uses = 'actions/checkout@main'; },
   f => { f['wordpress-ci.yml'].jobs['release-regression'].steps.find(s => s.name === 'Upload sealed release transport').if = '${{ always() }}'; },
-  f => { f['deploy.yml'].jobs.guard.steps[0].with.ref = '${{ github.event.workflow_run.head_sha }}'; },
-  f => { f['rollback.yml'].jobs.guard.steps[1].run = 'python3 -m wordpress.release.legacy guard deploy'; },
-  f => { f['rollback.yml'].jobs.guard.permissions.packages = 'write'; },
-  f => { f['deploy.yml'].jobs.guard.if = 'always()'; },
-  f => { f['deploy.yml'].jobs['read-only-audit'].needs = []; },
-  f => { f['deploy.yml'].jobs['read-only-audit'].if = 'always()'; },
-  f => { f['deploy.yml'].jobs['read-only-audit'].permissions.packages = 'write'; },
-  f => { f['deploy.yml'].jobs['read-only-audit'].steps[0].with.ref = 'refs/heads/main'; },
-  f => { f['deploy.yml'].jobs['read-only-audit'].steps[1].env.PROD_MAILER_DSN = '${{ secrets.PROD_MAILER_DSN }}'; },
-  f => { f['deploy.yml'].jobs['audit-guard'].steps[1].run = 'echo allowed=true'; },
+  f => { f['wordpress-production-rollback.yml'].jobs.recover.environment = undefined; },
+  f => { f['wordpress-production.yml'].jobs.guard.steps[0].uses = 'actions/checkout@main'; },
 ]) {
   const broken = structuredClone(files); mutate(broken);
   assert.throws(() => check(broken), 'broken workflow graph accepted');
 }
-console.log('Actual workflow YAML and seventeen negative permission/dependency fixtures passed.');
+console.log('Actual workflow YAML and eight negative permission/dependency fixtures passed.');
 JS
 
-echo 'WordPress CI workflow and legacy-pipeline preservation contract passed.'
+echo 'WordPress CI workflow contract passed; retired legacy pipelines are absent.'

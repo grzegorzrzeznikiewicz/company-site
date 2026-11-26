@@ -5,15 +5,11 @@ pnpm-lock.yaml
 
 # Build output
 dist/
-build/dist/
 
 # Environment variables
 .env
 .env.local
 .env.*.local
-!backend/.env
-backend/.env.local
-backend/.env.*.local
 wordpress/.env
 /wordpress/.env.*
 !/wordpress/.env.example
@@ -34,10 +30,6 @@ wordpress/.env
 /wordpress/**/build/
 /wordpress/**/languages/*.mo
 /wordpress/**/languages/*.json
-
-# Symfony backend build artifacts
-backend/var/
-backend/vendor/
 
 # IDE
 .vscode/
