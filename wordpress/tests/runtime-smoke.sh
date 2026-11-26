@@ -72,6 +72,12 @@ done
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-contact'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-seo'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-security'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'google-site-kit'
+"$ROOT_DIR/bin/wp" plugin get google-site-kit --field=version | grep -Fx '1.192.0'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'complianz-gdpr'
+"$ROOT_DIR/bin/wp" plugin get complianz-gdpr --field=version | grep -Fx '7.5.9'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'wp-consent-api'
+"$ROOT_DIR/bin/wp" plugin get wp-consent-api --field=version | grep -Fx '2.1.0'
 "$ROOT_DIR/bin/wp" option get show_on_front | grep -Fx page
 "$ROOT_DIR/bin/wp" option get permalink_structure | grep -Fx '/%postname%/'
 home_page_id="$("$ROOT_DIR/bin/wp" option get page_on_front)"

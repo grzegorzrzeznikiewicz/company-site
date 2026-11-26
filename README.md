@@ -57,6 +57,9 @@ run them against a preview you want to keep.
 | Plugin `gama-security` | [`wordpress/plugins/gama-security`](wordpress/plugins/gama-security/README.md) | 0.1.1 |
 | Plugin `gama-mail-transport` (production SMTP) | [`wordpress/plugins/gama-mail-transport`](wordpress/plugins/gama-mail-transport/README.md) | 0.1.0 |
 | Plugin `gama-local-mailpit` (local only) | `wordpress/plugins/gama-local-mailpit` | 0.1.0 |
+| External plugin `google-site-kit` (Site Kit by Google) | pinned in [`wordpress/config/extensions.lock.json`](wordpress/config/extensions.lock.json), not vendored | 1.192.0 |
+| External plugin `complianz-gdpr` (cookie consent) | pinned in `wordpress/config/extensions.lock.json`, not vendored | 7.5.9 |
+| External plugin `wp-consent-api` (consent bridge for Site Kit) | pinned in `wordpress/config/extensions.lock.json`, not vendored | 2.1.0 |
 
 Build and verify a package:
 

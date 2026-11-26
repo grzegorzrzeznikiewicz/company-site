@@ -28,6 +28,7 @@ wp_cli plugin activate gama-contact
 wp_cli plugin activate gama-mail-transport
 wp_cli plugin activate gama-seo
 wp_cli plugin activate gama-security
+wp_cli plugin activate wp-consent-api complianz-gdpr google-site-kit
 
 for default_plugin in akismet hello; do
   if wp_cli plugin is-installed "$default_plugin" && ! wp_cli plugin is-active "$default_plugin"; then

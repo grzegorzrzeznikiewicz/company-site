@@ -3,5 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+"$SCRIPT_DIR/fetch-extensions"
 "$SCRIPT_DIR/_compose" up -d --force-recreate db mailpit wordpress
 "$SCRIPT_DIR/_compose" run --rm wp

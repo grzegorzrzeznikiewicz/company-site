@@ -38,6 +38,7 @@ jobs:
         run: |
           wordpress/bin/validate-extensions-lock
           wordpress/tests/mount-contract.sh
+          wordpress/tests/external-extensions-contract.sh
           wordpress/tests/contact-plugin-contract.sh
           wordpress/tests/contact-form-browser-contract.sh
           wordpress/tests/mail-transport-plugin-contract.sh

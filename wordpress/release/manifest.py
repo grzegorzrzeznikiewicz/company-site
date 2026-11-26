@@ -47,6 +47,9 @@ _PACKAGE_NAMES = frozenset(
         'plugin/gama-security',
         'plugin/gama-local-mailpit',
         'plugin/gama-mail-transport',
+        'plugin/google-site-kit',
+        'plugin/complianz-gdpr',
+        'plugin/wp-consent-api',
     }
 )
 _EVIDENCE_FIELDS = frozenset(
