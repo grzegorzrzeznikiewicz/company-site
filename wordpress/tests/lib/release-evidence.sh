@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-GAMA_RELEASE_EVIDENCE_IMAGE='wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d'
+GAMA_RELEASE_EVIDENCE_IMAGE='wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1'
 GAMA_RELEASE_EVIDENCE_ACQUIRED_TOKEN=''
 
 gama_release_evidence_acquire_volume() {

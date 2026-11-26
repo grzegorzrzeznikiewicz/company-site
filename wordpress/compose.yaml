@@ -32,7 +32,7 @@ services:
       start_period: 5s
 
   uploads-init:
-    image: wordpress:7.1.0-php8.4-apache
+    image: wordpress:7.1.5-php8.4-apache
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command:
@@ -41,7 +41,7 @@ services:
       - gama-wordpress-uploads:/uploads
 
   wordpress:
-    image: wordpress:7.1.0-php8.4-apache
+    image: wordpress:7.1.5-php8.4-apache
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WP_HTTP_PORT}:80"

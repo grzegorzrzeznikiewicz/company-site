@@ -25,8 +25,8 @@ if (!is_array($resolved) || !isset($resolved['services']) || !is_array($resolved
 
 $expectedImages = [
     'db' => 'mariadb:10.11.18-jammy',
-    'uploads-init' => 'wordpress:7.1.0-php8.4-apache',
-    'wordpress' => 'wordpress:7.1.0-php8.4-apache',
+    'uploads-init' => 'wordpress:7.1.5-php8.4-apache',
+    'wordpress' => 'wordpress:7.1.5-php8.4-apache',
     'wp' => 'wordpress:cli-2.12.0-php8.4',
 ];
 $expectedMounts = [

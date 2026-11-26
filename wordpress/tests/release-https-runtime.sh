@@ -28,7 +28,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="${GAMA_STAGING_PROJECT:-}"
 browser_image="${GAMA_RELEASE_BROWSER_IMAGE:-}"
 artifact_volume="${GAMA_RELEASE_BROWSER_ARTIFACT_VOLUME:-}"
-sidecar_image='wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d'
+sidecar_image='wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1'
 
 if [[ ! "$project" =~ ^gama-wp-staging-[a-z0-9][a-z0-9-]{2,40}$ ]]; then
   echo 'GAMA_STAGING_PROJECT must name the active isolated staging namespace.' >&2

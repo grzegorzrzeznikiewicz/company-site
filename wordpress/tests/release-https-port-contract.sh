@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime="$ROOT_DIR/tests/release-https-runtime.sh"
-image='wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d'
+image='wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1'
 suffix="$RANDOM-$$"
 unbound_container="gama-release-https-port-empty-$suffix"
 bound_container="gama-release-https-port-bound-$suffix"

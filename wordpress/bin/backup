@@ -64,7 +64,7 @@ docker run --rm \
   --network none \
   --volume "$uploads_volume:/source:ro" \
   --entrypoint tar \
-  wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d \
+  wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1 \
   -C /source -cf - . >"$destination/uploads.tar"
 
 wordpress_version="$(docker exec "$wordpress_container" php -r 'include "/var/www/html/wp-includes/version.php"; echo $wp_version;')"

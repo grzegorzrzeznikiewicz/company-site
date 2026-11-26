@@ -13,7 +13,7 @@ for file in "$dockerfile" "$compose" "$deploy" "$rollback" "$workflow" "$ROOT_DI
   [[ -f "$file" ]]
 done
 grep -Fq 'axllent/mailpit:v1.30.0@sha256:' "$ROOT_DIR/deploy/staging.override.yaml"
-grep -Fq 'wordpress:7.1.0-php8.4-apache@sha256:' "$dockerfile"
+grep -Fq 'wordpress:7.1.5-php8.4-apache@sha256:' "$dockerfile"
 grep -Fq 'wordpress:cli-2.12.0-php8.4@sha256:' "$dockerfile"
 grep -Fq 'org.opencontainers.image.revision' "$dockerfile"
 grep -Fq 'test-$marker-sha-$git_sha' "$build_release"

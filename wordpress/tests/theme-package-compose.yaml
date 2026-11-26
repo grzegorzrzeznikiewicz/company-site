@@ -16,7 +16,7 @@ services:
       start_period: 10s
 
   uploads-init:
-    image: wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
+    image: wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command: ["mkdir -p /uploads && chown 33:33 /uploads && chmod 0775 /uploads"]
@@ -24,7 +24,7 @@ services:
       - uploads:/uploads
 
   wordpress:
-    image: wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
+    image: wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1
     environment:
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_NAME: wordpress_theme_test

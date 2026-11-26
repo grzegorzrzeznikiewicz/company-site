@@ -158,7 +158,7 @@ elif a in [['ps','--filter','label=com.docker.compose.project=gama-wp-production
 elif a in [['inspect','--format','{{.State.Health.Status}}',c] for c in ('wp','db')]: print('healthy')
 elif a == ['inspect','--format',r'{{range .Mounts}}{{if eq .Destination "/var/www/html/wp-content/uploads"}}{{.Name}}{{"\\n"}}{{end}}{{end}}','wp']: print('gama-wp-production_uploads')
 elif a == ['exec','db','sh','-ec','exec mariadb-dump --host=127.0.0.1 --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 "$MARIADB_DATABASE"']: print('CREATE TABLE fixture (id INT);')
-elif a == ['run','--rm','--network','none','--volume','gama-wp-production_uploads:/source:ro','--entrypoint','tar','wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d','-C','/source','-cf','-','.']:
+elif a == ['run','--rm','--network','none','--volume','gama-wp-production_uploads:/source:ro','--entrypoint','tar','wordpress:7.1.5-php8.4-apache@sha256:98a3fba3639b89fe1ade0cf6d37e61bc8934de872cf26d9dc5286962b554e3d1','-C','/source','-cf','-','.']:
     import io,tarfile
     stream=io.BytesIO()
     with tarfile.open(fileobj=stream,mode='w') as archive:

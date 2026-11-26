@@ -16,7 +16,7 @@ services:
       start_period: 10s
 
   wordpress:
-    image: wordpress:7.1.0-php8.4-apache
+    image: wordpress:7.1.5-php8.4-apache
     environment:
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_NAME: wordpress_package_test
@@ -44,7 +44,7 @@ services:
       start_period: 10s
 
   uploads-init:
-    image: wordpress:7.1.0-php8.4-apache
+    image: wordpress:7.1.5-php8.4-apache
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command:
