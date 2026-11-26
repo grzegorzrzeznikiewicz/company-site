@@ -13,6 +13,9 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
     const contact = page.locator('main section#contact.gama-contact');
     const form = contact.locator('form.gama-contact-form');
     await expect(form).toBeVisible();
+    await expect(form.locator('.gama-contact-form__privacy')).toContainText(
+      'Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie.',
+    );
     // A missing stylesheet used to produce a false pass in Docker (localhost
     // asset URLs resolving to the browser container instead of WordPress).
     await expect(form).toHaveCSS('display', 'flex');
@@ -40,6 +43,7 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
         phone: rect('#gama-contact-phone'),
         message: rect('#gama-contact-message'),
         button: rect('[type="submit"]'),
+        privacy: rect('.gama-contact-form__privacy'),
       };
     });
 
@@ -67,7 +71,10 @@ test('preserves the legacy contact layout at mobile and desktop widths @contact-
       0,
     );
     expect(geometry.button.height).toBeCloseTo(40, 0);
-    expect(geometry.card.height).toBeLessThan(520);
+    // GSWEB-32: the GDPR notice is new; the legacy parity bound applies to
+    // the rest of the card and the notice itself stays compact.
+    expect(geometry.card.height - geometry.privacy.height).toBeLessThan(520);
+    expect(geometry.privacy.height).toBeLessThan(100);
     await expect(contact.locator('.gama-contact__details')).toHaveCount(0);
     await expect(form.locator('br, p:not([class])')).toHaveCount(0);
     await expect(form.locator('noscript')).toBeHidden();

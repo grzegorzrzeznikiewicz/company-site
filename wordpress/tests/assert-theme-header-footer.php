@@ -105,9 +105,6 @@ $combined_parts = $header_source . "\n" . $footer_source;
 if ( preg_match( '/<script\b|\bonclick\s*=|wp_nav_menu|register_nav_menus|href\s*=\s*["\']#(?:["\']|\s)|"url"\s*:\s*"#"/i', $combined_parts ) ) {
 	$fail( 'parts contain executable, legacy-menu or placeholder-link markup' );
 }
-if ( preg_match( '/Polityka prywatności|Regulamin/u', $footer_source ) ) {
-	$fail( 'unapproved legal links must remain deferred to GSWEB-21' );
-}
 if ( preg_match( '/"tagName"\s*:\s*"(?:header|footer)"/i', $combined_parts ) ) {
 	$fail( 'inner groups must not duplicate semantic template-part landmarks' );
 }
@@ -253,8 +250,30 @@ if ( array(
 		),
 		'parent' => $auxiliary_navigation,
 	),
+	array(
+		'name'   => 'core/navigation-link',
+		'attrs'  => array(
+			'label'          => 'Polityka prywatności',
+			'type'           => 'custom',
+			'url'            => '/polityka-prywatnosci/',
+			'kind'           => 'custom',
+			'isTopLevelLink' => true,
+		),
+		'parent' => $auxiliary_navigation,
+	),
+	array(
+		'name'   => 'core/navigation-link',
+		'attrs'  => array(
+			'label'          => 'Regulamin',
+			'type'           => 'custom',
+			'url'            => '/regulamin/',
+			'kind'           => 'custom',
+			'isTopLevelLink' => true,
+		),
+		'parent' => $auxiliary_navigation,
+	),
 ) !== $auxiliary_items ) {
-	$fail( 'auxiliary Navigation must contain only the real Contact URL' );
+	$fail( 'auxiliary Navigation must contain exactly Contact, Privacy Policy and Terms (GSWEB-32)' );
 }
 
 foreach ( array( 'index', 'front-page', 'page', 'single', 'home', 'archive', 'search', '404' ) as $slug ) {

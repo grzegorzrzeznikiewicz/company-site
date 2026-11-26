@@ -51,8 +51,8 @@ run them against a preview you want to keep.
 
 | Package | Path | Version |
 | --- | --- | --- |
-| Theme `gama-software` | [`wordpress/theme/gama-software`](wordpress/theme/gama-software/README.md) | 0.4.1 |
-| Plugin `gama-contact` (contact form) | [`wordpress/plugins/gama-contact`](wordpress/plugins/gama-contact/README.md) | 0.3.2 |
+| Theme `gama-software` | [`wordpress/theme/gama-software`](wordpress/theme/gama-software/README.md) | 0.4.2 |
+| Plugin `gama-contact` (contact form) | [`wordpress/plugins/gama-contact`](wordpress/plugins/gama-contact/README.md) | 0.3.3 |
 | Plugin `gama-seo` | [`wordpress/plugins/gama-seo`](wordpress/plugins/gama-seo/README.md) | 0.1.0 |
 | Plugin `gama-security` | [`wordpress/plugins/gama-security`](wordpress/plugins/gama-security/README.md) | 0.1.1 |
 | Plugin `gama-mail-transport` (production SMTP) | [`wordpress/plugins/gama-mail-transport`](wordpress/plugins/gama-mail-transport/README.md) | 0.1.0 |
@@ -65,7 +65,7 @@ wordpress/bin/package theme gama-software
 wordpress/tests/theme-contract.sh
 wordpress/bin/package plugin gama-contact
 wordpress/tests/plugin-package-contract.sh
-wordpress/bin/test-package wordpress/dist/gama-contact-0.3.2.zip
+wordpress/bin/test-package wordpress/dist/gama-contact-0.3.3.zip
 ```
 
 Files in `wordpress/dist` are ignored local artifacts. Do not upload or
@@ -79,7 +79,8 @@ Adding or changing a theme feature or plugin: see
 - [`wordpress-ci.yml`](.github/workflows/wordpress-ci.yml) — four required
   quality gates on every PR and push to `main`.
 - [`wordpress-production.yml`](.github/workflows/wordpress-production.yml) —
-  promotes the exact CI-built image of a merged `main` commit to production.
+  promotes the exact CI-built image of a merged `main` commit to production
+  when the repository variable `GAMA_DEPLOYMENT_MODE` is `wordpress`.
 - [`wordpress-production-rollback.yml`](.github/workflows/wordpress-production-rollback.yml)
   — owner-approved manual recovery.
 

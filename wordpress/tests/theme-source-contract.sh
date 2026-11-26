@@ -44,7 +44,7 @@ while IFS= read -r metadata; do
 done <<'EOF'
 Theme Name: Gama Software
 Author: Gama Software
-Version: 0.4.1
+Version: 0.4.2
 Requires at least: 7.1
 Requires PHP: 8.4
 License: GPL v2 or later
@@ -53,7 +53,7 @@ Text Domain: gama-software
 Domain Path: /languages
 EOF
 
-grep -Fq '## 0.4.1 ' "$THEME_DIR/CHANGELOG.md"
+grep -Fq '## 0.4.2 ' "$THEME_DIR/CHANGELOG.md"
 grep -Fq 'gama-software' "$THEME_DIR/README.md"
 [[ "$(wc -c <"$THEME_DIR/LICENSE" | tr -d ' ')" -ge 15000 ]]
 grep -Fq 'GNU GENERAL PUBLIC LICENSE' "$THEME_DIR/LICENSE"

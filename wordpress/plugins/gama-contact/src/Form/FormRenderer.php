@@ -58,11 +58,37 @@ final class FormRenderer {
 				<noscript><?php esc_html_e( 'Włącz JavaScript, aby wysłać wiadomość.', 'gama-contact' ); ?></noscript>
 			</div>
 			<div class="gama-contact-form__status" aria-live="polite" aria-atomic="true"></div>
+			<p class="gama-contact-form__privacy"><?php echo wp_kses( self::privacy_notice(), array( 'a' => array( 'href' => true ) ) ); ?></p>
 		</form>
 		<?php
 		// The Core Shortcode block applies wpautop after rendering this form.
 		// Keep inter-element whitespace compact so it cannot insert line breaks
 		// or orphan paragraphs into the field layout. Do not change global filters.
 		return preg_replace( '/>\s+</', '><', trim( (string) ob_get_clean() ) ) ?? '';
+	}
+
+	/**
+	 * Build the GDPR Article 13 notice shown under the form.
+	 *
+	 * With a published Core privacy-policy page the notice points to it for
+	 * the controller's full identity and the data subject's rights, so the
+	 * legal name lives in one editable page. Without one it names the site.
+	 * Works with any theme.
+	 */
+	private static function privacy_notice(): string {
+		$url = get_privacy_policy_url();
+		if ( '' === $url ) {
+			return sprintf(
+				/* translators: %s: site name. */
+				__( 'Administratorem danych jest %s. Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie.', 'gama-contact' ),
+				esc_html( get_bloginfo( 'name' ) )
+			);
+		}
+
+		return sprintf(
+			/* translators: %s: privacy policy URL. */
+			__( 'Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie. Kto jest administratorem danych i jakie masz prawa, opisuje <a href="%s">Polityka prywatności</a>.', 'gama-contact' ),
+			esc_url( $url )
+		);
 	}
 }
