@@ -4,7 +4,7 @@ All notable changes to `gama-software/gama-contact` are documented here.
 
 ## 0.3.3 - 2026-11-26
 
-- Show the GDPR Article 13 notice under the form: the site name as controller and a link to the Core privacy-policy page when it is published.
+- Show the GDPR Article 13 notice under the form. It links to the Core privacy-policy page for the controller and rights once that page is published, and names the site otherwise.
 
 ## 0.3.2 - 2026-09-05
 

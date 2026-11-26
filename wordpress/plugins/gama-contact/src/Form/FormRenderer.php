@@ -70,24 +70,24 @@ final class FormRenderer {
 	/**
 	 * Build the GDPR Article 13 notice shown under the form.
 	 *
-	 * The controller is the site name and the policy link uses the Core
-	 * privacy-policy page, so the notice works with any theme. Without a
-	 * published privacy page the sentence is shown without a link.
+	 * With a published Core privacy-policy page the notice points to it for
+	 * the controller's full identity and the data subject's rights, so the
+	 * legal name lives in one editable page. Without one it names the site.
+	 * Works with any theme.
 	 */
 	private static function privacy_notice(): string {
-		$notice = sprintf(
-			/* translators: %s: site name. */
-			__( 'Administratorem danych jest %s. Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie.', 'gama-contact' ),
-			esc_html( get_bloginfo( 'name' ) )
-		);
 		$url = get_privacy_policy_url();
 		if ( '' === $url ) {
-			return $notice;
+			return sprintf(
+				/* translators: %s: site name. */
+				__( 'Administratorem danych jest %s. Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie.', 'gama-contact' ),
+				esc_html( get_bloginfo( 'name' ) )
+			);
 		}
 
-		return $notice . ' ' . sprintf(
+		return sprintf(
 			/* translators: %s: privacy policy URL. */
-			__( 'Szczegóły, w tym Twoje prawa, znajdziesz w <a href="%s">Polityce prywatności</a>.', 'gama-contact' ),
+			__( 'Dane z formularza przetwarzamy, aby odpowiedzieć na Twoje zapytanie. Kto jest administratorem danych i jakie masz prawa, opisuje <a href="%s">Polityka prywatności</a>.', 'gama-contact' ),
 			esc_url( $url )
 		);
 	}

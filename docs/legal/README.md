@@ -4,10 +4,11 @@ Source block markup for the WordPress pages `polityka-prywatnosci` and
 `regulamin`. The pages live in the database and stay editable in wp-admin;
 these files are the reviewed source of their first published version.
 
-Values in square brackets (`[NAZWA FIRMY]`, `[NIP]`, `[EMAIL]`, `[OKRES]`,
-`[OKRES LOGÓW]`, `[HOSTING]`, `[CZAS ODPOWIEDZI]`, `[DATA]`) must be filled in
-before publishing. By owner decision (2026-11-26) no postal address and no
-registry link are published.
+Owner data filled in on 2026-11-26 (GSWEB-32): Gama Software Grzegorz
+Rzeźnikiewicz, NIP 8133496665, correspondence kept 12 months, replies within
+24 hours. By owner decision no postal address and no registry link are
+published. Server log retention is stated as at most 30 days; confirm it
+against the production log rotation.
 
 Apply locally first (pages stay drafts until approved):
 
