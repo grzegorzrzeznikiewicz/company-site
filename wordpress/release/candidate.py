@@ -396,6 +396,7 @@ def _validate_candidate(value):
                     'wordpress', 'theme/gama-software', 'plugin/gama-contact',
                     'plugin/gama-seo', 'plugin/gama-security',
                     'plugin/gama-local-mailpit', 'plugin/gama-mail-transport',
+                    'plugin/google-site-kit',
                 )
             ],
             'evidence': probe_evidence,
@@ -464,7 +465,7 @@ $header = static function ($path) {
 require '/usr/src/wordpress/wp-includes/version.php';
 $packages[] = array('name' => 'wordpress', 'version' => $wp_version);
 $packages[] = array('name' => 'theme/gama-software', 'version' => $header('/usr/src/wordpress/wp-content/themes/gama-software/style.css'));
-foreach (array('gama-contact', 'gama-seo', 'gama-security', 'gama-local-mailpit', 'gama-mail-transport') as $plugin) {
+foreach (array('gama-contact', 'gama-seo', 'gama-security', 'gama-local-mailpit', 'gama-mail-transport', 'google-site-kit') as $plugin) {
     $packages[] = array('name' => 'plugin/' . $plugin, 'version' => $header('/usr/src/wordpress/wp-content/plugins/' . $plugin . '/' . $plugin . '.php'));
 }
 echo json_encode($packages, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

@@ -1,5 +1,18 @@
 FROM wordpress:cli-2.12.0-php8.4@sha256:1e1d1485277d15e0331b598b6e19972243128ead978b7134d758097d82116b99 AS wp_cli
 
+# External extension pinned in wordpress/config/extensions.lock.json (GSWEB-31).
+# BuildKit refuses the build when the downloaded archive does not match the
+# checksum; only the extracted plugin directory reaches the final image.
+FROM wp_cli AS google_site_kit
+USER root
+ADD --checksum=sha256:da9c8424b90fc700b09484c20a13aaa3e4ea75edd05a175bf100c6484daee064 \
+    https://downloads.wordpress.org/plugin/google-site-kit.1.192.0.zip /tmp/google-site-kit.zip
+RUN mkdir /tmp/google-site-kit-extract \
+    && unzip -q /tmp/google-site-kit.zip -d /tmp/google-site-kit-extract \
+    && grep -Eq '^ \* Version: +1\.192\.0$' /tmp/google-site-kit-extract/google-site-kit/google-site-kit.php \
+    && find /tmp/google-site-kit-extract/google-site-kit -type d -exec chmod 0755 {} + \
+    && find /tmp/google-site-kit-extract/google-site-kit -type f -exec chmod 0644 {} +
+
 FROM wordpress:7.1.0-php8.4-apache@sha256:b8f37de278183840a09f5a4b5bf5ec9f09177a9984d2fe5cc072b4388128bd9d
 
 ARG GAMA_GIT_SHA
@@ -15,6 +28,7 @@ COPY wordpress/plugins/gama-seo /usr/src/wordpress/wp-content/plugins/gama-seo
 COPY wordpress/plugins/gama-security /usr/src/wordpress/wp-content/plugins/gama-security
 COPY wordpress/plugins/gama-local-mailpit /usr/src/wordpress/wp-content/plugins/gama-local-mailpit
 COPY wordpress/plugins/gama-mail-transport /usr/src/wordpress/wp-content/plugins/gama-mail-transport
+COPY --from=google_site_kit /tmp/google-site-kit-extract/google-site-kit /usr/src/wordpress/wp-content/plugins/google-site-kit
 COPY wordpress/bin/bootstrap /usr/local/bin/gama-wordpress-bootstrap
 COPY wordpress/runtime/install-release /usr/local/bin/gama-wordpress-install-release
 

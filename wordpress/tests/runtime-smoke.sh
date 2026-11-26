@@ -72,6 +72,8 @@ done
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-contact'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-seo'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-security'
+"$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'google-site-kit'
+"$ROOT_DIR/bin/wp" plugin get google-site-kit --field=version | grep -Fx '1.192.0'
 "$ROOT_DIR/bin/wp" option get show_on_front | grep -Fx page
 "$ROOT_DIR/bin/wp" option get permalink_structure | grep -Fx '/%postname%/'
 home_page_id="$("$ROOT_DIR/bin/wp" option get page_on_front)"

@@ -26,7 +26,8 @@ for project_target in \
   /var/www/html/wp-content/plugins/gama-local-mailpit \
   /var/www/html/wp-content/plugins/gama-contact \
   /var/www/html/wp-content/plugins/gama-seo \
-  /var/www/html/wp-content/plugins/gama-security; do
+  /var/www/html/wp-content/plugins/gama-security \
+  /var/www/html/wp-content/plugins/google-site-kit; do
   readonly_mount_count="$(
     grep -F -A1 "\"target\": \"$project_target\"" <<<"$resolved_config" |
       grep -Fc '"read_only": true' || true

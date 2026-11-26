@@ -280,6 +280,7 @@ test('@release-acceptance-admin manages users and verifies the deployed extensio
     'gama-local-mailpit/gama-local-mailpit': 'active',
     'gama-security/gama-security': 'active',
     'gama-seo/gama-seo': 'active',
+    'google-site-kit/google-site-kit': 'active',
   });
 
   const marker = Date.now();

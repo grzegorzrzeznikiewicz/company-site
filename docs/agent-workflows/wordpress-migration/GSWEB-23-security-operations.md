@@ -21,8 +21,8 @@ theme; unused default plugins and older default themes are deleted by the
 idempotent bootstrap.
 
 `wordpress/config/extensions.lock.json` is the authoritative allowlist for any
-future external extension. It is intentionally empty. An external plugin may be
-introduced only as a separately estimated Jira task with its version, source,
+external extension. Its first entry is Site Kit by Google 1.192.0 (GSWEB-31).
+An external plugin may be introduced only as a separately estimated Jira task with its version, source,
 license, data-processing impact, security ownership, update policy and exit
 plan reviewed before installation.
 

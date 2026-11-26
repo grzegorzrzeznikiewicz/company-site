@@ -1,4 +1,19 @@
 {
   "version": 1,
-  "extensions": []
+  "extensions": [
+    {
+      "type": "plugin",
+      "slug": "google-site-kit",
+      "version": "1.192.0",
+      "source": "https://downloads.wordpress.org/plugin/google-site-kit.1.192.0.zip",
+      "sha256": "da9c8424b90fc700b09484c20a13aaa3e4ea75edd05a175bf100c6484daee064",
+      "license": "Apache-2.0",
+      "requires": {
+        "wordpress": "5.2",
+        "php": "7.4"
+      },
+      "purpose": "Official Google plugin connecting Search Console, Analytics and PageSpeed Insights to wp-admin",
+      "decision": "GSWEB-31"
+    }
+  ]
 }

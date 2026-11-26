@@ -27,5 +27,13 @@ wordpress/tests/theme-contract.sh
 wordpress/bin/test-package wordpress/dist/gama-software-0.4.2.zip
 ```
 
+External extensions are never committed. Site Kit by Google (GSWEB-31) is
+pinned by version and SHA-256 in `config/extensions.lock.json`; the production
+image downloads and verifies it in `runtime/Dockerfile`, and `bin/start` runs
+`bin/fetch-site-kit`, which verifies the same archive into the ignored
+`.cache/extensions/google-site-kit` that Compose mounts read-only.
+`tests/site-kit-contract.sh` keeps these pins in sync. Connecting a Google
+account is an owner action in wp-admin and is not automated.
+
 `wordpress/dist` contains ignored local artifacts only. Do not upload, release,
 attach, or distribute them without separate owner approval.
