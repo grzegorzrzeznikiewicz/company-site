@@ -80,7 +80,9 @@ Adding or changing a theme feature or plugin: see
   quality gates on every PR and push to `main`.
 - [`wordpress-production.yml`](.github/workflows/wordpress-production.yml) —
   promotes the exact CI-built image of a merged `main` commit to production
-  when the repository variable `GAMA_DEPLOYMENT_MODE` is `wordpress`.
+  when the repository variable `GAMA_DEPLOYMENT_MODE` is `wordpress` and the
+  merged PR carries the owner-recorded `GAMA-SOLO-AI-REVIEW-V1` report for its
+  exact head SHA, submitted before the merge.
 - [`wordpress-production-rollback.yml`](.github/workflows/wordpress-production-rollback.yml)
   — owner-approved manual recovery.
 
