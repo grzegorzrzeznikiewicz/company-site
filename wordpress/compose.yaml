@@ -74,6 +74,8 @@ services:
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
       - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro
       - ./.cache/extensions/google-site-kit:/var/www/html/wp-content/plugins/google-site-kit:ro
+      - ./.cache/extensions/complianz-gdpr:/var/www/html/wp-content/plugins/complianz-gdpr:ro
+      - ./.cache/extensions/wp-consent-api:/var/www/html/wp-content/plugins/wp-consent-api:ro
     depends_on:
       db:
         condition: service_healthy
@@ -115,6 +117,8 @@ services:
       - ./plugins/gama-seo:/var/www/html/wp-content/plugins/gama-seo:ro
       - ./plugins/gama-security:/var/www/html/wp-content/plugins/gama-security:ro
       - ./.cache/extensions/google-site-kit:/var/www/html/wp-content/plugins/google-site-kit:ro
+      - ./.cache/extensions/complianz-gdpr:/var/www/html/wp-content/plugins/complianz-gdpr:ro
+      - ./.cache/extensions/wp-consent-api:/var/www/html/wp-content/plugins/wp-consent-api:ro
       - ./bin/bootstrap:/usr/local/bin/gama-wordpress-bootstrap:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/gama-wordpress-bootstrap"]
     depends_on:

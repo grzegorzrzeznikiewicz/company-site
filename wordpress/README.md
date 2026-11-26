@@ -27,13 +27,15 @@ wordpress/tests/theme-contract.sh
 wordpress/bin/test-package wordpress/dist/gama-software-0.4.2.zip
 ```
 
-External extensions are never committed. Site Kit by Google (GSWEB-31) is
-pinned by version and SHA-256 in `config/extensions.lock.json`; the production
-image downloads and verifies it in `runtime/Dockerfile`, and `bin/start` runs
-`bin/fetch-site-kit`, which verifies the same archive into the ignored
-`.cache/extensions/google-site-kit` that Compose mounts read-only.
-`tests/site-kit-contract.sh` keeps these pins in sync. Connecting a Google
-account is an owner action in wp-admin and is not automated.
+External extensions are never committed. Site Kit by Google, Complianz and
+WP Consent API (GSWEB-31) are pinned by version and SHA-256 in
+`config/extensions.lock.json`. The production image downloads and verifies them
+in `runtime/Dockerfile`; `bin/start` runs `bin/fetch-extensions`, which reads the
+lock and verifies the same archives into the ignored `.cache/extensions/<slug>`
+that Compose mounts read-only. `tests/external-extensions-contract.sh` keeps the
+pins in sync. Connecting a Google account and completing the Complianz wizard
+(cookie policy, consent categories) are owner actions in wp-admin and are not
+automated; Complianz writes its generated files under `wp-content/uploads/complianz`.
 
 `wordpress/dist` contains ignored local artifacts only. Do not upload, release,
 attach, or distribute them without separate owner approval.

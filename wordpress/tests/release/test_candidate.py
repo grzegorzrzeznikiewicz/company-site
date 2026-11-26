@@ -36,9 +36,10 @@ $header = static function ($path) {
 require '/usr/src/wordpress/wp-includes/version.php';
 $packages[] = array('name' => 'wordpress', 'version' => $wp_version);
 $packages[] = array('name' => 'theme/gama-software', 'version' => $header('/usr/src/wordpress/wp-content/themes/gama-software/style.css'));
-foreach (array('gama-contact', 'gama-seo', 'gama-security', 'gama-local-mailpit', 'gama-mail-transport', 'google-site-kit') as $plugin) {
+foreach (array('gama-contact', 'gama-seo', 'gama-security', 'gama-local-mailpit', 'gama-mail-transport', 'google-site-kit', 'wp-consent-api') as $plugin) {
     $packages[] = array('name' => 'plugin/' . $plugin, 'version' => $header('/usr/src/wordpress/wp-content/plugins/' . $plugin . '/' . $plugin . '.php'));
 }
+$packages[] = array('name' => 'plugin/complianz-gdpr', 'version' => $header('/usr/src/wordpress/wp-content/plugins/complianz-gdpr/complianz-gpdr.php'));
 echo json_encode($packages, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 '''.strip()
 
@@ -53,6 +54,8 @@ def literal_packages():
         {'name': 'plugin/gama-local-mailpit', 'version': '0.1.0'},
         {'name': 'plugin/gama-mail-transport', 'version': '0.1.0'},
         {'name': 'plugin/google-site-kit', 'version': '1.192.0'},
+        {'name': 'plugin/wp-consent-api', 'version': '2.1.0'},
+        {'name': 'plugin/complianz-gdpr', 'version': '7.5.9'},
     ]
 
 
@@ -222,6 +225,8 @@ elif args == [
         {'name': 'plugin/gama-local-mailpit', 'version': '0.1.0'},
         {'name': 'plugin/gama-mail-transport', 'version': '0.1.0'},
         {'name': 'plugin/google-site-kit', 'version': '1.192.0'},
+        {'name': 'plugin/wp-consent-api', 'version': '2.1.0'},
+        {'name': 'plugin/complianz-gdpr', 'version': '7.5.9'},
     ]))
 elif len(args) == 4 and args[:2] == ['save', '--output'] and args[3] == os.environ['FAKE_IMAGE_ID']:
     output = Path(args[2])

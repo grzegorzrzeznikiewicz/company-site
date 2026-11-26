@@ -47,6 +47,8 @@ def literal_valid_manifest():
             {'name': 'plugin/gama-local-mailpit', 'version': '0.1.0'},
             {'name': 'plugin/gama-mail-transport', 'version': '0.1.0'},
             {'name': 'plugin/google-site-kit', 'version': '1.192.0'},
+            {'name': 'plugin/wp-consent-api', 'version': '2.1.0'},
+            {'name': 'plugin/complianz-gdpr', 'version': '7.5.9'},
         ],
         'evidence': [
             {

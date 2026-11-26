@@ -14,6 +14,34 @@
       },
       "purpose": "Official Google plugin connecting Search Console, Analytics and PageSpeed Insights to wp-admin",
       "decision": "GSWEB-31"
+    },
+    {
+      "type": "plugin",
+      "slug": "complianz-gdpr",
+      "version": "7.5.9",
+      "source": "https://downloads.wordpress.org/plugin/complianz-gdpr.7.5.9.zip",
+      "sha256": "94df004d8de3cbdfeed523cf28a091ad9ce3690e2f7fa75b937ed1dd6b92ccc9",
+      "license": "GPL-2.0-or-later",
+      "requires": {
+        "wordpress": "5.9",
+        "php": "7.4"
+      },
+      "purpose": "Cookie consent banner and cookie policy; blocks statistics scripts until consent and signals Google Consent Mode",
+      "decision": "GSWEB-31"
+    },
+    {
+      "type": "plugin",
+      "slug": "wp-consent-api",
+      "version": "2.1.0",
+      "source": "https://downloads.wordpress.org/plugin/wp-consent-api.2.1.0.zip",
+      "sha256": "3714cf615d51f854774fca791ac20d7bd584dda4f1cd425c29ad275162c9b91e",
+      "license": "GPL-2.0-or-later",
+      "requires": {
+        "wordpress": "5.0",
+        "php": "7.4"
+      },
+      "purpose": "Shared consent API that lets Complianz pass visitor consent to Site Kit Consent Mode",
+      "decision": "GSWEB-31"
     }
   ]
 }

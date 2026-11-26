@@ -38,9 +38,13 @@ One plugin owns one durable capability. Existing plugins: `gama-contact`
   contract first. Builds are byte-reproducible.
 - **External extensions:** only paid-licence-free extensions, recorded in
   `wordpress/config/extensions.lock.json` with version, source, SHA-256 and the
-  owning Jira decision. The first one is Site Kit by Google (`google-site-kit`,
-  GSWEB-31): it is fetched with checksum verification at image build time and
-  by `wordpress/bin/fetch-site-kit` for local development, never committed.
+  owning Jira decision. Locked today (GSWEB-31): Site Kit by Google
+  (`google-site-kit`), Complianz (`complianz-gdpr`) and WP Consent API
+  (`wp-consent-api`). Each is fetched with checksum verification at image build
+  time and by `wordpress/bin/fetch-extensions` for local development, never
+  committed. A new one needs a lock entry, a Dockerfile `ADD --checksum` line,
+  Compose mounts, a bootstrap activation and a release manifest package; the
+  `external-extensions-contract.sh` test lists what is missing.
 - **Distribution:** ZIPs in `wordpress/dist` are local artifacts. Uploading or
   publishing one needs separate owner approval.
 

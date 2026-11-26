@@ -281,6 +281,8 @@ test('@release-acceptance-admin manages users and verifies the deployed extensio
     'gama-security/gama-security': 'active',
     'gama-seo/gama-seo': 'active',
     'google-site-kit/google-site-kit': 'active',
+    'complianz-gdpr/complianz-gpdr': 'active',
+    'wp-consent-api/wp-consent-api': 'active',
   });
 
   const marker = Date.now();
