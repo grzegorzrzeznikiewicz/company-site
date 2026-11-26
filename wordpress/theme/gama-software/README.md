@@ -1,7 +1,7 @@
 # Gama Software theme
 
 `gama-software` is the production block-theme foundation for the Gama Software
-website. Version 0.4.1 targets WordPress 7.1 and PHP 8.4. Its controlled Global
+website. Version 0.4.2 targets WordPress 7.1 and PHP 8.4. Its controlled Global
 Styles palette, system typography, spacing, radii and shadows reproduce the
 approved visual foundation without Tailwind, React or remote fonts.
 
@@ -37,14 +37,14 @@ local image after collecting test artifacts:
 
 ```sh
 wordpress/bin/package theme gama-software
-wordpress/bin/test-package wordpress/dist/gama-software-0.4.1.zip
+wordpress/bin/test-package wordpress/dist/gama-software-0.4.2.zip
 ```
 
 For a separate disposable WordPress installation where the built ZIP is
 available to WP-CLI, install, activate and verify it with:
 
 ```sh
-wp theme install /absolute/path/to/gama-software-0.4.1.zip
+wp theme install /absolute/path/to/gama-software-0.4.2.zip
 wp theme activate gama-software
 wp theme is-active gama-software
 wp theme get gama-software --field=version

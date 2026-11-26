@@ -250,14 +250,20 @@ test('renders one semantic shell and the exact editable fallback links on every 
       );
     }
     const auxiliary = auxiliaryNavigation(page).getByRole('link');
-    await expect(auxiliary).toHaveCount(1);
-    await expect(auxiliary).toHaveText('Kontakt');
-    await expect(auxiliary).toHaveAttribute('href', '/#contact');
-    expect(
-      await auxiliary.evaluate(
-        (element) => (element as HTMLAnchorElement).href,
-      ),
-    ).toBe('http://wordpress/#contact');
+    const auxiliaryDestinations = [
+      ['Kontakt', '/#contact'],
+      ['Polityka prywatności', '/polityka-prywatnosci/'],
+      ['Regulamin', '/regulamin/'],
+    ] as const;
+    await expect(auxiliary).toHaveCount(auxiliaryDestinations.length);
+    for (const [index, [label, pathname]] of auxiliaryDestinations.entries()) {
+      const link = auxiliary.nth(index);
+      await expect(link).toHaveText(label);
+      await expect(link).toHaveAttribute('href', pathname);
+      expect(
+        await link.evaluate((element) => (element as HTMLAnchorElement).href),
+      ).toBe(`http://wordpress${pathname}`);
+    }
     await expect(page.locator('a[href="#"]')).toHaveCount(0);
   }
 
