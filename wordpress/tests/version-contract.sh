@@ -9,4 +9,4 @@ fi
 
 docker compose --project-name gama-wordpress --env-file "$ROOT_DIR/.env" --file "$ROOT_DIR/compose.yaml" config |
   grep -Fx '    image: wordpress:7.1.5-php8.4-apache'
-"$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'
+"$ROOT_DIR/bin/wp" core version | grep -Fx '7.1.5'

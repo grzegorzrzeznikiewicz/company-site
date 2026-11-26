@@ -65,7 +65,7 @@ for service in db wordpress mailpit; do
 done
 
 "$ROOT_DIR/bin/wp" core is-installed
-"$ROOT_DIR/bin/wp" core version | grep -Fx '7.1'
+"$ROOT_DIR/bin/wp" core version | grep -Fx '7.1.5'
 "$ROOT_DIR/bin/wp" theme list --status=active --field=name | grep -Fx 'gama-software'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-local-mailpit'
 "$ROOT_DIR/bin/wp" plugin list --status=active --field=name | grep -Fx 'gama-mail-transport'

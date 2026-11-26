@@ -314,7 +314,7 @@ wp_cmd core install \
   --admin_email=package-admin@example.test \
   --skip-email
 
-wp_cmd core version | grep -Fx '7.1'
+wp_cmd core version | grep -Fx '7.1.5'
 wp_cmd eval 'if (version_compare(PHP_VERSION, "8.4", "<") || version_compare(PHP_VERSION, "8.5", ">=")) { exit(1); } echo PHP_VERSION;' | grep -E '^8\.4\.'
 
 if [[ "$package_kind" == theme ]]; then
