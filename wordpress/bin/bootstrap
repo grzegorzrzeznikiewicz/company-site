@@ -82,9 +82,10 @@ ensure_legal_draft regulamin Regulamin
 # GSWEB-32: Core privacy-policy setting points at the policy page, so plugins
 # (gama-contact notice) can link to it once the page is published.
 privacy_page_id="$(wp_cli eval '$page = get_page_by_path("polityka-prywatnosci", OBJECT, "page"); echo $page instanceof WP_Post ? $page->ID : 0;' | tail -n 1)"
-if [[ "$privacy_page_id" =~ ^[1-9][0-9]*$ ]]; then
-  wp_cli option update wp_page_for_privacy_policy "$privacy_page_id" >/dev/null
-fi
+case "$privacy_page_id" in
+  ""|0*|*[!0-9]*) ;;
+  *) wp_cli option update wp_page_for_privacy_policy "$privacy_page_id" >/dev/null ;;
+esac
 
 custom_logo_id="$(wp_cli eval 'echo (int) get_theme_mod("custom_logo", 0);' 2>/dev/null || true)"
 if ! wp_cli eval "\$post = get_post((int) '$custom_logo_id'); exit(\$post instanceof WP_Post && 'attachment' === \$post->post_type ? 0 : 1);"; then

@@ -50,6 +50,11 @@ Apply and verify every change locally first (local WordPress on port 8090),
 then release it to production through the WordPress pipeline. After the four WordPress quality gates on `main`, the production workflow
 releases automatically only while the repository variable
 `GAMA_DEPLOYMENT_MODE` is `wordpress`; with `off` the guard skips deployment.
+Promotion also refuses a merged PR unless, before the merge, the owner account
+submitted a COMMENTED review on the exact PR head SHA whose body starts with
+`GAMA-SOLO-AI-REVIEW-V1` followed by the JSON report
+(`{"head_sha","result","report"}`). It cannot be added after the merge; see
+[GSWEB-29 production pipeline](docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
 Server-side changes outside the pipeline need explicit owner approval.
 
 ## Chrome and Jira Profile Order
