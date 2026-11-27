@@ -8,13 +8,18 @@ An approval merges and deploys the PR; a change request blocks it.
 
 1. **`AI Code Review`** (`.github/workflows/ai-code-review.yml`,
    `pull_request`) holds no owner token.
-   - `anthropics/claude-code-action` runs `/om-auto-review-pr <PR>` as the
-     Claude GitHub App (`claude[bot]`). It uses the vendored `om-code-review`
-     engine, its checklist, `CODE_REVIEW.md`, `.ai/agentic.config.json` and the
-     repo-local extension `.ai/skills/om-auto-review-pr/SKILL.md`.
+   - `anthropics/claude-code-action` runs `/om-code-review <PR>` as the Claude
+     GitHub App (`claude[bot]`). That is the review engine of `om-auto-review-pr`,
+     with its built-in checklist, severity scale and verdict rule, plus
+     `CODE_REVIEW.md` and `.ai/agentic.config.json`. The rest of
+     `om-auto-review-pr` (claims, labels, comments, autofix) needs write tools,
+     so it is not used in CI.
+   - `validation.commands` is empty on purpose. The four required WordPress
+     quality gates are the validation, and the gate checks them before merging.
    - Claude gets only Read/Glob/Grep and `gh pr view/diff/checks/review`. It
      cannot run code, use `git`, call `gh api`, comment, push or merge.
-   - It submits one review: **Approve** or **Request changes**.
+   - It submits one review: **Approve** or **Request changes**. If it submits
+     none, the run fails and the gate does not start.
    - A newer push cancels the older run.
 2. **`AI Review Gate`** (`.github/workflows/ai-review-gate.yml`,
    `workflow_run`) always runs the definition from `main`. It runs in the
@@ -25,13 +30,17 @@ An approval merges and deploys the PR; a change request blocks it.
    - The run must be a successful `pull_request` run of the pinned review
      workflow, for an open owner PR from this repository to `main`, still at
      the same head.
-   - **PRs that touch the review machinery are never automated:** `.github/`,
-     `.claude/`, `.ai/`, `skills-lock.json`, `CODE_REVIEW.md`, `AGENTS.md`,
-     `CLAUDE.md` and `ai_review_gate.py`. Such a PR could change the reviewer,
-     its rules or its workflow, so it needs a manual review and a manual owner
-     report.
-   - The latest decisive `claude[bot]` review on the exact head, submitted
-     during this run, is recorded as the owner's `GAMA-SOLO-AI-REVIEW-V1`
+   - **PRs that touch the review machinery or release tooling are never
+     automated.** That covers `.github/`, `.claude/`, `.ai/` (at any depth),
+     `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.mcp.json` anywhere, plus
+     `skills-lock.json`, `CODE_REVIEW.md`, `wordpress/release/`,
+     `wordpress/tests/release/` and the CI contract. Such a PR could change the
+     reviewer, its instructions or the production proof, so it needs a manual
+     review and a manual owner report.
+   - The gate needs the complete file list, so a PR with 3000 or more files is
+     refused.
+   - Exactly one decisive `claude[bot]` review, submitted during this run on
+     the exact head, is recorded as the owner's `GAMA-SOLO-AI-REVIEW-V1`
      COMMENTED review. That is the proof the production source check requires
      (see [GSWEB-29 production pipeline](wordpress-migration/GSWEB-29-production-pipeline.md)).
    - On `approved`, the gate waits up to 50 minutes for the pinned
@@ -53,8 +62,12 @@ GitHub auto-merge is not used.
 - `CLAUDE_CODE_OAUTH_TOKEN` is a repository secret, so a malicious owner-branch
   workflow could read it. That costs usage, not production access.
 - A prompt injection in public PR comments could at worst sway the verdict on
-  an owner-authored diff. The review prompt treats non-owner comments as
-  untrusted data.
+  an owner-authored diff, or make the reviewer review another open PR. The
+  review prompt treats non-owner comments as untrusted data. The gate accepts
+  only one verdict, on this head and inside this run's time window; anything
+  more is refused.
+- Any owner-branch workflow can mint `claude[bot]` reviews. Such a branch only
+  reaches `main` through a PR that touches `.github/`, which is never automated.
 
 ## One-time setup (owner)
 
@@ -70,4 +83,5 @@ GitHub auto-merge is not used.
 
 The skills are vendored under `.claude/skills` and pinned in `skills-lock.json`.
 To update them, run `npx skills update -p` in a PR. That PR touches the review
-machinery, so it is reviewed and merged manually.
+machinery, so it is reviewed and merged manually. CI uses only `om-code-review`;
+`om-auto-review-pr` and `om-setup-agent-pipeline` are kept for local use.

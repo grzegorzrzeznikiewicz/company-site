@@ -3,9 +3,7 @@
   "baseBranch": "main",
   "tracker": "github",
   "validation": {
-    "commands": [
-      "git diff --check origin/main...HEAD"
-    ]
+    "commands": []
   },
   "labels": {
     "enabled": false

@@ -37,9 +37,10 @@ class FakeAPI:
         self.run = {'id': RUN_ID, 'path': '.github/workflows/ai-code-review.yml',
                     'event': 'pull_request', 'status': 'completed', 'conclusion': 'success',
                     'repository': REPO, 'head_repository': REPO, 'head_sha': SHA,
-                    'run_started_at': '2026-11-26T09:00:00Z'}
+                    'run_started_at': '2026-11-26T09:00:00Z', 'updated_at': '2026-11-26T13:00:00Z'}
         self.pr = {'number': 7, 'state': 'open', 'draft': False, 'user': OWNER,
-                   'base': {'ref': 'main', 'repo': REPO}, 'head': {'sha': SHA, 'repo': REPO}}
+                   'base': {'ref': 'main', 'repo': REPO}, 'head': {'sha': SHA, 'repo': REPO},
+                   'changed_files': len(files)}
         self.reviews = reviews
         self.files = [{'filename': name} for name in files]
         self.ci_polls = [[ci_run()]]
@@ -101,7 +102,7 @@ class AIReviewGateTest(unittest.TestCase):
         return parsed
 
     def test_approval_is_recorded_then_merged_pinned_to_sha_after_gates(self):
-        api = FakeAPI([review(1, 'CHANGES_REQUESTED', '2026-11-26T10:00:00Z'),
+        api = FakeAPI([review(1, 'CHANGES_REQUESTED', '2026-11-26T08:00:00Z', commit=OLD),
                        review(2, 'APPROVED', '2026-11-26T11:00:00Z'),
                        review(3, 'COMMENTED', '2026-11-26T12:00:00Z')])
         api.ci_polls = [[], [ci_run(status='in_progress', conclusion=None)], [ci_run()]]
@@ -117,7 +118,7 @@ class AIReviewGateTest(unittest.TestCase):
         self.assertEqual(sleeps, [30, 30])
 
     def test_blocking_verdict_is_recorded_and_never_merges(self):
-        api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z'),
+        api = FakeAPI([review(1, 'APPROVED', '2026-11-26T08:00:00Z'),
                        review(2, 'CHANGES_REQUESTED', '2026-11-26T11:00:00Z')])
         self.assertEqual(run_gate(api)[0], gate.EXIT_BLOCKED)
         self.assertEqual(self.report(api)['result'], 'changes-requested')
@@ -127,7 +128,12 @@ class AIReviewGateTest(unittest.TestCase):
         for name in ('.github/workflows/ai-code-review.yml', '.github/workflows/new.yml',
                      '.claude/settings.json', '.claude/skills/om-code-review/SKILL.md',
                      '.ai/agentic.config.json', 'skills-lock.json', 'CODE_REVIEW.md',
-                     'AGENTS.md', 'CLAUDE.md', 'wordpress/release/ai_review_gate.py'):
+                     'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.mcp.json',
+                     'wordpress/CLAUDE.md', 'wordpress/theme/AGENTS.md', 'docs/x/CLAUDE.local.md',
+                     'wordpress/plugins/x/.claude/settings.json', 'docs/.mcp.json',
+                     'wordpress/release/ai_review_gate.py', 'wordpress/release/github_source.py',
+                     'wordpress/tests/release/test_promote.py',
+                     'wordpress/tests/wordpress-ci-contract.sh'):
             with self.subTest(name):
                 api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')],
                               files=('docs/a.md', name))
@@ -135,14 +141,33 @@ class AIReviewGateTest(unittest.TestCase):
                 self.assertEqual((api.posted, api.merges), ([], []))
         renamed = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
         renamed.files = [{'filename': 'docs/x.md', 'previous_filename': 'CODE_REVIEW.md'}]
+        renamed.pr['changed_files'] = 1
         self.assertEqual(run_gate(renamed)[0], gate.EXIT_MANUAL)
         lookalike = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')],
                             files=('docs/.github-notes.md', 'wordpress/AGENTS.md.txt'))
         self.assertEqual(run_gate(lookalike)[0], 0)
 
+    def test_truncated_or_oversized_file_lists_fail_closed(self):
+        for name, mutate in {
+                'truncated listing': lambda api: api.pr.update(changed_files=3500),
+                'listing shorter than count': lambda api: api.pr.update(changed_files=2),
+                'listing at api cap': lambda api: (api.pr.update(changed_files=3000),
+                                                   setattr(api, 'files', api.files * 3000)),
+                'missing count': lambda api: api.pr.pop('changed_files')}.items():
+            with self.subTest(name):
+                api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
+                mutate(api)
+                self.assertEqual(run_gate(api)[0], 1)
+                self.assertEqual((api.posted, api.merges), ([], []))
+
     def test_untrusted_or_stale_verdicts_record_nothing(self):
         cases = {
             'earlier run': [review(1, 'APPROVED', '2026-11-26T08:59:59Z')],
+            'after run': [review(1, 'APPROVED', '2026-11-26T13:00:01Z')],
+            'two verdicts in run': [review(1, 'APPROVED', '2026-11-26T10:00:00Z'),
+                                    review(2, 'APPROVED', '2026-11-26T10:05:00Z')],
+            'minted for other head': [review(1, 'APPROVED', '2026-11-26T10:00:00Z'),
+                                      review(2, 'APPROVED', '2026-11-26T10:01:00Z', commit=OLD)],
             'stale head': [review(1, 'APPROVED', '2026-11-26T10:00:00Z', commit=OLD)],
             'human imitation': [review(1, 'APPROVED', '2026-11-26T10:00:00Z',
                                        user={'id': 5, 'login': 'claude-bot', 'type': 'User'})],

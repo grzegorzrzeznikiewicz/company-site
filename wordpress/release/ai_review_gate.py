@@ -11,11 +11,12 @@ event except the run id, and re-reads everything else from the GitHub API:
 1. The run must be an exact, successful `pull_request` run of the pinned review
    workflow for an open owner PR from this repository to `main`, still at that
    head.
-2. PRs touching the review machinery (`SENSITIVE_PATHS`) are never automated;
-   they need a manual review and merge. Such a PR could otherwise have changed
-   the reviewer, its rules or its workflow.
-3. The latest decisive `claude[bot]` review on the exact head, submitted during
-   this run, is recorded with the owner token as the `GAMA-SOLO-AI-REVIEW-V1`
+2. PRs touching the review machinery or release tooling (`is_sensitive`:
+   workflows, Claude/agent instruction files at any depth, skills, review rules,
+   `wordpress/release/`) are never automated; they need a manual review and
+   merge. The complete file list must be verifiable (fewer than 3000 files).
+3. The single decisive `claude[bot]` review submitted during this run, on the
+   exact head, is recorded with the owner token as the `GAMA-SOLO-AI-REVIEW-V1`
    COMMENTED review that `github_source._solo_approval` requires. A blocking
    verdict is recorded as `changes-requested` and nothing merges.
 4. On approval it waits for the pinned `WordPress Quality Gates` run on that
@@ -47,7 +48,12 @@ VERDICTS = {'APPROVED': 'approved', 'CHANGES_REQUESTED': 'changes-requested'}
 WP_GATES = ('WordPress Source and Build', 'WordPress Package Lifecycle',
             'WordPress Runtime and Restore', 'WordPress Release Regression')
 SENSITIVE_PATHS = ('.github/', '.claude/', '.ai/', 'skills-lock.json', 'CODE_REVIEW.md',
-                   'AGENTS.md', 'CLAUDE.md', 'wordpress/release/ai_review_gate.py')
+                   '.mcp.json', 'wordpress/release/', 'wordpress/tests/release/',
+                   'wordpress/tests/wordpress-ci-contract.sh')
+# Files Claude Code or the skills load as instructions wherever they live.
+SENSITIVE_NAMES = ('CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', '.mcp.json')
+SENSITIVE_SEGMENTS = ('.claude', '.github', '.ai')
+MAX_LISTED_FILES = 3000
 CHECK_POLL_SECONDS = 30
 CHECK_WAIT_SECONDS = 50 * 60
 EXIT_BLOCKED = 2
@@ -150,14 +156,16 @@ def review_run(api, run_id):
     require(_same_repo(run.get('repository')) and _same_repo(run.get('head_repository')),
             'review run is not from this repository')
     require(full_sha(run.get('head_sha')), 'review run head missing')
-    return run['head_sha'], utc(run.get('run_started_at'))
+    started, finished = utc(run.get('run_started_at')), utc(run.get('updated_at'))
+    require(started <= finished, 'invalid review run window')
+    return run['head_sha'], (started, finished)
 
 
 def open_pull(api, head_sha):
     listed = api.get(ROOT + '/commits/' + head_sha + '/pulls')
     require(type(listed) is list, 'associated PR list unavailable')
-    found = [pr for pr in listed
-             if pr.get('state') == 'open' and pr.get('head', {}).get('sha') == head_sha]
+    found = [pr for pr in listed if type(pr) is dict
+             and pr.get('state') == 'open' and pr.get('head', {}).get('sha') == head_sha]
     require(len(found) == 1, 'exactly one open PR at the reviewed head required')
     number = found[0].get('number')
     require(type(number) is int and number > 0, 'invalid PR number')
@@ -168,39 +176,51 @@ def open_pull(api, head_sha):
             and _same_repo(pr.get('head', {}).get('repo')), 'PR must target main from this repository')
     require(_is_owner(pr.get('user')), 'only owner PRs are automated')
     require(pr['head'].get('sha') == head_sha, 'PR head moved; a newer review run owns it')
-    return number
+    return number, pr.get('changed_files')
 
 
-def sensitive_files(api, number):
+def is_sensitive(name):
+    parts = name.split('/')
+    return (any(name == path or path.endswith('/') and name.startswith(path)
+                for path in SENSITIVE_PATHS)
+            or parts[-1] in SENSITIVE_NAMES
+            or any(part in SENSITIVE_SEGMENTS for part in parts[:-1]))
+
+
+def sensitive_files(api, number, changed_files):
+    require(type(changed_files) is int and 0 < changed_files < MAX_LISTED_FILES,
+            'PR too large to verify its file list')
+    listed = api.pages(ROOT + '/pulls/' + str(number) + '/files')
+    require(len(listed) == changed_files, 'PR file list is incomplete')
     names = set()
-    for item in api.pages(ROOT + '/pulls/' + str(number) + '/files'):
-        for key in ('filename', 'previous_filename'):
-            if type(item.get(key)) is str:
-                names.add(item[key])
-    require(names, 'PR file list unavailable')
-    return sorted(name for name in names
-                  if any(name == path or path.endswith('/') and name.startswith(path)
-                         for path in SENSITIVE_PATHS))
+    for item in listed:
+        require(type(item) is dict and type(item.get('filename')) is str, 'invalid PR file entry')
+        names.add(item['filename'])
+        if type(item.get('previous_filename')) is str:
+            names.add(item['previous_filename'])
+    return sorted(name for name in names if is_sensitive(name))
 
 
-def latest_verdict(reviews, head_sha, not_before):
-    """Latest decisive claude[bot] review on `head_sha` submitted by this run, or None."""
+def run_verdict(reviews, head_sha, window):
+    """The single decisive claude[bot] review on `head_sha` submitted during this run.
+
+    More than one (a re-review, or a review minted by another workflow) is ambiguous
+    and refused rather than ordered.
+    """
+    started, finished = window
     decisive = []
     for review in reviews:
-        if not _is_reviewer(review.get('user')):
-            continue
-        if review.get('commit_id') != head_sha or review.get('state') not in VERDICTS:
+        require(type(review) is dict, 'invalid review entry')
+        if not _is_reviewer(review.get('user')) or review.get('state') not in VERDICTS:
             continue
         submitted = utc(review.get('submitted_at'))
-        if submitted < not_before:
-            continue
-        decisive.append((submitted, review))
+        if started <= submitted <= finished:
+            require(review.get('commit_id') == head_sha, 'AI verdict in this run is not on the head')
+            decisive.append(review)
     if not decisive:
         return None
-    latest_time = max(when for when, _ in decisive)
-    latest = [review for when, review in decisive if when == latest_time]
-    require(len(latest) == 1, 'ambiguous latest AI verdict')
-    return latest[0]
+    require(len(decisive) == 1, 'more than one AI verdict during this run')
+    return decisive[0]
 
 
 def report_body(head_sha, review, run_url):
@@ -224,9 +244,9 @@ def report_body(head_sha, review, run_url):
         text = text[:cut].rstrip() + marker
 
 
-def record(api, number, head_sha, not_before, run_url):
+def record(api, number, head_sha, window, run_url):
     reviews = api.pages(ROOT + '/pulls/' + str(number) + '/reviews')
-    review = latest_verdict(reviews, head_sha, not_before)
+    review = run_verdict(reviews, head_sha, window)
     require(review is not None, 'no AI verdict from this run on the exact PR head')
     recorded = api.post(ROOT + '/pulls/' + str(number) + '/reviews',
                         {'commit_id': head_sha, 'event': 'COMMENT',
@@ -275,14 +295,14 @@ def main(environ=os.environ, out=sys.stdout, api=None, sleep=time.sleep):
         require(re.fullmatch('[1-9][0-9]{0,14}', run_id) is not None, 'invalid review run id')
         run_url = 'https://github.com/' + REPOSITORY + '/actions/runs/' + run_id
         api = api or GitHubAPI(environ.get('GH_TOKEN', ''))
-        head_sha, not_before = review_run(api, int(run_id))
-        number = open_pull(api, head_sha)
+        head_sha, window = review_run(api, int(run_id))
+        number, changed_files = open_pull(api, head_sha)
         print('PR #' + str(number) + ' at ' + head_sha, file=out, flush=True)
-        sensitive = sensitive_files(api, number)
+        sensitive = sensitive_files(api, number, changed_files)
         if sensitive:
             raise ManualReview('PR changes review machinery (' + ', '.join(sensitive[:10])
                                + '); owner reviews and merges it manually')
-        result = record(api, number, head_sha, not_before, run_url)
+        result = record(api, number, head_sha, window, run_url)
         print(result, file=out, flush=True)
         if result != 'approved':
             return EXIT_BLOCKED
@@ -292,6 +312,10 @@ def main(environ=os.environ, out=sys.stdout, api=None, sleep=time.sleep):
         return EXIT_MANUAL
     except GateError as error:
         print('ai-review-gate: refused: ' + str(error), file=sys.stderr)
+        return 1
+    except (AttributeError, KeyError, TypeError) as error:
+        print('ai-review-gate: refused: unexpected API shape: ' + type(error).__name__,
+              file=sys.stderr)
         return 1
     print('merged ' + merge_sha, file=out)
     return 0

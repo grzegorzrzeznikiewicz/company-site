@@ -118,6 +118,10 @@ for denied in 'Edit' 'Write' 'WebFetch' 'Bash(gh api:*)' 'Bash(gh pr comment:*)'
   grep -Fq "$denied" <<<"$denied_tools"
 done
 if grep -Eq 'AUTOMERGE|secrets\.GAMA|pull_request_target|workflow_run|environment:' "$ai_review"; then exit 1; fi
+grep -Fq '/om-code-review ${{ github.event.pull_request.number }}' "$ai_review"
+grep -Fq 'name: Require an AI verdict on the reviewed head' "$ai_review"
+# Only the workflow_run gate may name the main-only environment holding the PAT.
+[[ "$(grep -l 'ai-merge' "$REPOSITORY_ROOT"/.github/workflows/*.yml)" == "$ai_gate" ]]
 grep -Fq 'workflows: [AI Code Review]' "$ai_gate"
 grep -Fq "github.event.workflow_run.path == '.github/workflows/ai-code-review.yml'" "$ai_gate"
 grep -Fxq '    environment: ai-merge' "$ai_gate"
