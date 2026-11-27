@@ -56,7 +56,7 @@ submitted a COMMENTED review on the exact PR head SHA whose body starts with
 (`{"head_sha","result","report"}`). It cannot be added after the merge; see
 [GSWEB-29 production pipeline](docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
 The `AI Code Review` and `AI Review Gate` workflows record that report
-automatically from the Open Mercato `om-auto-review-pr` verdict and, only on
+automatically from the Open Mercato `om-code-review` verdict and, only on
 Approve, merge that exact head once the quality gates pass (PRs touching the
 review machinery stay manual); see [AI code review](docs/agent-workflows/ai-code-review.md) and
 `CODE_REVIEW.md` for the review rules.

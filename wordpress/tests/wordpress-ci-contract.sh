@@ -128,7 +128,7 @@ grep -Fxq '    environment: ai-merge' "$ai_gate"
 grep -Fxq '          ref: main' "$ai_gate"
 grep -Fq 'persist-credentials: false' "$ai_gate"
 grep -Fq 'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' "$ai_gate"
-grep -Fxq '        run: python3 -W error -m wordpress.release.ai_review_gate' "$ai_gate"
+grep -Fxq '        run: python3 -I -W error wordpress/release/ai_review_gate.py' "$ai_gate"
 [[ "$(grep -c 'secrets\.' "$ai_gate")" -eq 1 ]]
 if grep -Eq 'pull_request:|pull_request_target|head_sha \}\}|head\.sha|GITHUB_TOKEN|--auto|claude-code-action' "$ai_gate"; then exit 1; fi
 

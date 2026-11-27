@@ -1,7 +1,8 @@
 # Automated AI code review and merge (GSWEB-34)
 
 Every ready (non-draft) owner PR to `main` is reviewed by the
-[Open Mercato](https://github.com/open-mercato/skills) `om-auto-review-pr` skill.
+[Open Mercato](https://github.com/open-mercato/skills) `om-code-review` skill,
+the review engine of `om-auto-review-pr`.
 An approval merges and deploys the PR; a change request blocks it.
 
 ## Flow
@@ -25,14 +26,17 @@ An approval merges and deploys the PR; a change request blocks it.
    `workflow_run`) always runs the definition from `main`. It runs in the
    `ai-merge` environment, whose deployment branch policy admits only `main`;
    that environment is the only place that holds the owner token. It checks out
-   `main` and runs `wordpress/release/ai_review_gate.py`, which takes only the
+   `main` and runs `python3 -I wordpress/release/ai_review_gate.py` (isolated
+   mode, standard library only, so no repository file can shadow its imports),
+   which takes only the
    run id from the event and re-reads everything else from the API:
    - The run must be a successful `pull_request` run of the pinned review
      workflow, for an open owner PR from this repository to `main`, still at
      the same head.
    - **PRs that touch the review machinery or release tooling are never
      automated.** That covers `.github/`, `.claude/`, `.ai/` (at any depth),
-     `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.mcp.json` anywhere, plus
+     `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `.mcp.json` and any `.py`/`.pth`
+     file anywhere, plus
      `skills-lock.json`, `CODE_REVIEW.md`, `wordpress/release/`,
      `wordpress/tests/release/` and the CI contract. Such a PR could change the
      reviewer, its instructions or the production proof, so it needs a manual

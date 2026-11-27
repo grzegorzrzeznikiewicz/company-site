@@ -133,7 +133,8 @@ class AIReviewGateTest(unittest.TestCase):
                      'wordpress/plugins/x/.claude/settings.json', 'docs/.mcp.json',
                      'wordpress/release/ai_review_gate.py', 'wordpress/release/github_source.py',
                      'wordpress/tests/release/test_promote.py',
-                     'wordpress/tests/wordpress-ci-contract.sh'):
+                     'wordpress/tests/wordpress-ci-contract.sh', 'json.py', 'urllib/__init__.py',
+                     'wordpress/__init__.py', 'wordpress/routing/x.py', 'docs/sitecustomize.pth'):
             with self.subTest(name):
                 api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')],
                               files=('docs/a.md', name))

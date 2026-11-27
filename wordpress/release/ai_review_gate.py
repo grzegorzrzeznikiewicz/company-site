@@ -1,9 +1,11 @@
 """Turn the automated Open Mercato review verdict into the owner's solo AI report.
 
 `AI Code Review` (`.github/workflows/ai-code-review.yml`, `pull_request`) runs
-the `om-auto-review-pr` skill as the Claude GitHub App (`claude[bot]`). When it
+Open Mercato `om-code-review` (the `om-auto-review-pr` review engine) as the
+Claude GitHub App (`claude[bot]`). When it
 completes, `AI Review Gate` (`.github/workflows/ai-review-gate.yml`,
-`workflow_run`) runs this module from the default branch, in the `ai-merge`
+`workflow_run`) runs this file from the default branch with `python3 -I`, so
+no repository file can shadow its standard-library imports, in the `ai-merge`
 environment that only `main` may use, so no PR-controlled workflow or code
 ever sees the owner token. The module trusts nothing from the triggering
 event except the run id, and re-reads everything else from the GitHub API:
@@ -53,6 +55,8 @@ SENSITIVE_PATHS = ('.github/', '.claude/', '.ai/', 'skills-lock.json', 'CODE_REV
 # Files Claude Code or the skills load as instructions wherever they live.
 SENSITIVE_NAMES = ('CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md', '.mcp.json')
 SENSITIVE_SEGMENTS = ('.claude', '.github', '.ai')
+# Python can be imported by the release tooling and gates; none is automated.
+SENSITIVE_SUFFIXES = ('.py', '.pth')
 MAX_LISTED_FILES = 3000
 CHECK_POLL_SECONDS = 30
 CHECK_WAIT_SECONDS = 50 * 60
@@ -184,6 +188,7 @@ def is_sensitive(name):
     return (any(name == path or path.endswith('/') and name.startswith(path)
                 for path in SENSITIVE_PATHS)
             or parts[-1] in SENSITIVE_NAMES
+            or parts[-1].endswith(SENSITIVE_SUFFIXES)
             or any(part in SENSITIVE_SEGMENTS for part in parts[:-1]))
 
 
@@ -225,7 +230,7 @@ def run_verdict(reviews, head_sha, window):
 
 def report_body(head_sha, review, run_url):
     result = VERDICTS[review['state']]
-    header = ('Automated review: Open Mercato om-auto-review-pr + repo CODE_REVIEW.md, '
+    header = ('Automated review: Open Mercato om-code-review + repo CODE_REVIEW.md, '
               'submitted by ' + REVIEWER_LOGIN + ' as review ' + str(review['id'])
               + ' (' + str(review.get('html_url', '')) + '), workflow run ' + run_url
               + '. Verdict: ' + result + '.\n\n')
