@@ -101,7 +101,36 @@ for retired in ci.yml deploy.yml rollback.yml; do
   [[ ! -e "$REPOSITORY_ROOT/.github/workflows/$retired" ]]
 done
 [[ ! -e "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
-[[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
+[[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'ai-code-review.yml ai-review-gate.yml wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
+# GSWEB-34: the pull_request review workflow holds no owner token and gives
+# Claude read-only tools; the owner token lives only in the main-only `ai-merge`
+# environment of the workflow_run gate, which runs trusted main code.
+ai_review="$REPOSITORY_ROOT/.github/workflows/ai-code-review.yml"
+ai_gate="$REPOSITORY_ROOT/.github/workflows/ai-review-gate.yml"
+grep -Fq "github.event.pull_request.user.login == 'grzegorzrzeznikiewicz'" "$ai_review"
+grep -Fq 'github.event.pull_request.head.repo.full_name == github.repository' "$ai_review"
+grep -Fq 'uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1.0.270' "$ai_review"
+grep -Fq 'persist-credentials: false' "$ai_review"
+allowed_tools="$(grep -F -- '--allowedTools' "$ai_review")"
+[[ "$allowed_tools" == '            --allowedTools "Read,Glob,Grep,Skill,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr review:*)"' ]]
+denied_tools="$(grep -F -- '--disallowedTools' "$ai_review")"
+for denied in 'Edit' 'Write' 'WebFetch' 'Bash(gh api:*)' 'Bash(gh pr comment:*)' 'Bash(gh pr merge:*)' 'Bash(git:*)'; do
+  grep -Fq "$denied" <<<"$denied_tools"
+done
+if grep -Eq 'AUTOMERGE|secrets\.GAMA|pull_request_target|workflow_run|environment:' "$ai_review"; then exit 1; fi
+grep -Fq '/om-code-review ${{ github.event.pull_request.number }}' "$ai_review"
+grep -Fq 'name: Require an AI verdict on the reviewed head' "$ai_review"
+# Only the workflow_run gate may name the main-only environment holding the PAT.
+[[ "$(grep -l 'ai-merge' "$REPOSITORY_ROOT"/.github/workflows/*.yml)" == "$ai_gate" ]]
+grep -Fq 'workflows: [AI Code Review]' "$ai_gate"
+grep -Fq "github.event.workflow_run.path == '.github/workflows/ai-code-review.yml'" "$ai_gate"
+grep -Fxq '    environment: ai-merge' "$ai_gate"
+grep -Fxq '          ref: main' "$ai_gate"
+grep -Fq 'persist-credentials: false' "$ai_gate"
+grep -Fq 'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' "$ai_gate"
+grep -Fxq '        run: python3 -I -W error wordpress/release/ai_review_gate.py' "$ai_gate"
+[[ "$(grep -c 'secrets\.' "$ai_gate")" -eq 1 ]]
+if grep -Eq 'pull_request:|pull_request_target|head_sha \}\}|head\.sha|GITHUB_TOKEN|--auto|claude-code-action' "$ai_gate"; then exit 1; fi
 
 # Parse real YAML using the existing lock-pinned assets QA dependency. This is
 # required by the source gate and also checks deliberate broken graph fixtures.

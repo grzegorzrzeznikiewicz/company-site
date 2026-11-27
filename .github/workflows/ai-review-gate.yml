@@ -1,0 +1,44 @@
+name: AI Review Gate
+
+# Runs from the default branch only (workflow_run), in the `ai-merge`
+# environment whose deployment branch policy admits only `main`, so pull_request
+# workflows, whatever a PR changes, never receive the owner token. It trusts
+# only the run id from the event; wordpress/release/ai_review_gate.py re-reads
+# the run, PR, files, reviews and quality gates from the API, records the
+# owner's solo AI report and squash-merges an approved head pinned by SHA.
+
+on:
+  workflow_run:
+    workflows: [AI Code Review]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-review-gate-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: AI Review Gate and Merge
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.path == '.github/workflows/ai-code-review.yml'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ai-merge
+    env:
+      REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - name: Checkout trusted gate code from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Record verdict and merge the approved head
+        env:
+          GH_TOKEN: ${{ secrets.GAMASOFTWARE_AUTOMERGE_TOKEN }}
+        run: python3 -I -W error wordpress/release/ai_review_gate.py
