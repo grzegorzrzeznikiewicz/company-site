@@ -34,7 +34,7 @@ trigger the quality gates and deployment.
 ## One-time setup (owner)
 
 - Secret `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or `ANTHROPIC_API_KEY`.
-- Secret `GAMA_AUTOMERGE_TOKEN`: a fine-grained personal access token limited to
+- Secret `GAMASOFTWARE_AUTOMERGE_TOKEN`: a fine-grained personal access token limited to
   this repository, with Contents read/write, Pull requests read/write and Metadata read.
 - Settings → General → Pull Requests → **Allow auto-merge**.
 - The Claude GitHub App must be installed on the repository.

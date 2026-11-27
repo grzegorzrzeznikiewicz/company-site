@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Withdraw auto-merge armed for an earlier head
         env:
-          GH_TOKEN: ${{ secrets.GAMA_AUTOMERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GAMASOFTWARE_AUTOMERGE_TOKEN }}
         run: |
           armed="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')"
           if [ "$armed" = true ]; then
@@ -78,7 +78,7 @@ jobs:
       - name: Record verdict as the owner's solo AI report
         id: gate
         env:
-          GH_TOKEN: ${{ secrets.GAMA_AUTOMERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GAMASOFTWARE_AUTOMERGE_TOKEN }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
@@ -89,7 +89,7 @@ jobs:
       - name: Enable squash auto-merge for the approved head
         if: steps.gate.outputs.result == 'approved'
         env:
-          GH_TOKEN: ${{ secrets.GAMA_AUTOMERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GAMASOFTWARE_AUTOMERGE_TOKEN }}
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$HEAD_SHA"
 
       - name: Keep blocked PR unmerged
