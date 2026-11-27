@@ -102,20 +102,26 @@ for retired in ci.yml deploy.yml rollback.yml; do
 done
 [[ ! -e "$REPOSITORY_ROOT/.gitlab-ci.yml" ]]
 [[ "$(cd "$REPOSITORY_ROOT/.github/workflows" && ls | sort | tr '\n' ' ')" == 'ai-code-review.yml wordpress-ci.yml wordpress-production-rollback.yml wordpress-production.yml ' ]]
-# GSWEB-34: the AI review workflow only reviews and records the owner's solo
-# report; it must stay pinned, owner-only and unable to push or merge by itself.
+# GSWEB-34: the AI review job only reviews; the gate job runs trusted main code
+# with the owner token and merges only the reviewed head, pinned by SHA.
 ai_review="$REPOSITORY_ROOT/.github/workflows/ai-code-review.yml"
 grep -Fq "github.event.pull_request.user.login == 'grzegorzrzeznikiewicz'" "$ai_review"
 grep -Fq 'github.event.pull_request.head.repo.full_name == github.repository' "$ai_review"
 grep -Fq 'uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1.0.270' "$ai_review"
-grep -Fq 'persist-credentials: false' "$ai_review"
-grep -Fq 'Bash(gh pr merge:*)' "$ai_review"
+[[ "$(grep -Fc 'persist-credentials: false' "$ai_review")" -eq 2 ]]
+grep -Fq 'Bash(gh api:*),Bash(gh pr merge:*)' "$ai_review"
 grep -Fq 'Bash(git push:*)' "$ai_review"
-grep -Fq 'python3 -W error -m wordpress.release.ai_review_gate' "$ai_review"
-grep -Fq "if: steps.gate.outputs.result == 'approved'" "$ai_review"
-grep -Fq -- '--auto --squash --match-head-commit "$HEAD_SHA"' "$ai_review"
-[[ "$(grep -Fc 'gh pr merge "$PR_NUMBER"' "$ai_review")" -eq 2 ]]
-if grep -Eq 'pull_request_target|workflow_run|GITHUB_TOKEN' "$ai_review"; then exit 1; fi
+allowed_tools="$(grep -F -- '--allowedTools' "$ai_review")"
+[[ "$(wc -l <<<"$allowed_tools")" -eq 1 ]]
+if grep -Eq 'Bash\((git|gh|gh api|python3?|bash|sh|npx|node):\*\)|Bash\(git -c' <<<"$allowed_tools"; then exit 1; fi
+[[ "$(grep -c 'secrets.GAMASOFTWARE_AUTOMERGE_TOKEN' "$ai_review")" -eq 1 ]]
+gate_job="$(awk '/^  gate:$/ { found = 1 } found { print }' "$ai_review")"
+grep -Fq 'needs: review' <<<"$gate_job"
+grep -Fq 'ref: main' <<<"$gate_job"
+grep -Fq 'secrets.GAMASOFTWARE_AUTOMERGE_TOKEN' <<<"$gate_job"
+grep -Fq 'run: python3 -W error -m wordpress.release.ai_review_gate' <<<"$gate_job"
+if grep -Eq 'pull_request_target|workflow_run|GITHUB_TOKEN|ref: [$][{][{] github.event.pull_request.head|--auto' <<<"$gate_job"; then exit 1; fi
+if grep -Eq 'pull_request_target|workflow_run|gh pr merge "' "$ai_review"; then exit 1; fi
 
 # Parse real YAML using the existing lock-pinned assets QA dependency. This is
 # required by the source gate and also checks deliberate broken graph fixtures.

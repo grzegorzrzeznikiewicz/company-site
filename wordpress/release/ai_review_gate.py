@@ -4,18 +4,23 @@ The `AI Code Review` workflow runs the `om-auto-review-pr` skill as the Claude
 GitHub App (`claude[bot]`). This module reads that bot's latest decisive review
 on the exact PR head and records it, with the owner's repository-scoped token,
 as the `GAMA-SOLO-AI-REVIEW-V1` COMMENTED review that the production source
-check (`github_source._solo_approval`) already requires. It never merges; the
-workflow enables auto-merge only after this module prints `approved`.
+check (`github_source._solo_approval`) already requires. After an approval it
+waits for the four WordPress quality gates on that head and squash-merges with
+`sha=<approved head>`, which GitHub enforces at merge time, so no newer,
+unreviewed head can ride on this approval. It runs only from trusted `main`
+code in a job that never executes PR-head code.
 
 Fail closed: a missing, stale, pending or unrecognised verdict records nothing
 and exits non-zero. A blocking verdict is recorded as `changes-requested` so a
 manual merge of that head is still refused by the production pipeline.
 """
 
+from datetime import datetime
 import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -28,6 +33,11 @@ REVIEWER_LOGIN = 'claude[bot]'
 SOLO_REVIEW_PREFIX = 'GAMA-SOLO-AI-REVIEW-V1\n'
 MAX_BODY_BYTES = 64 * 1024
 VERDICTS = {'APPROVED': 'approved', 'CHANGES_REQUESTED': 'changes-requested'}
+WP_GATES = ('WordPress Source and Build', 'WordPress Package Lifecycle',
+            'WordPress Runtime and Restore', 'WordPress Release Regression')
+CHECKS_APP = 'github-actions'
+CHECK_POLL_SECONDS = 30
+CHECK_WAIT_SECONDS = 50 * 60
 
 
 class GateError(Exception):
@@ -81,6 +91,9 @@ class GitHubAPI:
     def post(self, path, payload):
         return self.request('POST', path, payload)
 
+    def put(self, path, payload):
+        return self.request('PUT', path, payload)
+
 
 def _same_repo(repo):
     return (type(repo) is dict and repo.get('id') == REPOSITORY_ID
@@ -97,16 +110,24 @@ def _is_reviewer(user):
             and user.get('type') == 'Bot' and type(user.get('id')) is int)
 
 
-def latest_verdict(reviews, head_sha):
-    """Latest submitted decisive claude[bot] review on `head_sha`, or None."""
+def utc(value):
+    require(type(value) is str and re.fullmatch(
+        '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z', value) is not None,
+        'UTC timestamp required')
+    return datetime.fromisoformat(value[:-1] + '+00:00')
+
+
+def latest_verdict(reviews, head_sha, not_before):
+    """Latest decisive claude[bot] review on `head_sha` submitted by this run, or None."""
     decisive = []
     for review in reviews:
         if not _is_reviewer(review.get('user')):
             continue
         if review.get('commit_id') != head_sha or review.get('state') not in VERDICTS:
             continue
-        submitted = review.get('submitted_at')
-        require(type(submitted) is str and submitted.endswith('Z'), 'review timestamp missing')
+        submitted = utc(review.get('submitted_at'))
+        if submitted < not_before:
+            continue
         decisive.append((submitted, review))
     if not decisive:
         return None
@@ -137,7 +158,41 @@ def report_body(head_sha, review, run_url):
         text = text[:cut].rstrip() + marker
 
 
-def run(api, number, expected_head, run_url):
+def gates_state(api, head_sha):
+    runs = api.get(ROOT + '/commits/' + head_sha + '/check-runs?filter=latest&per_page=100')
+    require(type(runs) is dict and type(runs.get('check_runs')) is list, 'check runs unavailable')
+    states = []
+    for name in WP_GATES:
+        matches = [c for c in runs['check_runs'] if c.get('name') == name
+                   and c.get('head_sha') == head_sha
+                   and c.get('app', {}).get('slug') == CHECKS_APP]
+        if not matches:
+            states.append('pending')
+            continue
+        require(len(matches) == 1, 'ambiguous quality gate: ' + name)
+        check = matches[0]
+        if check.get('status') != 'completed':
+            states.append('pending')
+        elif check.get('conclusion') == 'success':
+            states.append('success')
+        else:
+            raise GateError('quality gate did not pass: ' + name)
+    return 'success' if all(state == 'success' for state in states) else 'pending'
+
+
+def merge_when_green(api, number, head_sha, sleep=time.sleep, clock=time.monotonic):
+    deadline = clock() + CHECK_WAIT_SECONDS
+    while gates_state(api, head_sha) != 'success':
+        require(clock() < deadline, 'quality gates still pending after the wait budget')
+        sleep(CHECK_POLL_SECONDS)
+    merged = api.put(ROOT + '/pulls/' + str(number) + '/merge',
+                     {'sha': head_sha, 'merge_method': 'squash'})
+    require(type(merged) is dict and merged.get('merged') is True
+            and full_sha(merged.get('sha')), 'merge was not completed')
+    return merged['sha']
+
+
+def run(api, number, expected_head, run_url, not_before):
     require(type(number) is int and number > 0, 'invalid PR number')
     require(full_sha(expected_head), 'invalid expected head SHA')
     pr = api.get(ROOT + '/pulls/' + str(number))
@@ -148,8 +203,9 @@ def run(api, number, expected_head, run_url):
     require(_is_owner(pr.get('user')), 'only owner PRs are automated')
     head_sha = pr['head'].get('sha')
     require(head_sha == expected_head, 'PR head moved; a newer review run owns it')
-    review = latest_verdict(api.pages(ROOT + '/pulls/' + str(number) + '/reviews'), head_sha)
-    require(review is not None, 'no AI verdict on the exact PR head')
+    review = latest_verdict(api.pages(ROOT + '/pulls/' + str(number) + '/reviews'), head_sha,
+                            not_before)
+    require(review is not None, 'no AI verdict from this run on the exact PR head')
     body = report_body(head_sha, review, run_url)
     recorded = api.post(ROOT + '/pulls/' + str(number) + '/reviews',
                         {'commit_id': head_sha, 'event': 'COMMENT', 'body': body})
@@ -159,7 +215,7 @@ def run(api, number, expected_head, run_url):
     return VERDICTS[review['state']]
 
 
-def main(environ=os.environ, out=sys.stdout, api=None):
+def main(environ=os.environ, out=sys.stdout, api=None, sleep=time.sleep):
     try:
         number = environ.get('PR_NUMBER', '')
         require(re.fullmatch('[1-9][0-9]{0,8}', number) is not None, 'invalid PR number')
@@ -167,12 +223,18 @@ def main(environ=os.environ, out=sys.stdout, api=None):
         require(re.fullmatch(r'https://github\.com/' + re.escape(REPOSITORY)
                              + r'/actions/runs/[0-9]+(/attempts/[0-9]+)?', run_url) is not None,
                 'invalid run URL')
+        not_before = utc(environ.get('REVIEW_STARTED_AT', ''))
+        head_sha = environ.get('EXPECTED_HEAD_SHA', '')
         api = api or GitHubAPI(environ.get('GH_TOKEN', ''))
-        result = run(api, int(number), environ.get('EXPECTED_HEAD_SHA', ''), run_url)
+        result = run(api, int(number), head_sha, run_url, not_before)
+        print(result, file=out, flush=True)
+        if result != 'approved':
+            return 2
+        merge_sha = merge_when_green(api, int(number), head_sha, sleep=sleep)
     except GateError as error:
         print('ai-review-gate: refused: ' + str(error), file=sys.stderr)
         return 1
-    print(result, file=out)
+    print('merged ' + merge_sha, file=out)
     return 0
 
 

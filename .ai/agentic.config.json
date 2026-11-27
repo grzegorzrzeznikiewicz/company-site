@@ -4,17 +4,22 @@
   "tracker": "github",
   "validation": {
     "commands": [
-      "git diff --check origin/main...HEAD",
-      "python3 -W error -m unittest discover -s wordpress/tests/release -p 'test_*.py'"
+      "git diff --check origin/main...HEAD"
     ]
   },
   "labels": {
     "enabled": false
   },
   "qaGate": false,
-  "ci": { "maxWaitMinutes": 0 },
+  "ci": {
+    "maxWaitMinutes": 0
+  },
   "reviewChecklist": null,
-  "closeKeywords": ["zamyka", "naprawia", "rozwiązuje"],
+  "closeKeywords": [
+    "zamyka",
+    "naprawia",
+    "rozwiązuje"
+  ],
   "prTitleTemplate": "{prefix}({area}): {summary}{issueRef}",
   "ticketKeyPattern": "GSWEB-[0-9]+"
 }

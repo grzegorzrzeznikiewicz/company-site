@@ -1,9 +1,10 @@
 """AI review verdict to owner solo-report bridge; literals model GitHub REST fields."""
 
 import copy
+from datetime import datetime, timezone
 import io
-import json
 import unittest
+import unittest.mock
 
 from wordpress.release import ai_review_gate as gate
 from wordpress.release.github_source import SOLO_REVIEW_PREFIX, json_object
@@ -15,6 +16,14 @@ RUN_URL = 'https://github.com/grzegorzrzeznikiewicz/company-site/actions/runs/42
 REPO = {'id': 1163583409, 'full_name': 'grzegorzrzeznikiewicz/company-site', 'fork': False}
 OWNER = {'id': 50638878, 'login': 'grzegorzrzeznikiewicz', 'type': 'User'}
 BOT = {'id': 209825114, 'login': 'claude[bot]', 'type': 'Bot'}
+STARTED = datetime(2026, 11, 26, 9, 0, tzinfo=timezone.utc)
+GATES = ['WordPress Source and Build', 'WordPress Package Lifecycle',
+         'WordPress Runtime and Restore', 'WordPress Release Regression']
+
+
+def check(name, status='completed', conclusion='success', sha=SHA, app='github-actions'):
+    return {'name': name, 'status': status, 'conclusion': conclusion, 'head_sha': sha,
+            'app': {'slug': app}}
 
 
 def review(review_id, state, when, commit=SHA, user=BOT, body='Verdict and findings.'):
@@ -30,8 +39,14 @@ class FakeAPI:
                          'head': {'sha': SHA, 'repo': REPO}}
         self.reviews = reviews
         self.posted = []
+        self.merges = []
+        self.check_polls = [[check(name) for name in GATES]]
 
     def get(self, path):
+        if path.startswith(ROOT + '/commits/'):
+            assert path == ROOT + '/commits/' + SHA + '/check-runs?filter=latest&per_page=100', path
+            runs = self.check_polls[0] if len(self.check_polls) == 1 else self.check_polls.pop(0)
+            return {'check_runs': copy.deepcopy(runs)}
         assert path == ROOT + '/pulls/7', path
         return copy.deepcopy(self.pr)
 
@@ -43,6 +58,11 @@ class FakeAPI:
         assert path == ROOT + '/pulls/7/reviews', path
         self.posted.append(payload)
         return {'id': 900, 'state': 'COMMENTED', 'commit_id': payload['commit_id'], 'user': OWNER}
+
+    def put(self, path, payload):
+        assert path == ROOT + '/pulls/7/merge', path
+        self.merges.append(payload)
+        return {'merged': True, 'sha': 'f' * 40}
 
 
 class AIReviewGateTest(unittest.TestCase):
@@ -60,7 +80,7 @@ class AIReviewGateTest(unittest.TestCase):
         api = FakeAPI([review(1, 'CHANGES_REQUESTED', '2026-11-26T10:00:00Z'),
                        review(2, 'APPROVED', '2026-11-26T11:00:00Z'),
                        review(3, 'COMMENTED', '2026-11-26T12:00:00Z')])
-        self.assertEqual(gate.run(api, 7, SHA, RUN_URL), 'approved')
+        self.assertEqual(gate.run(api, 7, SHA, RUN_URL, STARTED), 'approved')
         parsed = self.report(api)
         self.assertEqual(parsed['result'], 'approved')
         self.assertIn('Verdict and findings.', parsed['report'])
@@ -69,11 +89,12 @@ class AIReviewGateTest(unittest.TestCase):
     def test_blocking_verdict_is_recorded_and_never_approves(self):
         api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z'),
                        review(2, 'CHANGES_REQUESTED', '2026-11-26T11:00:00Z')])
-        self.assertEqual(gate.run(api, 7, SHA, RUN_URL), 'changes-requested')
+        self.assertEqual(gate.run(api, 7, SHA, RUN_URL, STARTED), 'changes-requested')
         self.assertEqual(self.report(api)['result'], 'changes-requested')
 
     def test_untrusted_or_stale_verdicts_record_nothing(self):
         cases = {
+            'earlier run': [review(1, 'APPROVED', '2026-11-26T08:59:59Z')],
             'stale head': [review(1, 'APPROVED', '2026-11-26T10:00:00Z', commit=OLD)],
             'human imitation': [review(1, 'APPROVED', '2026-11-26T10:00:00Z',
                                        user={'id': 5, 'login': 'claude-bot', 'type': 'User'})],
@@ -89,7 +110,7 @@ class AIReviewGateTest(unittest.TestCase):
             with self.subTest(name):
                 api = FakeAPI(reviews)
                 with self.assertRaises(gate.GateError):
-                    gate.run(api, 7, SHA, RUN_URL)
+                    gate.run(api, 7, SHA, RUN_URL, STARTED)
                 self.assertEqual(api.posted, [])
 
     def test_pr_shape_is_pinned(self):
@@ -106,28 +127,60 @@ class AIReviewGateTest(unittest.TestCase):
                 api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
                 mutate(api.pr)
                 with self.assertRaises(gate.GateError):
-                    gate.run(api, 7, SHA, RUN_URL)
+                    gate.run(api, 7, SHA, RUN_URL, STARTED)
                 self.assertEqual(api.posted, [])
 
     def test_oversized_report_is_truncated_within_production_limit(self):
         api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z', body='ą"' * 60000)])
-        self.assertEqual(gate.run(api, 7, SHA, RUN_URL), 'approved')
+        self.assertEqual(gate.run(api, 7, SHA, RUN_URL, STARTED), 'approved')
         parsed = self.report(api)
         self.assertLessEqual(len(api.posted[0]['body'].encode('utf-8')), 64 * 1024)
         self.assertIn('[report truncated', parsed['report'])
 
-    def test_main_validates_environment_and_prints_only_the_result(self):
+    def env(self, **extra):
+        return dict({'PR_NUMBER': '7', 'EXPECTED_HEAD_SHA': SHA, 'REVIEW_RUN_URL': RUN_URL,
+                     'REVIEW_STARTED_AT': '2026-11-26T09:00:00Z'}, **extra)
+
+    def test_main_merges_approved_head_pinned_to_sha_after_gates_pass(self):
         api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
+        api.check_polls = [[check(GATES[0], status='in_progress', conclusion=None)],
+                           [check(name) for name in GATES]]
+        sleeps = []
         out = io.StringIO()
-        env = {'PR_NUMBER': '7', 'EXPECTED_HEAD_SHA': SHA, 'REVIEW_RUN_URL': RUN_URL}
-        self.assertEqual(gate.main(env, out, api), 0)
-        self.assertEqual(out.getvalue(), 'approved\n')
-        for bad in ({'PR_NUMBER': '7; rm'}, {'REVIEW_RUN_URL': 'https://evil.example/runs/1'}):
+        self.assertEqual(gate.main(self.env(), out, api, sleep=sleeps.append), 0)
+        self.assertEqual(out.getvalue(), 'approved\nmerged ' + 'f' * 40 + '\n')
+        self.assertEqual(api.merges, [{'sha': SHA, 'merge_method': 'squash'}])
+        self.assertEqual(sleeps, [30])
+        self.assertEqual(len(api.posted), 1)
+
+    def test_main_never_merges_blocked_failed_or_foreign_gates(self):
+        blocked = FakeAPI([review(1, 'CHANGES_REQUESTED', '2026-11-26T10:00:00Z')])
+        self.assertEqual(gate.main(self.env(), io.StringIO(), blocked, sleep=lambda s: None), 2)
+        self.assertEqual(blocked.merges, [])
+        for name, runs in {
+                'failed gate': [check(GATES[0], conclusion='failure')]
+                + [check(n) for n in GATES[1:]],
+                'other app': [check(n, app='imposter') for n in GATES],
+                'other sha': [check(n, sha=OLD) for n in GATES]}.items():
+            with self.subTest(name):
+                api = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
+                api.check_polls = [runs]
+                if name == 'failed gate':
+                    self.assertEqual(gate.main(self.env(), io.StringIO(), api,
+                                               sleep=lambda s: None), 1)
+                else:
+                    with unittest.mock.patch.object(gate, 'CHECK_WAIT_SECONDS', -1):
+                        self.assertEqual(gate.main(self.env(), io.StringIO(), api,
+                                                   sleep=lambda s: None), 1)
+                self.assertEqual(api.merges, [])
+
+    def test_main_validates_environment(self):
+        for bad in ({'PR_NUMBER': '7; rm'}, {'REVIEW_RUN_URL': 'https://evil.example/runs/1'},
+                    {'REVIEW_STARTED_AT': 'yesterday'}):
             with self.subTest(bad):
                 quiet = FakeAPI([review(1, 'APPROVED', '2026-11-26T10:00:00Z')])
-                self.assertEqual(gate.main(dict(env, **bad), io.StringIO(), quiet), 1)
-                self.assertEqual(quiet.posted, [])
-
+                self.assertEqual(gate.main(self.env(**bad), io.StringIO(), quiet), 1)
+                self.assertEqual((quiet.posted, quiet.merges), ([], []))
 
 if __name__ == '__main__':
     unittest.main()
