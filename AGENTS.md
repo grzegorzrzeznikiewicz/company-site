@@ -55,9 +55,10 @@ submitted a COMMENTED review on the exact PR head SHA whose body starts with
 `GAMA-SOLO-AI-REVIEW-V1` followed by the JSON report
 (`{"head_sha","result","report"}`). It cannot be added after the merge; see
 [GSWEB-29 production pipeline](docs/agent-workflows/wordpress-migration/GSWEB-29-production-pipeline.md).
-The `AI Code Review` workflow records that report automatically from the
-Open Mercato `om-auto-review-pr` verdict and, only on Approve, merges that
-exact head once the quality gates pass; see [AI code review](docs/agent-workflows/ai-code-review.md) and
+The `AI Code Review` and `AI Review Gate` workflows record that report
+automatically from the Open Mercato `om-auto-review-pr` verdict and, only on
+Approve, merge that exact head once the quality gates pass (PRs touching the
+review machinery stay manual); see [AI code review](docs/agent-workflows/ai-code-review.md) and
 `CODE_REVIEW.md` for the review rules.
 Server-side changes outside the pipeline need explicit owner approval.
 
